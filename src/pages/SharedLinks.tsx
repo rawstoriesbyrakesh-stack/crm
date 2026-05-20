@@ -77,6 +77,8 @@ export default function SharedLinks() {
         body: JSON.stringify({ shareId }),
       });
       loadLinks(); // Reload to reflect changes
+      // Notify other UI (dashboard) that shares changed
+      try { window.dispatchEvent(new Event('rawstories_shares_changed')); } catch (e) {}
     } catch (error) {
       console.error('Failed to revoke link:', error);
       alert('Failed to revoke link. Please try again.');
@@ -93,6 +95,7 @@ export default function SharedLinks() {
         body: JSON.stringify({ shareId }),
       });
       loadLinks();
+      try { window.dispatchEvent(new Event('rawstories_shares_changed')); } catch (e) {}
     } catch (error) {
       console.error('Failed to delete link:', error);
       alert('Failed to delete link. Please try again.');

@@ -28,6 +28,17 @@ function Dashboard() {
     fetchDashboardStats();
   }, []);
 
+  // Refresh stats when shared links change elsewhere in the app
+  useEffect(() => {
+    const h = () => fetchDashboardStats();
+    window.addEventListener('rawstories_shares_changed', h);
+    window.addEventListener('rawstories_stats_changed', h);
+    return () => {
+      window.removeEventListener('rawstories_shares_changed', h);
+      window.removeEventListener('rawstories_stats_changed', h);
+    };
+  }, []);
+
   const fetchDashboardStats = async () => {
     setLoading(true);
     setError(null);

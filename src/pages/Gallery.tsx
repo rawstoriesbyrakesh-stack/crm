@@ -806,6 +806,8 @@ function Gallery() {
           'Failed to revoke share link on server';
         console.error('revoke_share_link API error:', msg);
         addNotification(`Server revoke failed: ${msg}`, 'error');
+      } else {
+        try { window.dispatchEvent(new Event('rawstories_shares_changed')); } catch (e) {}
       }
     } catch (e: any) {
       console.error('revoke_share_link API call failed:', e);
@@ -985,7 +987,11 @@ function Gallery() {
       const newLink  = { id: linkId, link: shareUrl, createdAt: Date.now(), hasPin: !!sharePin, isActive: true, items: selectedItems, sharedId: data.shareId };
       localStorage.setItem(`share_${linkId}`, JSON.stringify(newLink));
       setActiveShareLinks(prev => [...prev, newLink]);
+      try { window.dispatchEvent(new Event('rawstories_shares_changed')); } catch (e) {}
       setShareModal({ isOpen: true, links: [shareUrl], serverMessage: null, sharePin });
+        // notify dashboard and other UI that shares changed
+        try { window.dispatchEvent(new Event('rawstories_shares_changed')); } catch (e) {}
+
       addNotification('Share link created!', 'success');
     } catch (err: any) {
       addNotification(`Share failed: ${err.message}`, 'error');
@@ -1401,6 +1407,7 @@ function Gallery() {
         addNotification(`Partially completed: ${deletedKeys.length} deleted, ${errors.length} failed.`, 'error');
       } else {
         addNotification(`Successfully deleted ${deletedKeys.length} item(s)/folder(s)`, 'success');
+        try { window.dispatchEvent(new Event('rawstories_stats_changed')); } catch (e) {}
       }
     } catch (err: any) {
       console.error('Error deleting items/folders:', err);
@@ -2229,6 +2236,7 @@ function Gallery() {
       fetchGalleryItems();
       setUploadFiles([]);
       addNotification(`Successfully uploaded ${allPresignedUrls.length} file(s) to ${displayPath}`, 'success');
+      try { window.dispatchEvent(new Event('rawstories_stats_changed')); } catch (e) {}
     } catch (error: any) {
       console.error('Upload error:', error);
       setUploadFiles((prev) =>
