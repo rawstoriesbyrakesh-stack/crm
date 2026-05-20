@@ -109,6 +109,18 @@ const Share      = mongoose.model('Share', shareSchema);
 const FileMeta   = mongoose.model('FileMeta', fileMetaSchema);
 const FolderMeta = mongoose.model('FolderMeta', folderMetaSchema);
 
+mongoose.set('bufferCommands', false);
+let mongoConnectionPromise = null;
+let hasStartedHttpServer = false;
+
+const ensureMongoConnected = async () => {
+  if (mongoose.connection.readyState === 1) return;
+  if (!mongoConnectionPromise) {
+    mongoConnectionPromise = mongoose.connect(MONGO_URI);
+  }
+  await mongoConnectionPromise;
+};
+
 // ─── HTTP Helpers ─────────────────────────────────────────────────────────────
 const cors = {
   'Access-Control-Allow-Origin': CORS_ORIGIN,
@@ -537,17 +549,27 @@ const server = http.createServer(async (req, res) => {
 
 // ─── Start ────────────────────────────────────────────────────────────────────
 let _port = PORT;
-const startHttp = () => server.listen(_port, () =>
-  console.log(`✅  Backend  →  http://localhost:${_port}\n✅  Bucket   →  ${WASABI_BUCKET} @ ${WASABI_ENDPOINT}`)
-);
+const startHttp = () => {
+  if (hasStartedHttpServer || server.listening) return;
+  hasStartedHttpServer = true;
+  server.listen(_port, () =>
+    console.log(`✅  Backend  →  http://localhost:${_port}\n✅  Bucket   →  ${WASABI_BUCKET} @ ${WASABI_ENDPOINT}`)
+  );
+};
 server.on('error', err => {
   if (err?.code === 'EADDRINUSE') { _port++; setTimeout(startHttp, 200); }
   else { console.error(err); process.exit(1); }
 });
 
-mongoose.connect(MONGO_URI)
-  .then(() => { console.log('🍃  MongoDB connected'); startHttp(); })
-  .catch(err => { console.warn('⚠️  MongoDB failed:', err.message, '— starting anyway'); startHttp(); });
+ensureMongoConnected()
+  .then(() => {
+    console.log('🍃  MongoDB connected');
+    startHttp();
+  })
+  .catch(err => {
+    console.error('❌ MongoDB connection failed:', err.message);
+    process.exit(1);
+  });
 
 // Export the server for hosting platforms (Vercel) that expect an exported
 // function or server object. This allows Vercel to detect and use the server
