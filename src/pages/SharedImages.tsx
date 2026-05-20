@@ -674,7 +674,7 @@ const handleDownloadSelected = async (downloadAll: boolean = false): Promise<num
   setDownloadProgress({ current: 0, total: itemsToDownload.length });
 
   const zip = new JSZip();
-  const folder = zip.folder('ArifPhotography')!;
+  const folder = zip.folder('RawStoriesbyrakesh')!;
   let clientSuccess = 0;
   const failedKeys: string[] = [];
   let warned = false;
@@ -717,12 +717,12 @@ const handleDownloadSelected = async (downloadAll: boolean = false): Promise<num
   // Generate ZIP
   addNotification('Creating ZIP file...', 'info');
   const zipBlob = await zip.generateAsync({ type: 'blob', compression: 'STORE' });
-  saveAs(zipBlob, `ArifPhotography_${new Date().toISOString().slice(0,10)}.zip`);
+  saveAs(zipBlob, `RawStoriesbyrakesh_${new Date().toISOString().slice(0,10)}.zip`);
 
   // Remaining via Lambda
   if (failedKeys.length > 0) {
     addNotification(`Downloading ${failedKeys.length} remaining files via server...`, 'info');
-    await downloadWithLambdaBatched(failedKeys, `ArifPhotography_remaining_${new Date().toISOString().slice(0,10)}`, 20);
+    await downloadWithLambdaBatched(failedKeys, `RawStoriesbyrakesh_remaining_${new Date().toISOString().slice(0,10)}`, 20);
   }
 
   setIsDownloading(false);
@@ -765,7 +765,7 @@ const handleDownloadSelected = async (downloadAll: boolean = false): Promise<num
         return;
       }
 
-      const success = await downloadWithLambda([item.key], `ArifPhotography_${item.title}.zip`);
+      const success = await downloadWithLambda([item.key], `RawStoriesbyrakesh_${item.title}.zip`);
       if (success) {
         addNotification('Item downloaded', 'success');
       }

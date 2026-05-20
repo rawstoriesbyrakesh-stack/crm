@@ -1,0 +1,39 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1024" height="1024" fill="#000000"/>
+  <defs>
+    <linearGradient id="gold" x1="120" y1="180" x2="900" y2="860" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFF2C7"/>
+      <stop offset="0.28" stop-color="#D8A94A"/>
+      <stop offset="0.55" stop-color="#FFF1B0"/>
+      <stop offset="1" stop-color="#A86F1A"/>
+    </linearGradient>
+    <linearGradient id="goldSoft" x1="240" y1="240" x2="780" y2="780" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFE8A1"/>
+      <stop offset="1" stop-color="#B78121"/>
+    </linearGradient>
+    <filter id="glow" x="0" y="0" width="1024" height="1024" filterUnits="userSpaceOnUse">
+      <feGaussianBlur stdDeviation="8" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <g opacity="0.95" filter="url(#glow)">
+    <path d="M292 366c0-33 27-60 60-60h58c33 0 60 27 60 60v12h42v-12c0-33 27-60 60-60h78c33 0 60 27 60 60v8h44c28 0 50 22 50 50v121c0 28-22 50-50 50H656" stroke="url(#gold)" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="576" cy="401" r="86" stroke="url(#gold)" stroke-width="18"/>
+    <circle cx="576" cy="401" r="54" stroke="url(#goldSoft)" stroke-width="14"/>
+    <path d="M540 401l24-35 41 18 13 44-35 24-43-18z" fill="url(#goldSoft)"/>
+
+    <path d="M168 563c95-76 170-112 266-116" stroke="url(#gold)" stroke-width="14" stroke-linecap="round"/>
+    <path d="M834 548c-76 56-151 93-240 114" stroke="url(#gold)" stroke-width="14" stroke-linecap="round"/>
+
+    <text x="512" y="628" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="156" font-weight="700" letter-spacing="8" fill="url(#gold)">RAW</text>
+    <text x="512" y="758" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="140" font-weight="700" letter-spacing="6" fill="url(#gold)">STORIES</text>
+    <text x="512" y="840" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="44" font-weight="600" letter-spacing="16" fill="url(#goldSoft)">BY RAKESH</text>
+
+    <path d="M320 858h384" stroke="url(#goldSoft)" stroke-width="10" stroke-linecap="round"/>
+    <path d="M410 874h204" stroke="url(#goldSoft)" stroke-width="5" stroke-linecap="round" opacity="0.75"/>
+  </g>
+</svg>

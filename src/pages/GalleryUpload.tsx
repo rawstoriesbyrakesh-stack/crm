@@ -109,7 +109,7 @@ function GalleryUpload() {
         ctx.drawImage(img, 0, 0);
 
         // Load watermark image (replace with your served/hosted image URL with CORS support)
-        watermarkImg.src = '/images/image-removebg-preview.png'; // Updated to match your file path
+        watermarkImg.src = '/images/rawstories-logo.svg';
 
         watermarkImg.onload = () => {
           // Calculate watermark size (e.g., 10% of the original image width)
@@ -403,7 +403,8 @@ function GalleryUpload() {
             const watermarkedFile = await addWatermark(fileObj.file);
             return { ...fileObj, watermarkedFile };
           } catch (err) {
-            if (isDev) console.error('Watermarking failed due to CORS or resource issue:', err.message);
+            const message = err instanceof Error ? err.message : String(err);
+            if (isDev) console.error('Watermarking failed due to CORS or resource issue:', message);
             setUploadMessages(prev => [...prev, `⚠️ Failed to apply watermark to ${fileObj.file.name}, uploading original`]);
             return { ...fileObj }; // Fallback to original file
           }

@@ -55,7 +55,7 @@ function Sidebar({ collapsed, onToggle }: SidebarProps) {
         {!collapsed && (
           <div className="flex items-center">
             <div className="inline-flex items-center justify-center w-8 h-8 rounded-full overflow-hidden bg-white">
-              <img src="/logo.jpeg" alt="RawStoriesbyrakesh logo" className="w-full h-full object-cover" />
+              <img src="/images/rawstories-logo.svg" alt="RawStoriesbyrakesh logo" className="w-full h-full object-cover" />
             </div>
             <span className="ml-3 text-xl font-bold text-[#00BCEB]">RawStoriesbyrakesh</span>
           </div>
@@ -63,7 +63,7 @@ function Sidebar({ collapsed, onToggle }: SidebarProps) {
         {collapsed && (
           <div className="flex items-center justify-center w-full">
             <div className="inline-flex items-center justify-center w-8 h-8 rounded-full overflow-hidden bg-white">
-              <img src="/logo.jpeg" alt="RawStoriesbyrakesh logo" className="w-full h-full object-cover" />
+              <img src="/images/rawstories-logo.svg" alt="RawStoriesbyrakesh logo" className="w-full h-full object-cover" />
             </div>
           </div>
         )}
