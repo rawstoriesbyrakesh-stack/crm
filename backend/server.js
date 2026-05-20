@@ -548,3 +548,8 @@ server.on('error', err => {
 mongoose.connect(MONGO_URI)
   .then(() => { console.log('🍃  MongoDB connected'); startHttp(); })
   .catch(err => { console.warn('⚠️  MongoDB failed:', err.message, '— starting anyway'); startHttp(); });
+
+// Export the server for hosting platforms (Vercel) that expect an exported
+// function or server object. This allows Vercel to detect and use the server
+// instead of requiring a separate serverless handler file.
+export default server;
