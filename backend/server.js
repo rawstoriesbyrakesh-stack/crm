@@ -121,6 +121,17 @@ const ensureMongoConnected = async () => {
   await mongoConnectionPromise;
 };
 
+const ensureMongoReadyOrFail = async (res) => {
+  try {
+    await ensureMongoConnected();
+    return true;
+  } catch (err) {
+    console.error('MongoDB not ready:', err.message);
+    sendError(res, 503, 'Database connection is not ready. Please try again.');
+    return false;
+  }
+};
+
 // ─── HTTP Helpers ─────────────────────────────────────────────────────────────
 const cors = {
   'Access-Control-Allow-Origin': CORS_ORIGIN,
@@ -461,6 +472,7 @@ const server = http.createServer(async (req, res) => {
     // ── Share: create ──────────────────────────────────────────────────────
     if (pathname === '/default/sharelink' && req.method === 'POST') {
       if (!isAuthed(req)) return sendError(res, 401, 'Unauthorized');
+      if (!(await ensureMongoReadyOrFail(res))) return;
       const body = await readBody(req);
       const items         = body?.items || body?.selectedItems || [];
       const sharePin      = body?.sharePin || body?.settings?.pin || '';
@@ -482,6 +494,7 @@ const server = http.createServer(async (req, res) => {
     // ── Share: list (admin) ────────────────────────────────────────────────
     if (pathname === '/default/listshares' && req.method === 'GET') {
       if (!isAuthed(req)) return sendError(res, 401, 'Unauthorized');
+      if (!(await ensureMongoReadyOrFail(res))) return;
       const shares = await Share.find({}).sort({ createdAt: -1 }).lean();
       return sendJson(res, 200, { success: true, shares });
     }
@@ -489,6 +502,7 @@ const server = http.createServer(async (req, res) => {
     // ── Share: revoke ──────────────────────────────────────────────────────
     if (pathname === '/default/revokeshare' && req.method === 'POST') {
       if (!isAuthed(req)) return sendError(res, 401, 'Unauthorized');
+      if (!(await ensureMongoReadyOrFail(res))) return;
       const body = await readBody(req);
       const { shareId } = body || {};
       if (!shareId) return sendError(res, 400, 'Missing shareId');
@@ -498,6 +512,7 @@ const server = http.createServer(async (req, res) => {
 
     // ── Share: access / PIN verify ─────────────────────────────────────────
     if (pathname === '/default/SharedLinkAccess' && req.method === 'POST') {
+      if (!(await ensureMongoReadyOrFail(res))) return;
       const body   = await readBody(req);
       const action  = body?.action || '';
       const shareId = body?.shareId || body?.sharedId || '';
