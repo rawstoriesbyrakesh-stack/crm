@@ -55,6 +55,14 @@ const presignPut = (key, contentType = 'application/octet-stream', expiresIn = P
 // Auto-configure Bucket CORS to allow browser uploads
 const configureBucketCors = async () => {
   try {
+    // Ensure MongoDB is connected before handling requests that use Mongoose models.
+    // `ensureMongoConnected` caches the connection promise so this is cheap after initial connect.
+    try {
+      await ensureMongoConnected();
+    } catch (err) {
+      console.error('❌ MongoDB connection failed:', err && err.message ? err.message : err);
+      return sendError(res, 500, 'MongoDB connection failed');
+    }
     await s3.send(new PutBucketCorsCommand({
       Bucket: WASABI_BUCKET,
       CORSConfiguration: {
