@@ -12,6 +12,7 @@ function Header({ title, sidebarCollapsed }: HeaderProps) {
   const navigate = useNavigate();
   const [showNotifications, setShowNotifications] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const isSmallScreen = typeof window !== 'undefined' ? window.innerWidth < 1024 : false;
 
   const handleLogout = async () => {
     clearRawStoriesSession();
@@ -23,7 +24,7 @@ function Header({ title, sidebarCollapsed }: HeaderProps) {
     <header
       className="fixed top-0 right-0 bg-white shadow-sm border-b border-gray-200 z-40 transition-all duration-300 ease-in-out"
       style={{
-        left: sidebarCollapsed ? '64px' : '256px'
+        left: isSmallScreen ? '0' : (sidebarCollapsed ? '64px' : '256px')
       }}
     >
       <div className="flex items-center justify-between h-16 px-6">

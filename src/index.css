@@ -14,6 +14,18 @@
   }
 }
 
+/* Ensure form controls inherit the surrounding text color so they are readable
+   on both light and dark backgrounds. This prevents inputs inside white cards
+   from showing white text when the container sets text-white. */
+input, textarea, select, button {
+  color: inherit;
+}
+
+/* Slightly dim placeholders but keep them readable across themes */
+input::placeholder, textarea::placeholder {
+  opacity: 0.6;
+}
+
 @layer utilities {
   .glass {
     @apply bg-white/70 backdrop-blur-md border border-white/20 shadow-[0_8px_32px_0_rgba(31,38,135,0.07)];

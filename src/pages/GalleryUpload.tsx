@@ -34,6 +34,15 @@ function GalleryUpload() {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
+  useEffect(() => {
+    const handleInit = () => {
+      if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+        setSidebarCollapsed(true);
+      }
+    };
+    handleInit();
+  }, []);
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
