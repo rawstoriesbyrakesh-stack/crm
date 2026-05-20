@@ -744,7 +744,7 @@ const handleDownloadSelected = async (downloadAll: boolean = false): Promise<num
           to: email,
           subject: `Your ${galleryTitle} download ${successful === total ? 'completed' : 'finished'} (${successful}/${total})`,
           proposalId: `download-${Date.now()}`,
-          html: `<p>Hi,</p><p>Your download for <strong>${galleryTitle}</strong> has ${successful === total ? 'completed successfully' : 'finished'}.</p><p>Items downloaded: <strong>${successful}</strong> of <strong>${total}</strong>.</p><p>Date: ${new Date().toLocaleString()}</p><p>Thank you,<br/>Arif Photography</p>`
+          html: `<p>Hi,</p><p>Your download for <strong>${galleryTitle}</strong> has ${successful === total ? 'completed successfully' : 'finished'}.</p><p>Items downloaded: <strong>${successful}</strong> of <strong>${total}</strong>.</p><p>Date: ${new Date().toLocaleString()}</p><p>Thank you,<br/>RawStoriesbyrakesh</p>`
         })
       });
       if (res.ok) {
@@ -1058,7 +1058,7 @@ const handleDownloadSelected = async (downloadAll: boolean = false): Promise<num
         <div className="relative z-10 w-full px-4 mt-auto mb-16">
           <div className="w-full max-w-3xl mx-auto text-center">
             <div className="text-white/80 text-xs sm:text-sm tracking-[0.15em] sm:tracking-[0.25em] uppercase mb-2 sm:mb-4">
-              Arif Photography
+              RawStoriesbyrakesh
             </div>
             <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold text-white leading-tight mb-3">
               {galleryTitle}
@@ -1573,7 +1573,7 @@ const handleDownloadSelected = async (downloadAll: boolean = false): Promise<num
             <div className="space-y-4">
               <div className="flex items-center gap-2">
                 <Camera className="h-6 w-6 text-white" />
-                <h3 className="text-xl font-light tracking-wide">Arif Photography</h3>
+                <h3 className="text-xl font-light tracking-wide">RawStoriesbyrakesh</h3>
               </div>
               <p className="text-sm text-gray-400 font-light leading-relaxed max-w-xs">
                 Capturing life&apos;s most precious moments with professional photography services.
@@ -1625,7 +1625,7 @@ const handleDownloadSelected = async (downloadAll: boolean = false): Promise<num
               </div>
               <div className="pt-4 border-t border-white/10">
                 <p className="text-xs text-gray-500 font-light">
-                  &copy; {new Date().getFullYear()} Arif Photography | All rights reserved.
+                  &copy; {new Date().getFullYear()} RawStoriesbyrakesh | All rights reserved.
                 </p>
               </div>
             </div>

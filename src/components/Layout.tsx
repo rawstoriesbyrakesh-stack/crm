@@ -61,11 +61,11 @@ export default function Layout({ children }: LayoutProps) {
           {/* Logo Area */}
           <div className="p-8 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary-500 to-primary-600 flex items-center justify-center shadow-lg shadow-primary-500/20">
-                <ImageIcon className="w-5 h-5 text-white" />
+              <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center shadow-lg shadow-primary-500/20 overflow-hidden">
+                <img src="/logo.jpeg" alt="RawStoriesbyrakesh logo" className="w-full h-full object-cover" />
               </div>
               <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-slate-400">
-                RawStories
+                RawStoriesbyrakesh
               </h1>
             </div>
             <button
@@ -130,10 +130,10 @@ export default function Layout({ children }: LayoutProps) {
         {/* Mobile Header */}
         <header className="lg:hidden flex items-center justify-between p-4 bg-slate-900/80 backdrop-blur-lg border-b border-slate-700/50 sticky top-0 z-30">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary-500 to-primary-600 flex items-center justify-center">
-              <ImageIcon className="w-4 h-4 text-white" />
+            <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center overflow-hidden">
+              <img src="/logo.jpeg" alt="RawStoriesbyrakesh logo" className="w-full h-full object-cover" />
             </div>
-            <h1 className="text-lg font-bold text-white">RawStories</h1>
+            <h1 className="text-lg font-bold text-white">RawStoriesbyrakesh</h1>
           </div>
           <button
             onClick={() => setIsSidebarOpen(true)}

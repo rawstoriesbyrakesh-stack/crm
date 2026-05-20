@@ -54,16 +54,16 @@ function Sidebar({ collapsed, onToggle }: SidebarProps) {
       <div className="flex items-center justify-between h-16 px-4 border-b border-gray-200">
         {!collapsed && (
           <div className="flex items-center">
-            <div className="inline-flex items-center justify-center w-8 h-8 bg-gradient-to-br from-[#00BCEB] to-[#00A5CF] rounded-full">
-              <span className="text-white font-bold text-sm">A</span>
+            <div className="inline-flex items-center justify-center w-8 h-8 rounded-full overflow-hidden bg-white">
+              <img src="/logo.jpeg" alt="RawStoriesbyrakesh logo" className="w-full h-full object-cover" />
             </div>
-            <span className="ml-3 text-xl font-bold text-[#00BCEB]">Arif CRM</span>
+            <span className="ml-3 text-xl font-bold text-[#00BCEB]">RawStoriesbyrakesh</span>
           </div>
         )}
         {collapsed && (
           <div className="flex items-center justify-center w-full">
-            <div className="inline-flex items-center justify-center w-8 h-8 bg-gradient-to-br from-[#00BCEB] to-[#00A5CF] rounded-full">
-              <span className="text-white font-bold text-sm">A</span>
+            <div className="inline-flex items-center justify-center w-8 h-8 rounded-full overflow-hidden bg-white">
+              <img src="/logo.jpeg" alt="RawStoriesbyrakesh logo" className="w-full h-full object-cover" />
             </div>
           </div>
         )}
