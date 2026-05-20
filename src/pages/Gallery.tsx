@@ -3172,7 +3172,7 @@ function Gallery() {
 
           {/* Share Modal */}
           {shareModal.isOpen && (
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-start justify-center py-8 z-50">
               <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-lg font-medium text-[#2D2D2D]">Share Media</h3>
@@ -3377,8 +3377,8 @@ function Gallery() {
 
           {/* Create Folder Modal */}
           {createFolderModal && (
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-              <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-start justify-center py-8 z-50">
+              <div className="bg-white rounded-lg p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-lg font-medium text-[#2D2D2D]">Create New Folder</h3>
                   <button
@@ -3422,8 +3422,8 @@ function Gallery() {
 
           {/* Upload Modal */}
           {uploadModal && (
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-              <div className="bg-white rounded-lg p-6 w-full max-w-2xl">
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-start justify-center py-8 z-50">
+              <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
                 <div className="flex items-center justify-between mb-6">
                   <h3 className="text-xl font-bold text-[#2D2D2D]">Upload Files</h3>
                   <button
@@ -3668,8 +3668,8 @@ function Gallery() {
 
           {/* Image List Modal */}
           {imageListModal.isOpen && (
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-              <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[80vh] flex flex-col">
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-start justify-center py-8 z-50">
+              <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[80vh] flex flex-col overflow-y-auto">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-lg font-medium text-[#2D2D2D]">
                     Images in "{imageListModal.folderName}"
@@ -3755,8 +3755,8 @@ function Gallery() {
 
           {/* Selected Images Modal */}
           {selectedImagesModal.isOpen && (
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-              <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[80vh] flex flex-col">
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-start justify-center py-8 z-50">
+              <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[80vh] flex flex-col overflow-y-auto">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-lg font-medium text-[#2D2D2D]">
                     Selected Images
@@ -3855,8 +3855,8 @@ function Gallery() {
 
           {/* ── Share Modal ─────────────────────────────────────────── */}
           {shareModal.isOpen && (
-            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-              <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg">
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-start justify-center py-8 z-50 p-4">
+              <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
                 <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
                   <div className="flex items-center gap-2">
                     <Share2 className="h-5 w-5 text-[#00BCEB]" />
@@ -3937,8 +3937,8 @@ function Gallery() {
           {/* Create Folder Modal */}
           {createFolderModal && (
 
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-              <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-start justify-center py-8 z-50">
+              <div className="bg-white rounded-lg p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-lg font-medium text-[#2D2D2D]">Create New Folder</h3>
                   <button
@@ -3993,8 +3993,8 @@ function Gallery() {
 
           {/* Rename Folder Modal */}
           {renameFolderModal.isOpen && (
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-              <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-start justify-center py-8 z-50">
+              <div className="bg-white rounded-lg p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-lg font-medium text-[#2D2D2D]">Rename Folder</h3>
                   <button
