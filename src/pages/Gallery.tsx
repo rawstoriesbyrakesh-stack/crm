@@ -3090,11 +3090,11 @@ function Gallery() {
           {/* Preview Modal */}
           {previewModal.isOpen && previewModal.currentImage && (
             <div 
-              className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50"
+              className="fixed inset-0 bg-black bg-opacity-75 flex items-start justify-center py-8 z-50"
               onClick={handleClosePreview}
             >
               <div 
-                className="relative max-w-4xl w-full"
+                className="relative max-w-4xl w-full max-h-[90vh] overflow-y-auto"
                 onClick={(e) => e.stopPropagation()}
               >
                 {/* Navigation Arrows */}
