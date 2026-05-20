@@ -1,4 +1,5 @@
-const RAWSTORIES_API_BASE = import.meta.env.VITE_RAWSTORIES_API_BASE || 'http://localhost:8787';
+const RAWSTORIES_API_BASE = import.meta.env.VITE_RAWSTORIES_API_BASE
+  || (import.meta.env.PROD ? '/_/backend' : 'http://localhost:8787');
 
 export const rawStoriesApiUrl = (path: string) => {
   if (path.startsWith('http://') || path.startsWith('https://')) {
