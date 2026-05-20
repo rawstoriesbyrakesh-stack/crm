@@ -15,6 +15,12 @@ export const getRawStoriesToken = () => localStorage.getItem('rawstories_session
 
 export const setRawStoriesSession = (token: string) => {
   localStorage.setItem('rawstories_session_token', token);
+  try {
+    // Notify same-window listeners that auth changed
+    window.dispatchEvent(new Event('rawstories_session_changed'));
+  } catch (e) {
+    // ignore in non-browser environments
+  }
 };
 
 export const clearRawStoriesSession = () => {

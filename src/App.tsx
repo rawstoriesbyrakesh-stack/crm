@@ -19,7 +19,11 @@ function App() {
     const syncAuth = () => setIsAuthenticated(isRawStoriesAuthenticated());
     syncAuth();
     globalThis.addEventListener('storage', syncAuth);
-    return () => globalThis.removeEventListener('storage', syncAuth);
+    globalThis.addEventListener('rawstories_session_changed', syncAuth as EventListener);
+    return () => {
+      globalThis.removeEventListener('storage', syncAuth);
+      globalThis.removeEventListener('rawstories_session_changed', syncAuth as EventListener);
+    };
   }, []);
 
   return (
