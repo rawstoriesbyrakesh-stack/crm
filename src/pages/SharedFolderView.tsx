@@ -38,6 +38,7 @@ export default function SharedFolderView() {
   const [allowDownload, setAllowDownload] = useState(true);
   const [denyReason, setDenyReason] = useState('');
   const [isPinProtected, setIsPinProtected] = useState(false);
+  const [sharedItemsList, setSharedItemsList] = useState<string[]>([]);
 
   const decoded = folderPath ? decodeURIComponent(folderPath) : '';
 
@@ -62,7 +63,10 @@ export default function SharedFolderView() {
         
         if (link.isPinProtected) { setIsPinProtected(true); setPhase('pin'); }
         else { setPhase('gallery'); }
-      } catch { setDenyReason('Unable to verify access. Please try again.'); setPhase('denied'); }
+      } catch {
+        setDenyReason('Unable to verify access. Please try again.');
+        setPhase('denied');
+      }
     })();
   }, [shareId]);
 
@@ -94,7 +98,9 @@ export default function SharedFolderView() {
       }
       
       setItems(mapped);
-    } catch (e: any) { setError(e.message); }
+    } catch (e: any) {
+      setError(e.message || 'Failed to load shared items');
+    }
     finally { setLoading(false); }
   }, [decoded, sharedItemsList]);
 

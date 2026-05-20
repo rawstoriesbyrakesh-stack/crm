@@ -96,10 +96,10 @@ function SharedFolder() {
       if (!data || data.success === false) {
         throw new Error((data && data.message) || 'Invalid response from server');
       }
-      // Expected: { success:true, message, folderName, shareUrl }
-      const folderName: string | undefined = data.folderName;
+      // Backend returns folderPrefix for shared folders.
+      const folderName: string | undefined = data.folderName || data.folderPrefix;
       if (!folderName) {
-        throw new Error('Server did not return a folderName');
+        throw new Error('Server did not return a folder path');
       }
       // Navigate to existing shared images view, preserve shared id in query
       const encoded = encodeURIComponent(folderName);
