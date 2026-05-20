@@ -1,0 +1,399 @@
+import React, { useState, useEffect, useCallback } from 'react';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import {
+  ArrowLeft, Grid3X3, List, Download, Eye, X, Loader2,
+  AlertCircle, Lock, Check, ChevronLeft, ChevronRight,
+  Image, Play, ZoomIn, Camera,
+} from 'lucide-react';
+import { rawStoriesApiUrl } from '../api/rawStoriesBackend';
+
+const SHARE_API = rawStoriesApiUrl('/default/SharedLinkAccess');
+
+interface Item { id: string; title: string; imageUrl: string; presigned_url?: string; isVideo?: boolean; allowDownload?: boolean; }
+
+function notify(setFn: React.Dispatch<React.SetStateAction<{id:string;msg:string;type:string}[]>>, msg: string, type = 'info') {
+  const id = `${Date.now()}-${Math.random()}`;
+  setFn(p => [...p, { id, msg, type }]);
+  setTimeout(() => setFn(p => p.filter(n => n.id !== id)), 4500);
+}
+
+export default function SharedFolderView() {
+  const { folderPath } = useParams<{ folderPath: string }>();
+  const [searchParams] = useSearchParams();
+  const shareId = searchParams.get('sid');
+  const navigate = useNavigate();
+
+  // State
+  const [phase, setPhase] = useState<'checking'|'pin'|'denied'|'gallery'>('checking');
+  const [pin, setPin] = useState('');
+  const [pinError, setPinError] = useState('');
+  const [pinLoading, setPinLoading] = useState(false);
+  const [items, setItems] = useState<Item[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [viewMode, setViewMode] = useState<'grid'|'list'>('grid');
+  const [lightbox, setLightbox] = useState<number|null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [notifications, setNotifications] = useState<{id:string;msg:string;type:string}[]>([]);
+  const [allowDownload, setAllowDownload] = useState(true);
+  const [denyReason, setDenyReason] = useState('');
+  const [isPinProtected, setIsPinProtected] = useState(false);
+
+  const decoded = folderPath ? decodeURIComponent(folderPath) : '';
+
+  // ── Check access on mount ────────────────────────────────────────────────
+  useEffect(() => {
+    if (!shareId) { setPhase('gallery'); return; }
+    (async () => {
+      try {
+        const res = await fetch(SHARE_API, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'get_share_link_status', sharedId: shareId }),
+        });
+        const data = await res.json().catch(() => null);
+        if (!res.ok || !data?.success) { setDenyReason(data?.message || 'This link is invalid or has been revoked.'); setPhase('denied'); return; }
+        const link = data.shareLink;
+        if (!link?.isActive) { setDenyReason('This share link has been revoked or expired.'); setPhase('denied'); return; }
+        
+        // Save the specific items that were shared
+        if (link.items && link.items.length > 0) {
+          setSharedItemsList(link.items);
+        }
+        
+        if (link.isPinProtected) { setIsPinProtected(true); setPhase('pin'); }
+        else { setPhase('gallery'); }
+      } catch { setDenyReason('Unable to verify access. Please try again.'); setPhase('denied'); }
+    })();
+  }, [shareId]);
+
+  // ── Fetch images ─────────────────────────────────────────────────────────
+  const fetchItems = useCallback(async () => {
+    setLoading(true); setError('');
+    try {
+      let prefix = decoded;
+      if (prefix.startsWith('/')) prefix = prefix.slice(1);
+      if (!prefix.endsWith('/')) prefix += '/';
+      const res = await fetch(rawStoriesApiUrl(`/default/getallimages?prefix=${encodeURIComponent(prefix)}&recursive=true`));
+      const data = await res.json();
+      if (!res.ok || !data?.success) throw new Error(data?.message || 'Failed to load');
+      
+      let mapped: Item[] = (data.files || []).map((f: any) => ({
+        id: f.key, title: (f.filename || f.key.split('/').pop() || '').replace(/\.[^.]+$/, ''),
+        imageUrl: f.presigned_url || `${rawStoriesApiUrl('')}/uploads/${f.key}`,
+        isVideo: /\.(mp4|mov|avi|mkv|webm)$/i.test(f.key),
+        allowDownload: true,
+      }));
+      
+      // If the share link was created for specific items, filter the gallery to ONLY show those items
+      if (sharedItemsList && sharedItemsList.length > 0) {
+        // If shared items include a folder, we don't strictly filter out its contents
+        const hasFolderShare = sharedItemsList.some(item => item.endsWith('/'));
+        if (!hasFolderShare) {
+          mapped = mapped.filter(item => sharedItemsList.includes(item.id));
+        }
+      }
+      
+      setItems(mapped);
+    } catch (e: any) { setError(e.message); }
+    finally { setLoading(false); }
+  }, [decoded, sharedItemsList]);
+
+  useEffect(() => { if (phase === 'gallery') fetchItems(); }, [phase, fetchItems]);
+
+  // ── Verify PIN ───────────────────────────────────────────────────────────
+  const verifyPin = async () => {
+    if (!pin.trim()) { setPinError('Please enter the PIN.'); return; }
+    setPinLoading(true); setPinError('');
+    try {
+      const res = await fetch(SHARE_API, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'verify_pin', sharedId: shareId, pin }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.success) { setPinError(data?.message || 'Incorrect PIN. Try again.'); setPin(''); }
+      else { setPhase('gallery'); }
+    } catch { setPinError('Verification failed. Please try again.'); }
+    finally { setPinLoading(false); }
+  };
+
+  // ── Download ─────────────────────────────────────────────────────────────
+  const downloadItem = async (item: Item) => {
+    try {
+      const a = document.createElement('a');
+      a.href = item.imageUrl; a.download = item.title; a.target = '_blank';
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      notify(setNotifications, `Downloaded ${item.title}`, 'success');
+    } catch { notify(setNotifications, 'Download failed', 'error'); }
+  };
+
+  const downloadSelected = () => {
+    const toDown = items.filter(i => selected.has(i.id));
+    if (!toDown.length) { notify(setNotifications, 'Select items first', 'info'); return; }
+    toDown.forEach(downloadItem);
+    setSelected(new Set());
+  };
+
+  const toggleSelect = (id: string) =>
+    setSelected(p => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; });
+
+  // ── Lightbox keys ────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (lightbox === null) return;
+    const h = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowRight') setLightbox(p => p !== null && p < items.length - 1 ? p + 1 : p);
+      if (e.key === 'ArrowLeft')  setLightbox(p => p !== null && p > 0 ? p - 1 : p);
+      if (e.key === 'Escape')     setLightbox(null);
+    };
+    window.addEventListener('keydown', h);
+    return () => window.removeEventListener('keydown', h);
+  }, [lightbox, items.length]);
+
+  // ─────────────────────────────────────────────────────────────────────────
+  //  RENDER: Checking
+  // ─────────────────────────────────────────────────────────────────────────
+  if (phase === 'checking') return (
+    <div className="min-h-screen bg-gradient-to-br from-stone-900 via-stone-800 to-amber-900 flex items-center justify-center">
+      <div className="text-center text-white">
+        <Loader2 className="h-10 w-10 animate-spin mx-auto mb-4 text-amber-400" />
+        <p className="text-stone-300">Verifying access…</p>
+      </div>
+    </div>
+  );
+
+  // ─────────────────────────────────────────────────────────────────────────
+  //  RENDER: Denied
+  // ─────────────────────────────────────────────────────────────────────────
+  if (phase === 'denied') return (
+    <div className="min-h-screen bg-gradient-to-br from-stone-900 via-stone-800 to-amber-900 flex items-center justify-center p-4">
+      <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-3xl p-10 max-w-md w-full text-center shadow-2xl">
+        <div className="w-20 h-20 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
+          <AlertCircle className="h-10 w-10 text-red-400" />
+        </div>
+        <h2 className="text-2xl font-bold text-white mb-3">Access Denied</h2>
+        <p className="text-stone-300 mb-8 leading-relaxed">{denyReason}</p>
+        <button onClick={() => navigate('/')} className="px-6 py-3 bg-amber-600 hover:bg-amber-500 text-white rounded-xl font-medium transition-colors">
+          Go Home
+        </button>
+      </div>
+    </div>
+  );
+
+  // ─────────────────────────────────────────────────────────────────────────
+  //  RENDER: PIN Entry
+  // ─────────────────────────────────────────────────────────────────────────
+  if (phase === 'pin') return (
+    <div className="min-h-screen bg-gradient-to-br from-stone-900 via-stone-800 to-amber-900 flex items-center justify-center p-4">
+      <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-3xl p-10 max-w-sm w-full shadow-2xl">
+        <div className="text-center mb-8">
+          <div className="w-20 h-20 bg-amber-500/20 rounded-full flex items-center justify-center mx-auto mb-5">
+            <Lock className="h-10 w-10 text-amber-400" />
+          </div>
+          <h2 className="text-2xl font-bold text-white mb-2">Protected Gallery</h2>
+          <p className="text-stone-400 text-sm">Enter the PIN provided by the photographer</p>
+        </div>
+        <div className="mb-5">
+          <input
+            type="text" value={pin} maxLength={8} autoFocus
+            onChange={e => { setPin(e.target.value); setPinError(''); }}
+            onKeyDown={e => e.key === 'Enter' && verifyPin()}
+            placeholder="Enter PIN"
+            className="w-full bg-white/10 border border-white/20 text-white placeholder-stone-500 rounded-xl px-5 py-4 text-center text-2xl tracking-[0.4em] font-mono focus:outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-400/30 transition"
+          />
+          {pinError && (
+            <p className="mt-3 text-red-400 text-sm text-center flex items-center justify-center gap-2">
+              <AlertCircle className="h-4 w-4" />{pinError}
+            </p>
+          )}
+        </div>
+        <button
+          onClick={verifyPin} disabled={pinLoading || !pin.trim()}
+          className="w-full py-3.5 bg-amber-600 hover:bg-amber-500 disabled:bg-stone-700 disabled:text-stone-500 text-white rounded-xl font-semibold transition-all flex items-center justify-center gap-2"
+        >
+          {pinLoading ? <><Loader2 className="h-5 w-5 animate-spin" />Verifying…</> : <>
+            <Check className="h-5 w-5" />Access Gallery
+          </>}
+        </button>
+      </div>
+    </div>
+  );
+
+  // ─────────────────────────────────────────────────────────────────────────
+  //  RENDER: Gallery
+  // ─────────────────────────────────────────────────────────────────────────
+  const galleryTitle = decoded.split('/').filter(Boolean).pop() || 'Shared Gallery';
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-stone-950 via-stone-900 to-stone-950">
+      {/* Notifications */}
+      <div className="fixed top-4 right-4 z-50 space-y-2">
+        {notifications.map(n => (
+          <div key={n.id} className={`px-4 py-3 rounded-xl shadow-xl text-white text-sm flex items-center gap-3 max-w-xs animate-fade-in ${
+            n.type==='success'?'bg-emerald-600':n.type==='error'?'bg-red-600':'bg-stone-700'}`}>
+            <span className="flex-1">{n.msg}</span>
+            <button onClick={() => setNotifications(p=>p.filter(x=>x.id!==n.id))}><X className="h-4 w-4"/></button>
+          </div>
+        ))}
+      </div>
+
+      {/* Header */}
+      <header className="sticky top-0 z-40 bg-stone-950/80 backdrop-blur-lg border-b border-white/10">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3 min-w-0">
+            <button onClick={() => navigate(-1)} className="p-2 rounded-lg text-stone-400 hover:text-white hover:bg-white/10 transition-all flex-shrink-0">
+              <ArrowLeft className="h-5 w-5" />
+            </button>
+            <div className="flex items-center gap-2 min-w-0">
+              <Camera className="h-5 w-5 text-amber-400 flex-shrink-0" />
+              <h1 className="text-white font-semibold text-lg truncate capitalize">{galleryTitle}</h1>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            {selected.size > 0 && (
+              <button onClick={downloadSelected} className="flex items-center gap-2 px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-sm font-medium transition-all">
+                <Download className="h-4 w-4" />{selected.size} selected
+              </button>
+            )}
+            <div className="flex items-center bg-white/10 rounded-lg p-1">
+              <button onClick={() => setViewMode('grid')} className={`p-1.5 rounded-md transition-all ${viewMode==='grid'?'bg-amber-600 text-white':'text-stone-400 hover:text-white'}`}>
+                <Grid3X3 className="h-4 w-4" />
+              </button>
+              <button onClick={() => setViewMode('list')} className={`p-1.5 rounded-md transition-all ${viewMode==='list'?'bg-amber-600 text-white':'text-stone-400 hover:text-white'}`}>
+                <List className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {/* Body */}
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
+        {loading ? (
+          <div className="flex flex-col items-center justify-center py-32 text-stone-400">
+            <Loader2 className="h-10 w-10 animate-spin text-amber-500 mb-4" />
+            <p>Loading gallery…</p>
+          </div>
+        ) : error ? (
+          <div className="flex flex-col items-center justify-center py-32 text-red-400">
+            <AlertCircle className="h-10 w-10 mb-4" />
+            <p>{error}</p>
+          </div>
+        ) : items.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-32 text-stone-500">
+            <Image className="h-16 w-16 mb-4 opacity-30" />
+            <h3 className="text-xl font-semibold text-stone-300 mb-1">No images found</h3>
+            <p className="text-sm">This gallery is empty.</p>
+          </div>
+        ) : (
+          <>
+            {/* Stats bar */}
+            <div className="flex items-center justify-between mb-6">
+              <p className="text-stone-400 text-sm">{items.length} item{items.length!==1?'s':''}</p>
+              {selected.size > 0 && (
+                <button onClick={() => setSelected(new Set())} className="text-sm text-stone-400 hover:text-white transition-colors">
+                  Clear selection
+                </button>
+              )}
+            </div>
+
+            {/* Grid */}
+            {viewMode === 'grid' ? (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+                {items.map((item, idx) => {
+                  const isSelected = selected.has(item.id);
+                  return (
+                    <div key={item.id} className={`group relative bg-stone-800 rounded-xl overflow-hidden cursor-pointer border-2 transition-all duration-200 ${isSelected ? 'border-amber-500 shadow-lg shadow-amber-500/20' : 'border-transparent hover:border-white/20'}`}>
+                      {/* Checkbox */}
+                      <button onClick={e => { e.stopPropagation(); toggleSelect(item.id); }}
+                        className={`absolute top-2 left-2 z-10 w-6 h-6 rounded-md border-2 flex items-center justify-center transition-all ${isSelected ? 'bg-amber-500 border-amber-500' : 'bg-black/50 border-white/40 opacity-0 group-hover:opacity-100'}`}>
+                        {isSelected && <Check className="h-3.5 w-3.5 text-white" />}
+                      </button>
+                      {/* Thumbnail */}
+                      <div className="aspect-square" onClick={() => setLightbox(idx)}>
+                        {item.isVideo ? (
+                          <div className="w-full h-full bg-stone-700 flex items-center justify-center">
+                            <Play className="h-8 w-8 text-white/60" />
+                          </div>
+                        ) : (
+                          <img src={item.imageUrl} alt={item.title} loading="lazy"
+                            className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                            onError={e => { (e.target as HTMLImageElement).src = 'https://picsum.photos/400/400?grayscale'; }} />
+                        )}
+                        {/* Hover overlay */}
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-all flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100">
+                          <button className="p-2 bg-white/20 backdrop-blur rounded-full text-white hover:bg-white/30 transition-all" onClick={e => { e.stopPropagation(); setLightbox(idx); }}>
+                            <ZoomIn className="h-4 w-4" />
+                          </button>
+                          <button className="p-2 bg-white/20 backdrop-blur rounded-full text-white hover:bg-white/30 transition-all" onClick={e => { e.stopPropagation(); downloadItem(item); }}>
+                            <Download className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </div>
+                      {/* Title */}
+                      <div className="px-2 py-2">
+                        <p className="text-xs text-stone-300 truncate">{item.title}</p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              /* List view */
+              <div className="space-y-2">
+                {items.map((item, idx) => {
+                  const isSelected = selected.has(item.id);
+                  return (
+                    <div key={item.id} className={`flex items-center gap-4 p-3 rounded-xl border transition-all ${isSelected ? 'bg-amber-500/10 border-amber-500/50' : 'bg-white/5 border-white/10 hover:bg-white/10'}`}>
+                      <input type="checkbox" checked={isSelected} onChange={() => toggleSelect(item.id)} className="accent-amber-500 w-4 h-4 flex-shrink-0" />
+                      <div className="w-12 h-12 rounded-lg overflow-hidden flex-shrink-0 bg-stone-700 cursor-pointer" onClick={() => setLightbox(idx)}>
+                        {item.isVideo ? <div className="w-full h-full flex items-center justify-center"><Play className="h-5 w-5 text-white/60"/></div>
+                          : <img src={item.imageUrl} alt={item.title} className="w-full h-full object-cover" onError={e => { (e.target as HTMLImageElement).src='https://picsum.photos/50/50?grayscale'; }} />}
+                      </div>
+                      <span className="flex-1 text-stone-200 text-sm truncate">{item.title}</span>
+                      <div className="flex items-center gap-2">
+                        <button onClick={() => setLightbox(idx)} className="p-2 text-stone-400 hover:text-white rounded-lg hover:bg-white/10 transition-all"><Eye className="h-4 w-4" /></button>
+                        <button onClick={() => downloadItem(item)} className="p-2 text-stone-400 hover:text-white rounded-lg hover:bg-white/10 transition-all"><Download className="h-4 w-4" /></button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </>
+        )}
+      </main>
+
+      {/* Lightbox */}
+      {lightbox !== null && items[lightbox] && (
+        <div className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center" onClick={() => setLightbox(null)}>
+          <button onClick={e => { e.stopPropagation(); setLightbox(null); }} className="absolute top-4 right-4 p-2 text-white/70 hover:text-white bg-white/10 rounded-full transition-all z-10">
+            <X className="h-6 w-6" />
+          </button>
+          {lightbox > 0 && (
+            <button onClick={e => { e.stopPropagation(); setLightbox(p => p! - 1); }} className="absolute left-4 top-1/2 -translate-y-1/2 p-3 text-white/70 hover:text-white bg-white/10 rounded-full transition-all z-10">
+              <ChevronLeft className="h-6 w-6" />
+            </button>
+          )}
+          {lightbox < items.length - 1 && (
+            <button onClick={e => { e.stopPropagation(); setLightbox(p => p! + 1); }} className="absolute right-4 top-1/2 -translate-y-1/2 p-3 text-white/70 hover:text-white bg-white/10 rounded-full transition-all z-10">
+              <ChevronRight className="h-6 w-6" />
+            </button>
+          )}
+          <div className="max-w-5xl max-h-[90vh] w-full mx-16" onClick={e => e.stopPropagation()}>
+            {items[lightbox].isVideo ? (
+              <video src={items[lightbox].imageUrl} controls className="max-h-[85vh] max-w-full mx-auto rounded-lg" />
+            ) : (
+              <img src={items[lightbox].imageUrl} alt={items[lightbox].title} className="max-h-[85vh] max-w-full mx-auto object-contain rounded-lg shadow-2xl" />
+            )}
+            <div className="text-center mt-3 flex items-center justify-center gap-4">
+              <p className="text-stone-400 text-sm">{items[lightbox].title}</p>
+              <button onClick={() => downloadItem(items[lightbox!])} className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-600/80 hover:bg-amber-500 text-white rounded-lg text-sm transition-all">
+                <Download className="h-4 w-4" />Download
+              </button>
+            </div>
+            <p className="text-center text-stone-600 text-xs mt-1">{lightbox + 1} / {items.length}</p>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
