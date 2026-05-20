@@ -183,78 +183,93 @@ const server = http.createServer(async (req, res) => {
     // ── Stats ──────────────────────────────────────────────────────────────
     if (pathname === '/api/stats' && req.method === 'GET') {
       if (!isAuthed(req)) return sendError(res, 401, 'Unauthorized');
-      const list = await s3.send(new ListObjectsV2Command({ Bucket: WASABI_BUCKET, Delimiter: '/' }));
-      const topFolders = (list.CommonPrefixes || []).length;
-      const allList = await s3.send(new ListObjectsV2Command({ Bucket: WASABI_BUCKET }));
-      
-      const imageObjects = (allList.Contents || []).filter(o => {
-        const key = o.Key || '';
-        return /\.(jpg|jpeg|png|gif|webp|bmp|svg|tiff|mp4|mov|avi|mkv|webm|cr2|nef|arw|dng)$/i.test(key);
-      });
-      
-      const totalImages = imageObjects.length;
-      let totalStorage = 0;
-      (allList.Contents || []).forEach(o => { totalStorage += o.Size || 0; });
-      const shareCount = await Share.countDocuments({
-        isActive: true,
-        $or: [
-          { expiresAt: null },
-          { expiresAt: { $gt: new Date() } }
-        ]
-      });
-      const recentUploads = imageObjects
-        .sort((a, b) => (b.LastModified || 0) - (a.LastModified || 0))
-        .slice(0, 10)
-        .map(o => ({ name: path.basename(o.Key || ''), uploadedAt: o.LastModified }));
-      return sendJson(res, 200, { success: true, stats: { totalFolders: topFolders, totalImages, totalSharedLinks: shareCount, totalStorage, recentUploads } });
+      try {
+        const list = await s3.send(new ListObjectsV2Command({ Bucket: WASABI_BUCKET, Delimiter: '/' }));
+        const topFolders = (list.CommonPrefixes || []).length;
+        const allList = await s3.send(new ListObjectsV2Command({ Bucket: WASABI_BUCKET }));
+
+        const imageObjects = (allList.Contents || []).filter(o => {
+          const key = o.Key || '';
+          return /\.(jpg|jpeg|png|gif|webp|bmp|svg|tiff|mp4|mov|avi|mkv|webm|cr2|nef|arw|dng)$/i.test(key);
+        });
+
+        const totalImages = imageObjects.length;
+        let totalStorage = 0;
+        (allList.Contents || []).forEach(o => { totalStorage += o.Size || 0; });
+        const shareCount = await Share.countDocuments({
+          isActive: true,
+          $or: [
+            { expiresAt: null },
+            { expiresAt: { $gt: new Date() } }
+          ]
+        }).catch(() => 0);
+        const recentUploads = imageObjects
+          .sort((a, b) => (b.LastModified || 0) - (a.LastModified || 0))
+          .slice(0, 10)
+          .map(o => ({ name: path.basename(o.Key || ''), uploadedAt: o.LastModified }));
+        return sendJson(res, 200, { success: true, stats: { totalFolders: topFolders, totalImages, totalSharedLinks: shareCount, totalStorage, recentUploads } });
+      } catch (err) {
+        console.error('Stats endpoint failed, returning fallback payload:', err.message);
+        return sendJson(res, 200, {
+          success: true,
+          stats: { totalFolders: 0, totalImages: 0, totalSharedLinks: 0, totalStorage: 0, recentUploads: [] },
+          message: 'Stats are temporarily unavailable',
+        });
+      }
     }
 
     // ── Gallery: list folder contents ──────────────────────────────────────
     if (pathname === '/default/getallimages' && req.method === 'GET') {
       const prefix    = url.searchParams.get('prefix') || '';
       const recursive = url.searchParams.get('recursive') === 'true';
+      try {
+        const listResult = await s3.send(new ListObjectsV2Command({
+          Bucket: WASABI_BUCKET,
+          Prefix: prefix,
+          Delimiter: recursive ? undefined : '/',
+        }));
 
-      const listResult = await s3.send(new ListObjectsV2Command({
-        Bucket: WASABI_BUCKET,
-        Prefix: prefix,
-        Delimiter: recursive ? undefined : '/',
-      }));
+        // Folders
+        const folderPrefixes = listResult.CommonPrefixes || [];
+        const folders = (await Promise.allSettled(folderPrefixes.map(async cp => {
+          const folderPrefix = cp.Prefix || '';
+          const meta = await FolderMeta.findOne({ path: folderPrefix }).lean().catch(() => null);
+          const name = meta?.name || folderPrefix.replace(prefix, '').replace(/\/$/, '');
+          return { name, path: folderPrefix, description: meta?.description || '', client: meta?.client || '', tags: meta?.tags || [] };
+        }))).flatMap(result => (result.status === 'fulfilled' ? [result.value] : []));
 
-      // Folders
-      const folderPrefixes = listResult.CommonPrefixes || [];
-      const folders = await Promise.all(folderPrefixes.map(async cp => {
-        const folderPrefix = cp.Prefix || '';
-        const meta = await FolderMeta.findOne({ path: folderPrefix }).lean();
-        const name = meta?.name || folderPrefix.replace(prefix, '').replace(/\/$/, '');
-        return { name, path: folderPrefix, description: meta?.description || '', client: meta?.client || '', tags: meta?.tags || [] };
-      }));
+        // Files
+        const objects = (listResult.Contents || []).filter(o => {
+          const key = o.Key || '';
+          return key !== prefix && /\.(jpg|jpeg|png|gif|webp|bmp|svg|tiff|mp4|mov|avi|mkv|webm|cr2|nef|arw|dng)$/i.test(key);
+        });
 
-      // Files
-      const objects = (listResult.Contents || []).filter(o => {
-        const key = o.Key || '';
-        return key !== prefix && /\.(jpg|jpeg|png|gif|webp|bmp|svg|tiff|mp4|mov|avi|mkv|webm|cr2|nef|arw|dng)$/i.test(key);
-      });
+        const files = (await Promise.allSettled(objects.map(async o => {
+          const key = o.Key || '';
+          const [meta, signedUrl] = await Promise.all([
+            FileMeta.findOne({ key }).lean().catch(() => null),
+            presignGet(key).catch(() => ''),
+          ]);
+          return {
+            key,
+            filename: path.basename(key),
+            size: o.Size,
+            last_modified: o.LastModified,
+            presigned_url: signedUrl,
+            url: signedUrl,
+            isFavorite: meta?.isFavorite || false,
+            isWatermarked: meta?.isWatermarked || false,
+            tags: meta?.tags || [],
+            shootType: meta?.shootType || 'Unknown',
+            downloadCount: meta?.downloadCount || 0,
+          };
+        }))).flatMap(result => (result.status === 'fulfilled' ? [result.value] : []));
 
-      const files = await Promise.all(objects.map(async o => {
-        const key = o.Key || '';
-        const meta = await FileMeta.findOne({ key }).lean();
-        const signedUrl = await presignGet(key);
-        return {
-          key,
-          filename: path.basename(key),
-          size: o.Size,
-          last_modified: o.LastModified,
-          presigned_url: signedUrl,
-          url: signedUrl,
-          isFavorite: meta?.isFavorite || false,
-          isWatermarked: meta?.isWatermarked || false,
-          tags: meta?.tags || [],
-          shootType: meta?.shootType || 'Unknown',
-          downloadCount: meta?.downloadCount || 0,
-        };
-      }));
-
-      return sendJson(res, 200, { success: true, files, folders });
+        return sendJson(res, 200, { success: true, files, folders });
+      } catch (err) {
+        console.error('getallimages failed, returning fallback payload:', err.message);
+        return sendJson(res, 200, { success: true, files: [], folders: [], message: 'Gallery items are temporarily unavailable' });
+      }
     }
 
     // ── Upload: generate presigned PUT URL ─────────────────────────────────
