@@ -160,6 +160,7 @@ function Gallery() {
     sharePin?: string;
   }>({ isOpen: false, links: [], serverMessage: null, sharePin: '' });
   const [sharePin, setSharePin] = useState('');
+  const [shareExpiryDays, setShareExpiryDays] = useState<number>(7);
   const [activeShareLinks, setActiveShareLinks] = useState<Array<{
     id: string;
     link: string;
@@ -973,7 +974,7 @@ function Gallery() {
           folderPrefix,
           sharePin: sharePin || '',
           allowDownload: true,
-          expiresInHours: 168,
+          expiresInHours: Math.max(1, Number(shareExpiryDays || 7)) * 24,
         }),
       });
       const data = await res.json();
@@ -3208,6 +3209,19 @@ function Gallery() {
                         />
                         <p className="text-xs text-gray-500 mt-1">Leave empty for no PIN protection. Recipients will need this PIN to access.</p>
                       </div>
+
+                      {/* Expiry */}
+                      <div className="mt-3">
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Expiry (days)</label>
+                        <input
+                          type="number"
+                          min={1}
+                          value={shareExpiryDays}
+                          onChange={(e) => setShareExpiryDays(Number(e.target.value))}
+                          className="w-32 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                        />
+                        <p className="text-xs text-gray-500 mt-1">Set how long the share link remains active (default 7 days)</p>
+                      </div>
                       
                       {/* Generate Link Button */}
                       <div className="mt-4 flex justify-end">
@@ -3892,6 +3906,13 @@ function Gallery() {
                           className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#00BCEB]/40 focus:border-[#00BCEB] transition-all text-sm" />
                         <p className="text-xs text-gray-400 mt-1">Client will need this PIN to view the gallery</p>
                       </div>
+                      <div className="mt-3">
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Expiry (days)</label>
+                        <input type="number" min={1} value={shareExpiryDays}
+                          onChange={e => setShareExpiryDays(Number(e.target.value))}
+                          className="w-28 px-3 py-2 border border-gray-200 rounded-xl text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#00BCEB]/40 focus:border-[#00BCEB] transition-all text-sm" />
+                        <p className="text-xs text-gray-400 mt-1">Default is 7 days</p>
+                      </div>
                       <button onClick={handleShare} disabled={shareLoading}
                         className="w-full py-3 bg-[#00BCEB] hover:bg-[#00A5CF] disabled:bg-gray-300 text-white rounded-xl font-semibold transition-all flex items-center justify-center gap-2">
                         {shareLoading ? <><Loader2 className="h-4 w-4 animate-spin" />Creating link…</> : <><Share2 className="h-4 w-4" />Generate Share Link</>}
@@ -3928,7 +3949,7 @@ function Gallery() {
                           </div>
                         </div>
                       ))}
-                      <p className="text-xs text-gray-400">Expires in 7 days · {selectedItems.length} item(s) shared</p>
+                      <p className="text-xs text-gray-400">Expires in {shareExpiryDays} day{shareExpiryDays!==1?'s':''} · {selectedItems.length} item(s) shared</p>
                     </div>
                   )}
                 </div>

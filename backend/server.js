@@ -510,6 +510,22 @@ const server = http.createServer(async (req, res) => {
       return sendJson(res, 200, { success: true, message: 'Share revoked' });
     }
 
+    // ── Share: delete (remove share record) ─────────────────────────────────
+    if (pathname === '/default/deleteshare' && req.method === 'POST') {
+      if (!isAuthed(req)) return sendError(res, 401, 'Unauthorized');
+      if (!(await ensureMongoReadyOrFail(res))) return;
+      const body = await readBody(req);
+      const { shareId } = body || {};
+      if (!shareId) return sendError(res, 400, 'Missing shareId');
+      try {
+        await Share.findOneAndDelete({ shareId });
+        return sendJson(res, 200, { success: true, message: 'Share deleted' });
+      } catch (err) {
+        console.error('deleteshare failed:', err.message || err);
+        return sendError(res, 500, 'Failed to delete share');
+      }
+    }
+
     // ── Share: access / PIN verify ─────────────────────────────────────────
     if (pathname === '/default/SharedLinkAccess' && req.method === 'POST') {
       if (!(await ensureMongoReadyOrFail(res))) return;

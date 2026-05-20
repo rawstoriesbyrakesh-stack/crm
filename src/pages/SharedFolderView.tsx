@@ -177,9 +177,7 @@ export default function SharedFolderView() {
         </div>
         <h2 className="text-2xl font-bold text-white mb-3">Access Denied</h2>
         <p className="text-stone-300 mb-8 leading-relaxed">{denyReason}</p>
-        <button onClick={() => navigate('/')} className="px-6 py-3 bg-amber-600 hover:bg-amber-500 text-white rounded-xl font-medium transition-colors">
-          Go Home
-        </button>
+        {/* 'Go Home' button removed per request */}
       </div>
     </div>
   );

@@ -858,12 +858,7 @@ const handleDownloadSelected = async (downloadAll: boolean = false): Promise<num
               You don't have the access to this shared folder. The link may have been revoked or expired.
             </p>
           </div>
-          <button
-            onClick={() => navigate('/')}
-            className="w-full py-3 px-6 bg-amber-900 text-white rounded-xl hover:bg-amber-800 transition-colors font-medium"
-          >
-            Go to Home
-          </button>
+          {/* 'Go to Home' removed for shared pages */}
         </div>
       </div>
     );
@@ -917,7 +912,7 @@ const handleDownloadSelected = async (downloadAll: boolean = false): Promise<num
 
             <div className="flex gap-3">
               <button
-                onClick={() => navigate('/')}
+                onClick={() => navigate(-1)}
                 disabled={isVerifyingPin}
                 className="flex-1 py-3 px-6 bg-amber-100 text-amber-700 rounded-xl hover:bg-amber-200 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
               >

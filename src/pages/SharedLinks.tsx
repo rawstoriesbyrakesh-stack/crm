@@ -83,6 +83,22 @@ export default function SharedLinks() {
     }
   };
 
+  const deleteLink = async (shareId: string) => {
+    if (!window.confirm('Delete this share record from the server? This cannot be undone.')) return;
+    try {
+      await fetch(rawStoriesApiUrl('/default/deleteshare'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getRawStoriesToken()}` },
+        mode: 'cors',
+        body: JSON.stringify({ shareId }),
+      });
+      loadLinks();
+    } catch (error) {
+      console.error('Failed to delete link:', error);
+      alert('Failed to delete link. Please try again.');
+    }
+  };
+
   const getShareUrl = (link: ShareLink) => {
     const baseUrl = window.location.origin;
     return `${baseUrl}/shared-folder-view/${encodeURIComponent(link.folderPrefix || link.shareId)}?sid=${link.shareId}`;
@@ -241,9 +257,17 @@ export default function SharedLinks() {
                     Revoke Access
                   </button>
                 ) : (
-                  <span className="px-4 py-2 text-sm font-medium text-slate-500 flex items-center gap-2">
-                    Access Revoked
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="px-4 py-2 text-sm font-medium text-slate-500 flex items-center gap-2">
+                      Access Revoked
+                    </span>
+                    <button
+                      onClick={() => deleteLink(link.shareId)}
+                      className="px-3 py-1 text-sm font-medium text-red-600 bg-red-50 hover:bg-red-100 rounded-lg border border-red-100"
+                    >
+                      Delete
+                    </button>
+                  </div>
                 )}
               </div>
             </motion.div>
