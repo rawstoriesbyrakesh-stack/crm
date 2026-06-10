@@ -8,7 +8,9 @@ import SharedImages from './pages/SharedImages';
 import SharedFolder from './pages/SharedFolder';
 import SharedFolderView from './pages/SharedFolderView';
 import SharedLinks from './pages/SharedLinks';
+import SmartCollections from './pages/SmartCollections';
 import Watermarks from './pages/Watermarks';
+import Trash from './pages/Trash';
 import Layout from './components/Layout';
 import { isRawStoriesAuthenticated } from './api/rawStoriesBackend';
 
@@ -50,8 +52,16 @@ function App() {
           element={isAuthenticated ? <Layout><SharedLinks /></Layout> : <Navigate to="/login" replace />}
         />
         <Route
+          path="/smart-collections"
+          element={isAuthenticated ? <Layout><SmartCollections /></Layout> : <Navigate to="/login" replace />}
+        />
+        <Route
           path="/watermarks"
           element={isAuthenticated ? <Layout><Watermarks /></Layout> : <Navigate to="/login" replace />}
+        />
+        <Route
+          path="/trash"
+          element={isAuthenticated ? <Layout><Trash /></Layout> : <Navigate to="/login" replace />}
         />
         <Route
           path="/gallery/upload/:projectId"

@@ -20,6 +20,7 @@ interface UploadedFile {
   preview: string;
   title: string;
   watermarkedFile?: File; // Add watermarked file to store the processed image
+  aiTags?: string[]; // Store auto-extracted AI tags
 }
 
 interface ProjectData {
@@ -57,8 +58,18 @@ function GalleryUpload() {
     enableFaceTagging: false,
     applyWatermark: true,
     protectWithPin: false,
-    pin: ''
+    pin: '',
+    selectedWatermarkId: ''
   });
+
+  const [watermarkPresets, setWatermarkPresets] = useState<any[]>([]);
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('watermarkPresets');
+      if (saved) setWatermarkPresets(JSON.parse(saved));
+    } catch (e) {}
+  }, []);
 
   const [showPin, setShowPin] = useState(false);
 
@@ -80,67 +91,88 @@ function GalleryUpload() {
       .slice(0, 100); // Limit length to avoid S3 path issues
   };
 
-  // Function to add image watermark to an image
-  const addWatermark = async (file: File): Promise<File> => {
+  // Function to process image (compress to WebP, optionally watermark, extract AI tags)
+  const processImage = async (file: File, applyWatermark: boolean, preset?: any): Promise<{ file: File, tags: string[] }> => {
     return new Promise((resolve, reject) => {
       const img = new Image();
-      const watermarkImg = new Image();
       const reader = new FileReader();
+      img.crossOrigin = 'anonymous';
 
-      img.crossOrigin = 'anonymous'; // Enable CORS for the original image
-      watermarkImg.crossOrigin = 'anonymous'; // Enable CORS for the watermark image
-
-      reader.onload = (e) => {
-        img.src = e.target?.result as string;
-      };
-
+      reader.onload = (e) => { img.src = e.target?.result as string; };
       img.onload = () => {
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
-        if (!ctx) {
-          reject(new Error('Could not get canvas context'));
-          return;
+        if (!ctx) return resolve({ file, tags: [] });
+
+        let width = img.width;
+        let height = img.height;
+        const MAX_DIM = 4000;
+        if (width > MAX_DIM || height > MAX_DIM) {
+          if (width > height) { height *= MAX_DIM / width; width = MAX_DIM; }
+          else { width *= MAX_DIM / height; height = MAX_DIM; }
+        }
+        
+        canvas.width = width;
+        canvas.height = height;
+        ctx.drawImage(img, 0, 0, width, height);
+
+        // Simple AI Auto-Tagging: Sample every 10th pixel to find average color
+        let r = 0, g = 0, b = 0, count = 0;
+        try {
+          const imgData = ctx.getImageData(0, 0, width, height);
+          for (let i = 0; i < imgData.data.length; i += 40) {
+            r += imgData.data[i];
+            g += imgData.data[i+1];
+            b += imgData.data[i+2];
+            count++;
+          }
+        } catch(e) {}
+        
+        const tags: string[] = ['Auto-Tagged'];
+        if (count > 0) {
+          r = Math.round(r/count); g = Math.round(g/count); b = Math.round(b/count);
+          const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+          if (brightness > 200) tags.push('Bright');
+          else if (brightness < 60) tags.push('Dark');
+          if (r > b + 20 && r > g + 20) tags.push('Warm');
+          else if (b > r + 20 && b > g + 20) tags.push('Cool');
         }
 
-        canvas.width = img.width;
-        canvas.height = img.height;
-
-        // Draw the original image
-        ctx.drawImage(img, 0, 0);
-
-        // Load watermark image (replace with your served/hosted image URL with CORS support)
-        watermarkImg.src = '/images/rawstories-logo.svg';
-
-        watermarkImg.onload = () => {
-          // Calculate watermark size (e.g., 10% of the original image width)
-          const watermarkSize = img.width * 0.2;
-          const watermarkX = img.width - watermarkSize - 20; // 20px padding from right
-          const watermarkY = img.height - watermarkSize - 20; // 20px padding from bottom
-
-          // Draw watermark with transparency
-          ctx.globalAlpha = 0.5; // 50% opacity
-          ctx.drawImage(watermarkImg, watermarkX, watermarkY, watermarkSize, watermarkSize);
-          ctx.globalAlpha = 1.0; // Reset opacity
-
-          // Convert canvas to Blob and then to File
+        const finishProcessing = () => {
           canvas.toBlob((blob) => {
-            if (!blob) {
-              reject(new Error('Failed to create watermarked image'));
-              return;
-            }
-            const watermarkedFile = new File([blob], file.name, { type: file.type });
-            resolve(watermarkedFile);
-          }, file.type);
+            if (!blob) resolve({ file, tags });
+            else resolve({ file: new File([blob], file.name.replace(/\.[^/.]+$/, ".webp"), { type: 'image/webp' }), tags });
+          }, 'image/webp', 0.85);
         };
 
-        watermarkImg.onerror = () => {
-          if (isDev) console.warn('Watermark image failed to load, skipping watermark due to CORS or resource issue. ');
-          resolve(file); // Fallback to original file if watermark fails
-        };
+        if (applyWatermark && preset && preset.imageUrl) {
+          const watermarkImg = new Image();
+          watermarkImg.crossOrigin = 'anonymous';
+          watermarkImg.src = preset.imageUrl;
+
+          watermarkImg.onload = () => {
+            const watermarkSize = width * 0.2;
+            let watermarkX = width - watermarkSize - (width * 0.05); 
+            let watermarkY = height - watermarkSize - (height * 0.05);
+            
+            if (preset.position === 'top-left') { watermarkX = width * 0.05; watermarkY = height * 0.05; }
+            else if (preset.position === 'top-right') { watermarkX = width - watermarkSize - (width * 0.05); watermarkY = height * 0.05; }
+            else if (preset.position === 'bottom-left') { watermarkX = width * 0.05; watermarkY = height - watermarkSize - (height * 0.05); }
+            else if (preset.position === 'center') { watermarkX = (width - watermarkSize) / 2; watermarkY = (height - watermarkSize) / 2; }
+
+            ctx.globalAlpha = 0.6;
+            ctx.drawImage(watermarkImg, watermarkX, watermarkY, watermarkSize, watermarkSize);
+            ctx.globalAlpha = 1.0;
+            finishProcessing();
+          };
+          watermarkImg.onerror = () => finishProcessing();
+        } else {
+          finishProcessing();
+        }
       };
 
-      img.onerror = () => reject(new Error('Failed to load image for watermarking due to CORS or resource issue'));
-      reader.onerror = () => reject(new Error('Failed to read file for watermarking'));
+      img.onerror = () => resolve({ file, tags: [] });
+      reader.onerror = () => resolve({ file, tags: [] });
       reader.readAsDataURL(file);
     });
   };
@@ -394,24 +426,21 @@ function GalleryUpload() {
     };
 
     try {
-      // Apply watermark to images if enabled
+      // Process images (convert to WebP, extract tags, and optional watermark)
       let filesToUpload = uploadedFiles;
-      if (settings.applyWatermark) {
-        setUploadMessages(prev => [...prev, '📝 Applying watermarks to images...']);
-        const watermarkedPromises = uploadedFiles.map(async (fileObj) => {
-          try {
-            const watermarkedFile = await addWatermark(fileObj.file);
-            return { ...fileObj, watermarkedFile };
-          } catch (err) {
-            const message = err instanceof Error ? err.message : String(err);
-            if (isDev) console.error('Watermarking failed due to CORS or resource issue:', message);
-            setUploadMessages(prev => [...prev, `⚠️ Failed to apply watermark to ${fileObj.file.name}, uploading original`]);
-            return { ...fileObj }; // Fallback to original file
-          }
-        });
-        filesToUpload = await Promise.all(watermarkedPromises);
-        setUploadedFiles(filesToUpload); // Update state with watermarked files
-      }
+      const selectedPreset = settings.applyWatermark ? watermarkPresets.find(p => p.id === settings.selectedWatermarkId) : null;
+      setUploadMessages(prev => [...prev, '⚙️ Optimizing, analyzing colors, and converting...']);
+      
+      const processedPromises = uploadedFiles.map(async (fileObj) => {
+        try {
+          const { file: watermarkedFile, tags } = await processImage(fileObj.file, settings.applyWatermark, selectedPreset);
+          return { ...fileObj, watermarkedFile, aiTags: tags };
+        } catch (err) {
+          return { ...fileObj };
+        }
+      });
+      filesToUpload = await Promise.all(processedPromises);
+      setUploadedFiles(filesToUpload);
 
       const fileNames = filesToUpload.map(file => file.watermarkedFile?.name || file.file.name);
       const fileTypes = filesToUpload.map(file => file.watermarkedFile?.type || file.file.type);
@@ -427,6 +456,7 @@ function GalleryUpload() {
           projectId: projectData!.id,
           files: fileNames,
           fileTypes: fileTypes,
+          fileTags: filesToUpload.map(f => f.aiTags || []),
           folder,
           settings: {
             enableFaceTagging: settings.enableFaceTagging,
@@ -663,23 +693,43 @@ function GalleryUpload() {
                       />
                     </button>
                   </div>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="font-medium text-[#2D2D2D]">Apply Watermark</p>
-                      <p className="text-sm text-gray-600">Add studio watermark to images</p>
-                    </div>
-                    <button
-                      onClick={() => handleSettingChange('applyWatermark', !settings.applyWatermark)}
-                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 ${
-                        settings.applyWatermark ? 'bg-[#00BCEB]' : 'bg-gray-300'
-                      }`}
-                    >
-                      <span
-                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200 ${
-                          settings.applyWatermark ? 'translate-x-6' : 'translate-x-1'
+                  <div className="flex flex-col mb-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-medium text-[#2D2D2D]">Apply Watermark</p>
+                        <p className="text-sm text-gray-600">Add studio watermark to images</p>
+                      </div>
+                      <button
+                        onClick={() => handleSettingChange('applyWatermark', !settings.applyWatermark)}
+                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 ${
+                          settings.applyWatermark ? 'bg-[#00BCEB]' : 'bg-gray-300'
                         }`}
-                      />
-                    </button>
+                      >
+                        <span
+                          className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200 ${
+                            settings.applyWatermark ? 'translate-x-6' : 'translate-x-1'
+                          }`}
+                        />
+                      </button>
+                    </div>
+                    {settings.applyWatermark && (
+                      <div className="mt-3 pl-2 border-l-2 border-[#00BCEB] ml-2">
+                        {watermarkPresets.length === 0 ? (
+                          <p className="text-xs text-yellow-600">No watermark presets found. Create one in the Watermarks page.</p>
+                        ) : (
+                          <select 
+                            className="w-full text-sm rounded border border-gray-200 px-3 py-2 mt-1"
+                            value={settings.selectedWatermarkId}
+                            onChange={e => handleSettingChange('selectedWatermarkId', e.target.value)}
+                          >
+                            <option value="">Select a preset...</option>
+                            {watermarkPresets.map(p => (
+                              <option key={p.id} value={p.id}>{p.imageName} ({p.position})</option>
+                            ))}
+                          </select>
+                        )}
+                      </div>
+                    )}
                   </div>
                   <div className="flex items-center justify-between">
                     <div>

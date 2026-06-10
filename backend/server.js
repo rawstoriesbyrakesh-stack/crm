@@ -7,7 +7,7 @@ import mongoose from 'mongoose';
 import {
   S3Client, PutObjectCommand, DeleteObjectsCommand,
   ListObjectsV2Command, CopyObjectCommand, HeadObjectCommand,
-  PutBucketCorsCommand,
+  PutBucketCorsCommand, PutBucketLifecycleConfigurationCommand,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { GetObjectCommand } from '@aws-sdk/client-s3';
@@ -50,7 +50,7 @@ const presignGet = (key, expiresIn = PRESIGNED_EXPIRY) =>
   getSignedUrl(s3, new GetObjectCommand({ Bucket: WASABI_BUCKET, Key: key }), { expiresIn });
 
 const presignPut = (key, contentType = 'application/octet-stream', expiresIn = PRESIGNED_EXPIRY) =>
-  getSignedUrl(s3, new PutObjectCommand({ Bucket: WASABI_BUCKET, Key: key, ContentType: contentType }), { expiresIn });
+  getSignedUrl(s3, new PutObjectCommand({ Bucket: WASABI_BUCKET, Key: key, ContentType: contentType, CacheControl: 'public, max-age=31536000, immutable' }), { expiresIn });
 
 // Auto-configure Bucket CORS to allow browser uploads
 const configureBucketCors = async () => {
@@ -74,6 +74,27 @@ const configureBucketCors = async () => {
 };
 configureBucketCors();
 
+// Auto-configure Bucket Lifecycle (Trash expiration)
+const configureBucketLifecycle = async () => {
+  try {
+    await s3.send(new PutBucketLifecycleConfigurationCommand({
+      Bucket: WASABI_BUCKET,
+      LifecycleConfiguration: {
+        Rules: [{
+          ID: "EmptyTrashAfter30Days",
+          Filter: { Prefix: "trash/" },
+          Status: "Enabled",
+          Expiration: { Days: 30 }
+        }]
+      }
+    }));
+    console.log('✅ Wasabi bucket Lifecycle policy configured (Trash 30 days).');
+  } catch (err) {
+    console.error('⚠️ Could not configure Wasabi Lifecycle (user may lack permissions):', err.message);
+  }
+};
+configureBucketLifecycle();
+
 // ─── MongoDB Models ───────────────────────────────────────────────────────────
 const shareSchema = new mongoose.Schema({
   shareId:      { type: String, required: true, unique: true, index: true },
@@ -84,6 +105,9 @@ const shareSchema = new mongoose.Schema({
   isActive:     { type: Boolean, default: true },
   expiresAt:    { type: Date, default: null },
   viewCount:    { type: Number, default: 0 },
+  ips:          { type: [String], default: [] },
+  lastAccess:   { type: Date, default: null },
+  downloadCount:{ type: Number, default: 0 },
 }, { timestamps: true });
 
 const fileMetaSchema = new mongoose.Schema({
@@ -103,6 +127,8 @@ const folderMetaSchema = new mongoose.Schema({
   coverImage:  String,
   client:      String,
   tags:        [String],
+  logoUrl:     String,
+  brandColor:  String,
 }, { timestamps: true });
 
 const Share      = mongoose.model('Share', shareSchema);
@@ -158,11 +184,40 @@ const isAuthed = req => {
   return h.split(' ')[1] === SESSION_TOKEN;
 };
 
+// Simple in-memory rate limiter
+const rateLimits = new Map();
+const checkRateLimit = (req, res) => {
+  const ip = req.socket.remoteAddress;
+  const now = Date.now();
+  if (!rateLimits.has(ip)) {
+    rateLimits.set(ip, { count: 1, resetAt: now + 15 * 60 * 1000 });
+  } else {
+    const data = rateLimits.get(ip);
+    if (now > data.resetAt) {
+      data.count = 1;
+      data.resetAt = now + 15 * 60 * 1000;
+    } else {
+      data.count++;
+      if (data.count > 100) {
+        sendError(res, 429, 'Too many requests, please try again later.');
+        return false;
+      }
+    }
+  }
+  return true;
+};
+
 // ─── Server ───────────────────────────────────────────────────────────────────
 const server = http.createServer(async (req, res) => {
-  if (req.method === 'OPTIONS') { res.writeHead(204, cors); res.end(); return; }
+  if (req.method === 'OPTIONS') {
+    res.writeHead(204, cors);
+    res.end();
+    return;
+  }
 
-  const url      = new URL(req.url || '/', `http://localhost`);
+  if (!checkRateLimit(req, res)) return;
+
+  const url      = new URL(req.url || '/', `http://${req.headers.host}`);
   const pathname = url.pathname;
 
   try {
@@ -273,6 +328,8 @@ const server = http.createServer(async (req, res) => {
             tags: meta?.tags || [],
             shootType: meta?.shootType || 'Unknown',
             downloadCount: meta?.downloadCount || 0,
+            comments: meta?.comments || [],
+            isFavorite: meta?.isFavorite || false,
           };
         }))).flatMap(result => (result.status === 'fulfilled' ? [result.value] : []));
 
@@ -287,11 +344,45 @@ const server = http.createServer(async (req, res) => {
     if (pathname === '/default/imagesupload' && req.method === 'POST') {
       if (!isAuthed(req)) return sendError(res, 401, 'Unauthorized');
       const body = await readBody(req);
-      const key = body?.key;
-      const contentType = body?.contentType || 'application/octet-stream';
-      if (!key) return sendError(res, 400, 'Missing key');
-      const uploadUrl = await presignPut(key, contentType);
-      return sendJson(res, 200, { success: true, presigned_url: uploadUrl, url: uploadUrl, object_key: key });
+      
+      if (body?.uploadConfig) {
+        // Bulk Upload Flow (GalleryUpload.tsx)
+        const { files, fileTypes, fileTags, folder, settings } = body.uploadConfig;
+        if (!files || !Array.isArray(files)) return sendError(res, 400, 'Invalid files array');
+        
+        const presignedUrls = [];
+        for (let i = 0; i < files.length; i++) {
+          const filename = files[i];
+          const type = fileTypes && fileTypes[i] ? fileTypes[i] : 'image/webp';
+          const key = folder ? `${folder}/${filename}` : filename;
+          const url = await presignPut(key, type);
+          presignedUrls.push(url);
+          
+          // Save file meta
+          const tags = fileTags && fileTags[i] ? fileTags[i] : [];
+          const isFavorite = tags.includes('Favorite');
+          await FileMeta.findOneAndUpdate(
+            { key },
+            { 
+              key, 
+              tags, 
+              isFavorite,
+              clientName: body.client_name,
+              shootType: body.event_type,
+              eventDate: body.event_date
+            },
+            { upsert: true }
+          );
+        }
+        return sendJson(res, 200, { success: true, presignedUrls });
+      } else {
+        // Legacy single upload flow
+        const key = body?.key;
+        const contentType = body?.contentType || 'application/octet-stream';
+        if (!key) return sendError(res, 400, 'Missing key');
+        const uploadUrl = await presignPut(key, contentType);
+        return sendJson(res, 200, { success: true, presigned_url: uploadUrl, url: uploadUrl, object_key: key });
+      }
     }
 
     // ── Upload: bulk presigned PUT URLs / Server-side Copy ──────────────────
@@ -406,27 +497,91 @@ const server = http.createServer(async (req, res) => {
       return sendJson(res, 200, { success: true, message: 'Moved successfully' });
     }
 
-    // ── File/Folder: delete ────────────────────────────────────────────────
+    // ── File/Folder: delete (move to trash) ────────────────────────────────
     if (pathname === '/default/deleteimage' && req.method === 'POST') {
       if (!isAuthed(req)) return sendError(res, 401, 'Unauthorized');
       const body = await readBody(req);
       const keys = body?.keys || (body?.key ? [body.key] : []);
-      const toDelete = [];
+      const toDeleteOriginal = [];
 
       for (const key of keys) {
         if (key.endsWith('/')) {
           // it's a folder — list everything under it
           const list = await s3.send(new ListObjectsV2Command({ Bucket: WASABI_BUCKET, Prefix: key }));
-          (list.Contents || []).forEach(o => o.Key && toDelete.push({ Key: o.Key }));
-          await FolderMeta.deleteOne({ path: key });
+          const objects = list.Contents || [];
+          for (const obj of objects) {
+            if (!obj.Key) continue;
+            const newObjKey = `trash/${obj.Key}`;
+            await s3.send(new CopyObjectCommand({ Bucket: WASABI_BUCKET, CopySource: `${WASABI_BUCKET}/${obj.Key}`, Key: newObjKey }));
+            toDeleteOriginal.push({ Key: obj.Key });
+          }
+          await FolderMeta.findOneAndUpdate({ path: key }, { path: `trash/${key}` });
         } else {
-          toDelete.push({ Key: key });
-          await FileMeta.deleteOne({ key });
+          await s3.send(new CopyObjectCommand({ Bucket: WASABI_BUCKET, CopySource: `${WASABI_BUCKET}/${key}`, Key: `trash/${key}` }));
+          toDeleteOriginal.push({ Key: key });
+          await FileMeta.findOneAndUpdate({ key }, { key: `trash/${key}` });
         }
       }
 
+      if (toDeleteOriginal.length > 0) {
+        // Delete original objects in batches of 1000
+        for (let i = 0; i < toDeleteOriginal.length; i += 1000) {
+          await s3.send(new DeleteObjectsCommand({
+            Bucket: WASABI_BUCKET,
+            Delete: { Objects: toDeleteOriginal.slice(i, i + 1000) }
+          }));
+        }
+      }
+      return sendJson(res, 200, { success: true, deleted: keys, message: 'Moved to trash' });
+    }
+
+    // ── File/Folder: restore from trash ────────────────────────────────────
+    if (pathname === '/default/restoreimage' && req.method === 'POST') {
+      if (!isAuthed(req)) return sendError(res, 401, 'Unauthorized');
+      const body = await readBody(req);
+      const keys = body?.keys || (body?.key ? [body.key] : []);
+      const toDeleteTrash = [];
+
+      for (const key of keys) {
+        const trashKey = key.startsWith('trash/') ? key : `trash/${key}`;
+        const originalKey = trashKey.replace(/^trash\//, '');
+        
+        if (trashKey.endsWith('/')) {
+          const list = await s3.send(new ListObjectsV2Command({ Bucket: WASABI_BUCKET, Prefix: trashKey }));
+          const objects = list.Contents || [];
+          for (const obj of objects) {
+            if (!obj.Key) continue;
+            const newObjKey = obj.Key.replace(/^trash\//, '');
+            await s3.send(new CopyObjectCommand({ Bucket: WASABI_BUCKET, CopySource: `${WASABI_BUCKET}/${obj.Key}`, Key: newObjKey }));
+            toDeleteTrash.push({ Key: obj.Key });
+          }
+          await FolderMeta.findOneAndUpdate({ path: trashKey }, { path: originalKey });
+        } else {
+          await s3.send(new CopyObjectCommand({ Bucket: WASABI_BUCKET, CopySource: `${WASABI_BUCKET}/${trashKey}`, Key: originalKey }));
+          toDeleteTrash.push({ Key: trashKey });
+          await FileMeta.findOneAndUpdate({ key: trashKey }, { key: originalKey });
+        }
+      }
+
+      if (toDeleteTrash.length > 0) {
+        for (let i = 0; i < toDeleteTrash.length; i += 1000) {
+          await s3.send(new DeleteObjectsCommand({
+            Bucket: WASABI_BUCKET,
+            Delete: { Objects: toDeleteTrash.slice(i, i + 1000) }
+          }));
+        }
+      }
+      return sendJson(res, 200, { success: true, restored: keys, message: 'Restored successfully' });
+    }
+    
+    // ── File/Folder: empty trash (hard delete) ─────────────────────────────
+    if (pathname === '/default/emptytrash' && req.method === 'POST') {
+      if (!isAuthed(req)) return sendError(res, 401, 'Unauthorized');
+      const list = await s3.send(new ListObjectsV2Command({ Bucket: WASABI_BUCKET, Prefix: 'trash/' }));
+      const objects = list.Contents || [];
+      const toDelete = objects.map(o => ({ Key: o.Key }));
+      
       if (toDelete.length > 0) {
-        // Delete in batches of 1000 (S3 limit)
         for (let i = 0; i < toDelete.length; i += 1000) {
           await s3.send(new DeleteObjectsCommand({
             Bucket: WASABI_BUCKET,
@@ -434,7 +589,11 @@ const server = http.createServer(async (req, res) => {
           }));
         }
       }
-      return sendJson(res, 200, { success: true, deleted: keys, errors: [] });
+      // Clean up metadata
+      await FileMeta.deleteMany({ key: /^trash\// });
+      await FolderMeta.deleteMany({ path: /^trash\// });
+      
+      return sendJson(res, 200, { success: true, message: 'Trash emptied' });
     }
 
     // ── File: update metadata ──────────────────────────────────────────────
@@ -444,6 +603,16 @@ const server = http.createServer(async (req, res) => {
       const { key, ...updates } = body || {};
       if (!key) return sendError(res, 400, 'Missing key');
       const meta = await FileMeta.findOneAndUpdate({ key }, { key, ...updates }, { upsert: true, new: true });
+      return sendJson(res, 200, { success: true, meta });
+    }
+
+    // ── Folder: update metadata ──────────────────────────────────────────────
+    if (pathname === '/default/updatefoldermeta' && req.method === 'POST') {
+      if (!isAuthed(req)) return sendError(res, 401, 'Unauthorized');
+      const body = await readBody(req);
+      const { path: folderPath, ...updates } = body || {};
+      if (!folderPath) return sendError(res, 400, 'Missing path');
+      const meta = await FolderMeta.findOneAndUpdate({ path: folderPath }, { path: folderPath, ...updates }, { upsert: true, new: true });
       return sendJson(res, 200, { success: true, meta });
     }
 
@@ -463,8 +632,12 @@ const server = http.createServer(async (req, res) => {
     // ── Download: presigned GET URL ────────────────────────────────────────
     if (pathname === '/default/downloadimage' && req.method === 'GET') {
       const key = url.searchParams.get('key') || '';
+      const shareId = url.searchParams.get('shareId') || '';
       if (!key) return sendError(res, 400, 'Missing key');
       await FileMeta.findOneAndUpdate({ key }, { $inc: { downloadCount: 1 }, $setOnInsert: { key } }, { upsert: true });
+      if (shareId) {
+        await Share.findOneAndUpdate({ shareId }, { $inc: { downloadCount: 1 } });
+      }
       const signedUrl = await presignGet(key, 300);
       return sendJson(res, 200, { success: true, url: signedUrl });
     }
@@ -565,17 +738,34 @@ const server = http.createServer(async (req, res) => {
         if (inputPin !== share.sharePin) return sendError(res, 401, 'Incorrect PIN');
       }
 
-      await Share.findOneAndUpdate({ shareId }, { $inc: { viewCount: 1 } });
+      const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
+      await Share.findOneAndUpdate(
+        { shareId }, 
+        { 
+          $inc: { viewCount: 1 },
+          $set: { lastAccess: new Date() },
+          $addToSet: { ips: ip }
+        }
+      );
 
       const resolvedItems = await Promise.all((share.items || []).map(async item => {
         const key = typeof item === 'string' ? item : (item.id || item.key || '');
         const signedUrl = await presignGet(key, 86400);
+        const meta = await FileMeta.findOne({ key }).lean();
         return { id: key, title: path.basename(key), imageUrl: signedUrl, presigned_url: signedUrl,
-          isVideo: /\.(mp4|mov|avi|mkv|webm)$/i.test(key), allowDownload: share.allowDownload };
+          isVideo: /\.(mp4|mov|avi|mkv|webm)$/i.test(key), allowDownload: share.allowDownload, comments: meta?.comments || [] };
       }));
 
+      let branding = {};
+      if (share.folderPrefix) {
+        const meta = await FolderMeta.findOne({ path: share.folderPrefix }).lean();
+        if (meta) {
+          branding = { logoUrl: meta.logoUrl, brandColor: meta.brandColor, client: meta.client };
+        }
+      }
+
       return sendJson(res, 200, { success: true, shareId, isPinProtected: !!share.sharePin,
-        allowDownload: share.allowDownload, folderPrefix: share.folderPrefix, items: resolvedItems });
+        allowDownload: share.allowDownload, folderPrefix: share.folderPrefix, items: resolvedItems, branding });
     }
 
     // ── Mail stub ──────────────────────────────────────────────────────────
@@ -583,6 +773,38 @@ const server = http.createServer(async (req, res) => {
       const body = await readBody(req);
       console.log('📧 Email stub →', body?.to, '|', body?.subject);
       return sendJson(res, 200, { success: true, message: 'Email sent (stub)' });
+    }
+
+    // --- Simulated Background Jobs ---
+    let jobsQueue = [];
+    let jobIdCounter = 1;
+
+    if (pathname === '/default/simulate-job' && req.method === 'POST') {
+      if (!isAuthed(req)) return sendError(res, 401, 'Unauthorized');
+      const body = await readBody(req);
+      const { type } = body || {};
+      const job = { id: jobIdCounter++, type: type || 'Metadata Extraction', status: 'processing', progress: 0 };
+      jobsQueue.push(job);
+      
+      // Simulate background work
+      let progress = 0;
+      const interval = setInterval(() => {
+        progress += 20;
+        const j = jobsQueue.find(x => x.id === job.id);
+        if (j) j.progress = progress;
+        if (progress >= 100) {
+          if (j) j.status = 'completed';
+          clearInterval(interval);
+        }
+      }, 1000);
+      
+      return sendJson(res, 200, { success: true, job });
+    }
+
+    if (pathname === '/default/jobs' && req.method === 'GET') {
+      if (!isAuthed(req)) return sendError(res, 401, 'Unauthorized');
+      // Return last 5 jobs
+      return sendJson(res, 200, { success: true, jobs: jobsQueue.slice(-5).reverse() });
     }
 
     sendError(res, 404, 'Route not found');

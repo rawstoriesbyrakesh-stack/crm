@@ -9,7 +9,10 @@ import {
   Search,
   Lock,
   Unlock,
-  AlertCircle
+  AlertCircle,
+  BarChart2,
+  DownloadCloud,
+  Code
 } from 'lucide-react';
 import { rawStoriesApiUrl, getRawStoriesToken } from '../api/rawStoriesBackend';
 
@@ -23,6 +26,10 @@ interface ShareLink {
   expiresAt: string;
   isActive: boolean;
   createdAt: string;
+  viewCount?: number;
+  ips?: string[];
+  lastAccess?: string;
+  downloadCount?: number;
 }
 
 export default function SharedLinks() {
@@ -56,10 +63,10 @@ export default function SharedLinks() {
     }
   };
 
-  const copyToClipboard = async (text: string, id: string) => {
+  const copyToClipboard = async (text: string, id: string, type: string = 'link') => {
     try {
       await navigator.clipboard.writeText(text);
-      setCopiedId(id);
+      setCopiedId(`${id}-${type}`);
       setTimeout(() => setCopiedId(null), 2000);
     } catch (err) {
       console.error('Failed to copy text: ', err);
@@ -107,11 +114,38 @@ export default function SharedLinks() {
     return `${baseUrl}/shared-folder-view/${encodeURIComponent(link.folderPrefix || link.shareId)}?sid=${link.shareId}`;
   };
 
+  const getEmbedCode = (link: ShareLink) => {
+    return `<iframe src="${getShareUrl(link)}" width="100%" height="800" style="border:none; border-radius:12px; overflow:hidden;" allowfullscreen></iframe>`;
+  };
+
   const filteredLinks = links.filter(link => 
     link.shareId.toLowerCase().includes(searchTerm.toLowerCase()) || 
     (link.folderPrefix || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
     link.items.some(item => item.toLowerCase().includes(searchTerm.toLowerCase()))
   );
+
+  const exportToCSV = () => {
+    if (links.length === 0) return;
+    const headers = ['Share ID', 'Folder Prefix', 'Status', 'Created At', 'Views', 'Unique IPs', 'Downloads', 'Last Accessed'];
+    const rows = links.map(link => [
+      link.shareId,
+      link.folderPrefix || '',
+      link.isActive ? 'Active' : 'Revoked',
+      new Date(link.createdAt).toLocaleString(),
+      link.viewCount || 0,
+      link.ips?.length || 0,
+      link.downloadCount || 0,
+      link.lastAccess ? new Date(link.lastAccess).toLocaleString() : 'Never'
+    ]);
+    const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `share_analytics_${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    window.URL.revokeObjectURL(url);
+  };
 
   return (
     <div className="p-6 md:p-10 max-w-7xl mx-auto w-full">
@@ -149,6 +183,17 @@ export default function SharedLinks() {
             className="w-full bg-slate-800/50 border border-slate-700/50 text-white rounded-2xl pl-12 pr-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all placeholder-slate-500"
           />
         </motion.div>
+        
+        <motion.button
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ delay: 0.3 }}
+          onClick={exportToCSV}
+          className="flex items-center gap-2 px-4 py-3 bg-slate-800/80 text-white rounded-2xl hover:bg-slate-700 transition-colors border border-slate-700/50 whitespace-nowrap"
+        >
+          <DownloadCloud className="w-5 h-5 text-primary-400" />
+          Export CSV
+        </motion.button>
       </div>
 
       {isLoading ? (
@@ -217,11 +262,18 @@ export default function SharedLinks() {
                 
                 <div className="flex gap-2">
                   <button
-                    onClick={() => copyToClipboard(getShareUrl(link), link.shareId)}
+                    onClick={() => copyToClipboard(getEmbedCode(link), link.shareId, 'embed')}
+                    className="p-2 rounded-lg bg-slate-800/50 text-slate-400 hover:text-white hover:bg-slate-700 transition-colors"
+                    title="Copy Embed Code"
+                  >
+                    {copiedId === `${link.shareId}-embed` ? <Check className="w-4 h-4 text-emerald-400" /> : <Code className="w-4 h-4" />}
+                  </button>
+                  <button
+                    onClick={() => copyToClipboard(getShareUrl(link), link.shareId, 'link')}
                     className="p-2 rounded-lg bg-slate-800/50 text-slate-400 hover:text-white hover:bg-slate-700 transition-colors"
                     title="Copy Link"
                   >
-                    {copiedId === link.shareId ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+                    {copiedId === `${link.shareId}-link` ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
                   </button>
                   <a
                     href={getShareUrl(link)}
@@ -247,6 +299,33 @@ export default function SharedLinks() {
                       {item.replace(/^\//, '').replace(/\/$/, '')}
                     </span>
                   ))}
+                </div>
+              </div>
+
+              <div className="mb-4 p-3 bg-slate-900/30 rounded-xl border border-slate-800/50">
+                <div className="flex items-center gap-2 mb-3">
+                  <BarChart2 className="w-4 h-4 text-primary-400" />
+                  <p className="text-xs text-slate-400 font-medium uppercase tracking-wider">Analytics</p>
+                </div>
+                <div className="grid grid-cols-4 gap-4 text-center">
+                  <div>
+                    <p className="text-lg font-semibold text-slate-200">{link.viewCount || 0}</p>
+                    <p className="text-[10px] text-slate-500 uppercase">Views</p>
+                  </div>
+                  <div>
+                    <p className="text-lg font-semibold text-slate-200">{link.ips?.length || 0}</p>
+                    <p className="text-[10px] text-slate-500 uppercase">Unique IPs</p>
+                  </div>
+                  <div>
+                    <p className="text-lg font-semibold text-slate-200">{link.downloadCount || 0}</p>
+                    <p className="text-[10px] text-slate-500 uppercase">Downloads</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-slate-200 mt-1 truncate" title={link.lastAccess ? new Date(link.lastAccess).toLocaleString() : 'Never'}>
+                      {link.lastAccess ? new Date(link.lastAccess).toLocaleDateString() : 'Never'}
+                    </p>
+                    <p className="text-[10px] text-slate-500 uppercase mt-0.5">Last Access</p>
+                  </div>
                 </div>
               </div>
 

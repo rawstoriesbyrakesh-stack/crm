@@ -3,13 +3,13 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   ArrowLeft, Grid3X3, List, Download, Eye, X, Loader2,
   AlertCircle, Lock, Check, ChevronLeft, ChevronRight,
-  Image, Play, ZoomIn, Camera,
+  Image, Play, ZoomIn, Camera, MessageSquare, Send
 } from 'lucide-react';
 import { rawStoriesApiUrl } from '../api/rawStoriesBackend';
 
 const SHARE_API = rawStoriesApiUrl('/default/SharedLinkAccess');
 
-interface Item { id: string; title: string; imageUrl: string; presigned_url?: string; isVideo?: boolean; allowDownload?: boolean; }
+interface Item { id: string; title: string; imageUrl: string; presigned_url?: string; isVideo?: boolean; allowDownload?: boolean; comments?: {text: string, author: string, createdAt: string}[]; }
 
 function notify(setFn: React.Dispatch<React.SetStateAction<{id:string;msg:string;type:string}[]>>, msg: string, type = 'info') {
   const id = `${Date.now()}-${Math.random()}`;
@@ -39,6 +39,10 @@ export default function SharedFolderView() {
   const [denyReason, setDenyReason] = useState('');
   const [isPinProtected, setIsPinProtected] = useState(false);
   const [sharedItemsList, setSharedItemsList] = useState<string[]>([]);
+  const [branding, setBranding] = useState<{ logoUrl?: string; brandColor?: string; client?: string } | null>(null);
+  const [showComments, setShowComments] = useState(false);
+  const [newComment, setNewComment] = useState('');
+  const [authorName, setAuthorName] = useState('');
 
   const decoded = folderPath ? decodeURIComponent(folderPath) : '';
 
@@ -61,7 +65,9 @@ export default function SharedFolderView() {
           setSharedItemsList(link.items);
         }
         
-        if (link.isPinProtected) { setIsPinProtected(true); setPhase('pin'); }
+        if (data.branding) setBranding(data.branding);
+        
+        if (link?.isPinProtected || data.isPinProtected) { setIsPinProtected(true); setPhase('pin'); }
         else { setPhase('gallery'); }
       } catch {
         setDenyReason('Unable to verify access. Please try again.');
@@ -86,6 +92,7 @@ export default function SharedFolderView() {
         imageUrl: f.presigned_url || `${rawStoriesApiUrl('')}/uploads/${f.key}`,
         isVideo: /\.(mp4|mov|avi|mkv|webm)$/i.test(f.key),
         allowDownload: true,
+        comments: f.comments || [],
       }));
       
       // If the share link was created for specific items, filter the gallery to ONLY show those items
@@ -141,6 +148,26 @@ export default function SharedFolderView() {
 
   const toggleSelect = (id: string) =>
     setSelected(p => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; });
+
+  // ── Add Comment ──────────────────────────────────────────────────────────
+  const handleAddComment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (lightbox === null || !newComment.trim()) return;
+    const item = items[lightbox];
+    const author = authorName.trim() || 'Guest';
+    try {
+      const res = await fetch(rawStoriesApiUrl('/default/addcomment'), {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: item.id, text: newComment, author })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setItems(prev => prev.map((it, idx) => idx === lightbox ? { ...it, comments: [...(it.comments||[]), { text: newComment, author, createdAt: new Date().toISOString() }] } : it));
+        setNewComment('');
+        notify(setNotifications, 'Comment added', 'success');
+      } else { throw new Error(data.message); }
+    } catch (err: any) { notify(setNotifications, err.message || 'Failed to add comment', 'error'); }
+  };
 
   // ── Lightbox keys ────────────────────────────────────────────────────────
   useEffect(() => {
@@ -224,7 +251,9 @@ export default function SharedFolderView() {
   // ─────────────────────────────────────────────────────────────────────────
   //  RENDER: Gallery
   // ─────────────────────────────────────────────────────────────────────────
-  const galleryTitle = decoded.split('/').filter(Boolean).pop() || 'Shared Gallery';
+  const defaultTitle = decoded.split('/').filter(Boolean).pop() || 'Shared Gallery';
+  const galleryTitle = branding?.client ? `${branding.client} Gallery` : defaultTitle;
+  const brandColor = branding?.brandColor || '#d97706'; // default amber-600
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-stone-950 via-stone-900 to-stone-950">
@@ -240,28 +269,32 @@ export default function SharedFolderView() {
       </div>
 
       {/* Header */}
-      <header className="sticky top-0 z-40 bg-stone-950/80 backdrop-blur-lg border-b border-white/10">
+      <header className="sticky top-0 z-40 bg-stone-950/80 backdrop-blur-lg border-b border-white/10" style={{ borderBottomColor: `${brandColor}40` }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3 min-w-0">
             <button onClick={() => navigate(-1)} className="p-2 rounded-lg text-stone-400 hover:text-white hover:bg-white/10 transition-all flex-shrink-0">
               <ArrowLeft className="h-5 w-5" />
             </button>
             <div className="flex items-center gap-2 min-w-0">
-              <Camera className="h-5 w-5 text-amber-400 flex-shrink-0" />
+              {branding?.logoUrl ? (
+                <img src={branding.logoUrl} alt="Client Logo" className="h-8 object-contain flex-shrink-0" />
+              ) : (
+                <Camera className="h-5 w-5 flex-shrink-0" style={{ color: brandColor }} />
+              )}
               <h1 className="text-white font-semibold text-lg truncate capitalize">{galleryTitle}</h1>
             </div>
           </div>
           <div className="flex items-center gap-2">
             {selected.size > 0 && (
-              <button onClick={downloadSelected} className="flex items-center gap-2 px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-sm font-medium transition-all">
+              <button onClick={downloadSelected} className="flex items-center gap-2 px-4 py-2 text-white rounded-lg text-sm font-medium transition-all" style={{ backgroundColor: brandColor }}>
                 <Download className="h-4 w-4" />{selected.size} selected
               </button>
             )}
             <div className="flex items-center bg-white/10 rounded-lg p-1">
-              <button onClick={() => setViewMode('grid')} className={`p-1.5 rounded-md transition-all ${viewMode==='grid'?'bg-amber-600 text-white':'text-stone-400 hover:text-white'}`}>
+              <button onClick={() => setViewMode('grid')} className={`p-1.5 rounded-md transition-all ${viewMode==='grid'?'text-white':'text-stone-400 hover:text-white'}`} style={viewMode==='grid'?{backgroundColor: brandColor}:{}}>
                 <Grid3X3 className="h-4 w-4" />
               </button>
-              <button onClick={() => setViewMode('list')} className={`p-1.5 rounded-md transition-all ${viewMode==='list'?'bg-amber-600 text-white':'text-stone-400 hover:text-white'}`}>
+              <button onClick={() => setViewMode('list')} className={`p-1.5 rounded-md transition-all ${viewMode==='list'?'text-white':'text-stone-400 hover:text-white'}`} style={viewMode==='list'?{backgroundColor: brandColor}:{}}>
                 <List className="h-4 w-4" />
               </button>
             </div>
@@ -384,17 +417,48 @@ export default function SharedFolderView() {
           )}
           <div className="max-w-5xl max-h-[90vh] w-full mx-16" onClick={e => e.stopPropagation()}>
             {items[lightbox].isVideo ? (
-              <video src={items[lightbox].imageUrl} controls className="max-h-[85vh] max-w-full mx-auto rounded-lg" />
+              <video src={items[lightbox].imageUrl} controls className="max-h-[70vh] max-w-full mx-auto rounded-lg" />
             ) : (
-              <img src={items[lightbox].imageUrl} alt={items[lightbox].title} className="max-h-[85vh] max-w-full mx-auto object-contain rounded-lg shadow-2xl" />
+              <img src={items[lightbox].imageUrl} alt={items[lightbox].title} className="max-h-[70vh] max-w-full mx-auto object-contain rounded-lg shadow-2xl" />
             )}
             <div className="text-center mt-3 flex items-center justify-center gap-4">
               <p className="text-stone-400 text-sm">{items[lightbox].title}</p>
+              <button onClick={() => setShowComments(!showComments)} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm transition-all ${showComments ? 'bg-amber-600 text-white' : 'bg-white/10 text-stone-300 hover:bg-white/20'}`}>
+                <MessageSquare className="h-4 w-4" />{(items[lightbox].comments||[]).length} Comments
+              </button>
               <button onClick={() => downloadItem(items[lightbox!])} className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-600/80 hover:bg-amber-500 text-white rounded-lg text-sm transition-all">
                 <Download className="h-4 w-4" />Download
               </button>
             </div>
-            <p className="text-center text-stone-600 text-xs mt-1">{lightbox + 1} / {items.length}</p>
+            
+            {showComments && (
+              <div className="mt-4 bg-stone-900 rounded-xl p-4 max-w-2xl mx-auto border border-white/10 max-h-64 flex flex-col">
+                <div className="flex-1 overflow-y-auto space-y-3 mb-3 pr-2">
+                  {(items[lightbox].comments||[]).length === 0 ? (
+                    <p className="text-stone-500 text-center text-sm py-4">No comments yet. Be the first to comment!</p>
+                  ) : (
+                    (items[lightbox].comments||[]).map((c, i) => (
+                      <div key={i} className="bg-white/5 rounded-lg p-3 text-left">
+                        <div className="flex justify-between items-baseline mb-1">
+                          <span className="text-amber-400 text-xs font-semibold">{c.author}</span>
+                          <span className="text-stone-500 text-[10px]">{new Date(c.createdAt).toLocaleDateString()}</span>
+                        </div>
+                        <p className="text-stone-300 text-sm">{c.text}</p>
+                      </div>
+                    ))
+                  )}
+                </div>
+                <form onSubmit={handleAddComment} className="flex gap-2 shrink-0">
+                  <input type="text" placeholder="Your Name (Optional)" value={authorName} onChange={e=>setAuthorName(e.target.value)} className="w-1/3 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500" />
+                  <input type="text" placeholder="Add a comment..." value={newComment} onChange={e=>setNewComment(e.target.value)} className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500" />
+                  <button type="submit" disabled={!newComment.trim()} className="bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white px-3 py-2 rounded-lg transition-colors">
+                    <Send className="h-4 w-4" />
+                  </button>
+                </form>
+              </div>
+            )}
+            
+            <p className="text-center text-stone-600 text-xs mt-3">{lightbox + 1} / {items.length}</p>
           </div>
         </div>
       )}

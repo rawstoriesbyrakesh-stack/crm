@@ -146,6 +146,7 @@ function Gallery() {
   const [folders, setFolders] = useState<FolderItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [deleteLoading, setDeleteLoading] = useState<string[]>([]);
+  const [isRotating, setIsRotating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
@@ -172,6 +173,7 @@ function Gallery() {
   }>>([]);
   const [createFolderModal, setCreateFolderModal] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
+  const [folderPreset, setFolderPreset] = useState('none');
   const [imageListModal, setImageListModal] = useState<{ isOpen: boolean; folderName: string; images: string[] }>({ isOpen: false, folderName: '', images: [] });
   const [selectedImagesModal, setSelectedImagesModal] = useState<{ isOpen: boolean; images: string[] }>({ isOpen: false, images: [] });
   const [filters, setFilters] = useState({
@@ -451,7 +453,61 @@ function Gallery() {
     }
   };
 
-  // -------------------- Public download handlers --------------------
+  // -------------------- Public download and edit handlers --------------------
+  
+  const handleRotateImage = async (item: GalleryItem) => {
+    if (!item || isRotating || item.isVideo) return;
+    setIsRotating(true);
+    try {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.src = item.imageUrl + (item.imageUrl.includes('?') ? '&' : '?') + 'cachebust=' + Date.now();
+
+      await new Promise((resolve, reject) => {
+        img.onload = resolve;
+        img.onerror = reject;
+      });
+
+      const canvas = document.createElement('canvas');
+      canvas.width = img.height;
+      canvas.height = img.width;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) throw new Error('Canvas context failed');
+
+      ctx.translate(canvas.width / 2, canvas.height / 2);
+      ctx.rotate((90 * Math.PI) / 180);
+      ctx.drawImage(img, -img.width / 2, -img.height / 2);
+
+      const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/webp', 0.9));
+      if (!blob) throw new Error('Blob creation failed');
+
+      const res = await fetch(rawStoriesApiUrl('/default/imagesupload'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getRawStoriesToken()}` },
+        body: JSON.stringify({ key: item.id, contentType: 'image/webp' })
+      });
+      const { presigned_url } = await res.json();
+      
+      await fetch(presigned_url, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'image/webp' },
+        body: blob
+      });
+
+      // Update state
+      const newUrl = item.imageUrl.split('?')[0] + '?v=' + Date.now();
+      setItems(prev => prev.map(i => i.id === item.id ? { ...i, imageUrl: newUrl } : i));
+      if (previewModal.currentImage?.id === item.id) {
+        setPreviewModal(prev => ({ ...prev, currentImage: { ...prev.currentImage!, imageUrl: newUrl } }));
+      }
+    } catch (err) {
+      console.error('Failed to rotate image', err);
+      alert('Failed to rotate image. See console for details.');
+    } finally {
+      setIsRotating(false);
+    }
+  };
+
   const handleDownloadItem = async (item: GalleryItem) => {
     addNotification(`Starting download: ${item.filename}`, 'info');
     await fetchBlobOrOpen(item.imageUrl, item.filename);
@@ -1422,10 +1478,80 @@ function Gallery() {
     handleDeleteItems([id]);
   };
 
-  const handleToggleFavorite = (item: GalleryItem) => {
+  const handleToggleFavorite = async (item: GalleryItem) => {
+    if (item.type === 'folder') return;
+    const newStatus = !item.isFavorite;
     setItems((prev) =>
-      prev.map((i) => (i.id === item.id ? { ...i, isFavorite: !i.isFavorite } : i))
+      prev.map((i) => (i.id === item.id ? { ...i, isFavorite: newStatus } : i))
     );
+    try {
+      await fetch(rawStoriesApiUrl('/default/updatefilemeta'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getRawStoriesToken()}` },
+        body: JSON.stringify({ key: item.id, isFavorite: newStatus }),
+        mode: 'cors',
+      });
+      addNotification(`${newStatus ? 'Added to' : 'Removed from'} favorites`, 'success');
+    } catch (err) {
+      console.error('Failed to update favorite status', err);
+      // Revert on failure
+      setItems((prev) =>
+        prev.map((i) => (i.id === item.id ? { ...i, isFavorite: !newStatus } : i))
+      );
+      addNotification('Failed to update favorite', 'error');
+    }
+  };
+
+  const handleAddTag = async (itemId: string, newTag: string) => {
+    if (!newTag.trim()) return;
+    const item = items.find(i => i.id === itemId);
+    if (!item) return;
+    const tags = item.tags || [];
+    if (tags.includes(newTag)) return;
+    
+    const newTags = [...tags, newTag.trim()];
+    
+    setItems((prev) =>
+      prev.map((i) => (i.id === item.id ? { ...i, tags: newTags } : i))
+    );
+    if (previewModal.currentImage && previewModal.currentImage.id === itemId) {
+       setPreviewModal(prev => ({ ...prev, currentImage: { ...prev.currentImage!, tags: newTags } }));
+    }
+
+    try {
+      await fetch(rawStoriesApiUrl('/default/updatefilemeta'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getRawStoriesToken()}` },
+        body: JSON.stringify({ key: item.id, tags: newTags }),
+        mode: 'cors',
+      });
+    } catch (err) {
+      console.error('Failed to add tag', err);
+    }
+  };
+
+  const handleRemoveTag = async (itemId: string, tagToRemove: string) => {
+    const item = items.find(i => i.id === itemId);
+    if (!item) return;
+    const newTags = (item.tags || []).filter(t => t !== tagToRemove);
+    
+    setItems((prev) =>
+      prev.map((i) => (i.id === item.id ? { ...i, tags: newTags } : i))
+    );
+    if (previewModal.currentImage && previewModal.currentImage.id === itemId) {
+       setPreviewModal(prev => ({ ...prev, currentImage: { ...prev.currentImage!, tags: newTags } }));
+    }
+
+    try {
+      await fetch(rawStoriesApiUrl('/default/updatefilemeta'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getRawStoriesToken()}` },
+        body: JSON.stringify({ key: item.id, tags: newTags }),
+        mode: 'cors',
+      });
+    } catch (err) {
+      console.error('Failed to remove tag', err);
+    }
   };
 
   // Handle showing image list for client selection folders
@@ -1589,8 +1715,23 @@ function Gallery() {
         throw new Error(result.message || 'Folder creation failed');
       }
 
+      if (folderPreset !== 'none' && !currentPath) {
+        const subfolders = folderPreset === 'wedding' 
+          ? ['Selects', 'Finals', 'Raw', 'Sneak Peeks']
+          : folderPreset === 'portrait' ? ['Selects', 'Finals', 'Raw'] : [];
+        for (const sub of subfolders) {
+          await fetch(rawStoriesApiUrl('/default/createfolder'), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getRawStoriesToken()}` },
+            body: JSON.stringify({ key: `${folderKey}${sub}/` }),
+            mode: 'cors',
+          });
+        }
+      }
+
       setCreateFolderModal(false);
       setNewFolderName('');
+      setFolderPreset('none');
       fetchGalleryItems();
       addNotification(`Folder created: ${newFolderName}`, 'success');
     } catch (err: any) {
@@ -3166,6 +3307,15 @@ function Gallery() {
                       <Download className="w-4 h-4 inline mr-1" />
                       Download
                     </button>
+                    {!previewModal.currentImage.isVideo && (
+                      <button
+                        onClick={() => handleRotateImage(previewModal.currentImage!)}
+                        disabled={isRotating}
+                        className={`px-3 py-1.5 text-white rounded-lg text-sm ${isRotating ? 'bg-gray-400' : 'bg-purple-500 hover:bg-purple-600'}`}
+                      >
+                        {isRotating ? '...' : 'Rotate 90°'}
+                      </button>
+                    )}
                     <button
                       onClick={() => handleShareSingle(previewModal.currentImage!)}
                       className="px-3 py-1.5 bg-[#FF6B00] text-white rounded-lg text-sm"
@@ -3173,6 +3323,30 @@ function Gallery() {
                       <Share2 className="w-4 h-4 inline mr-1" />
                       Share
                     </button>
+                  </div>
+                  <div className="mt-4 border-t border-gray-100 pt-4">
+                    <div className="flex flex-wrap gap-2 mb-2">
+                      {(previewModal.currentImage.tags || []).map(tag => (
+                        <span key={tag} className="flex items-center gap-1 bg-gray-100 text-gray-600 text-xs px-2 py-1 rounded-md">
+                          {tag}
+                          <button onClick={() => handleRemoveTag(previewModal.currentImage!.id, tag)} className="hover:text-red-500"><X className="w-3 h-3" /></button>
+                        </span>
+                      ))}
+                    </div>
+                    <form 
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        const input = e.currentTarget.elements.namedItem('newTag') as HTMLInputElement;
+                        if (input.value) {
+                          handleAddTag(previewModal.currentImage!.id, input.value);
+                          input.value = '';
+                        }
+                      }}
+                      className="flex gap-2"
+                    >
+                      <input name="newTag" type="text" placeholder="Add a tag..." className="flex-1 border border-gray-200 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:border-[#00BCEB]" />
+                      <button type="submit" className="bg-gray-100 hover:bg-gray-200 text-gray-600 px-3 py-1.5 rounded-md text-sm transition-colors">Add</button>
+                    </form>
                   </div>
                 </div>
               </div>
@@ -3421,6 +3595,21 @@ function Gallery() {
                     disabled={createFolderLoading}
                   />
                 </div>
+                {!currentPath && (
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Folder Preset (Client Project)</label>
+                    <select
+                      value={folderPreset}
+                      onChange={(e) => setFolderPreset(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#00BCEB]"
+                      disabled={createFolderLoading}
+                    >
+                      <option value="none">None (Empty Folder)</option>
+                      <option value="wedding">Wedding (Selects, Finals, Raw, Sneak Peeks)</option>
+                      <option value="portrait">Portrait (Selects, Finals, Raw)</option>
+                    </select>
+                  </div>
+                )}
                 <div className="flex justify-end space-x-2">
                   <button
                     onClick={() => setCreateFolderModal(false)}
@@ -3998,6 +4187,21 @@ function Gallery() {
                       }}
                     />
                   </div>
+                  {!currentPath && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Folder Preset (Client Project)</label>
+                      <select
+                        value={folderPreset}
+                        onChange={(e) => setFolderPreset(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-200 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#00BCEB]"
+                        disabled={createFolderLoading}
+                      >
+                        <option value="none">None (Empty Folder)</option>
+                        <option value="wedding">Wedding (Selects, Finals, Raw, Sneak Peeks)</option>
+                        <option value="portrait">Portrait (Selects, Finals, Raw)</option>
+                      </select>
+                    </div>
+                  )}
                   <div className="flex justify-end space-x-3">
                     <button
                       onClick={() => {

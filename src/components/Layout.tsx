@@ -8,7 +8,9 @@ import {
   Menu,
   X,
   Settings,
-  Droplet
+  Droplet,
+  Trash2,
+  FolderHeart
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -26,6 +28,8 @@ export default function Layout({ children }: LayoutProps) {
     { name: 'Gallery', path: '/gallery', icon: ImageIcon },
     { name: 'Shared Links', path: '/shared-links', icon: LinkIcon },
     { name: 'Watermarks', path: '/watermarks', icon: Droplet },
+    { name: 'Smart Collections', path: '/smart-collections', icon: FolderHeart },
+    { name: 'Trash', path: '/trash', icon: Trash2 },
   ];
 
   const handleLogout = () => {

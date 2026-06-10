@@ -1,8 +1,15 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Folder, Image as ImageIcon, Share2, HardDrive, AlertCircle, Loader2, ArrowRight } from 'lucide-react';
+import { Folder, Image as ImageIcon, Share2, HardDrive, AlertCircle, Loader2, ArrowRight, Settings } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { rawStoriesApiUrl, getRawStoriesToken } from '../api/rawStoriesBackend';
+
+interface Job {
+  id: number;
+  type: string;
+  status: string;
+  progress: number;
+}
 
 interface DashboardStats {
   totalFolders: number;
@@ -23,9 +30,13 @@ function Dashboard() {
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [jobs, setJobs] = useState<Job[]>([]);
 
   useEffect(() => {
     fetchDashboardStats();
+    fetchJobs();
+    const interval = setInterval(fetchJobs, 2000);
+    return () => clearInterval(interval);
   }, []);
 
   // Refresh stats when shared links change elsewhere in the app
@@ -38,6 +49,18 @@ function Dashboard() {
       window.removeEventListener('rawstories_stats_changed', h);
     };
   }, []);
+
+  const fetchJobs = async () => {
+    try {
+      const response = await fetch(rawStoriesApiUrl('/default/jobs'), {
+        headers: { Authorization: `Bearer ${getRawStoriesToken()}` },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setJobs(data.jobs || []);
+      }
+    } catch (err) {}
+  };
 
   const fetchDashboardStats = async () => {
     setLoading(true);
@@ -202,6 +225,35 @@ function Dashboard() {
                 <p className="text-3xl font-bold text-white tracking-tight mt-1">{formatBytes(stats.totalStorage)}</p>
               </div>
             </motion.div>
+          </motion.div>
+        )}
+
+        {/* Background Jobs */}
+        {jobs.length > 0 && (
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="glass-dark rounded-3xl p-8 mb-10"
+          >
+            <h2 className="text-2xl font-bold text-white mb-6">Background Tasks</h2>
+            <div className="space-y-4">
+              {jobs.map(job => (
+                <div key={job.id} className="bg-slate-800/50 rounded-2xl p-4 border border-slate-700/50 flex flex-col gap-2">
+                  <div className="flex justify-between items-center">
+                    <span className="font-medium text-slate-200 flex items-center gap-2">
+                      <Settings className={`w-4 h-4 ${job.status === 'processing' ? 'animate-spin text-primary-500' : 'text-emerald-500'}`} />
+                      {job.type}
+                    </span>
+                    <span className={`text-sm ${job.status === 'completed' ? 'text-emerald-400' : 'text-primary-400'}`}>
+                      {job.status === 'completed' ? 'Done' : `${job.progress}%`}
+                    </span>
+                  </div>
+                  <div className="w-full bg-slate-700 rounded-full h-2">
+                    <div className="bg-gradient-to-r from-primary-500 to-primary-400 h-2 rounded-full transition-all duration-500" style={{ width: `${job.progress}%` }} />
+                  </div>
+                </div>
+              ))}
+            </div>
           </motion.div>
         )}
 

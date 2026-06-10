@@ -9,11 +9,20 @@ interface WatermarkPreset {
   imageUrl: string;
   imageName: string;
   position: WatermarkPosition;
+  // optional UI placement/size saved from preview
+  x?: number;
+  y?: number;
+  width?: number;
   lastUsed: number;
 }
 
 export default function Watermarks() {
   const [presets, setPresets] = useState<WatermarkPreset[]>([]);
+  const [selectedPresetId, setSelectedPresetId] = useState<string | null>(null);
+  const [wmWidth, setWmWidth] = useState<number>(120);
+  const [wmX, setWmX] = useState<number>(20);
+  const [wmY, setWmY] = useState<number>(20);
+  const previewRef = useRef<HTMLDivElement | null>(null);
   const [newImage, setNewImage] = useState<string | null>(null);
   const [newImageName, setNewImageName] = useState('');
   const [newPosition, setNewPosition] = useState<WatermarkPosition>('bottom-right');
@@ -91,6 +100,85 @@ export default function Watermarks() {
 
   const getPositionLabel = (pos: WatermarkPosition) => {
     return pos.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+  };
+
+  const loadImageDimensions = (url: string) => new Promise<{w:number,h:number}>((res) => {
+    const img = new Image();
+    img.onload = () => res({w: img.naturalWidth, h: img.naturalHeight});
+    img.src = url;
+  });
+
+  const selectPreset = async (preset: WatermarkPreset) => {
+    setSelectedPresetId(preset.id);
+    // init preview sizes/position
+    const preview = previewRef.current;
+    if (!preview) return;
+    const rect = preview.getBoundingClientRect();
+    const dims = await loadImageDimensions(preset.imageUrl);
+    const initWidth = preset.width ?? Math.min(160, rect.width * 0.25);
+    const aspect = dims.h / dims.w || 1;
+    const initHeight = initWidth * aspect;
+    const initX = preset.x ?? Math.max(8, (rect.width - initWidth) / 2);
+    const initY = preset.y ?? Math.max(8, (rect.height - initHeight) / 2);
+    setWmWidth(initWidth);
+    setWmX(initX);
+    setWmY(initY);
+  };
+
+  // Drag / resize handlers (document-level listeners)
+  useEffect(() => {
+    let dragStart: {x:number,y:number,wmX:number,wmY:number} | null = null;
+    let resizeStart: {x:number,wmWidth:number} | null = null;
+
+    const onPointerMove = (e: PointerEvent) => {
+      if (dragStart) {
+        const dx = e.clientX - dragStart.x;
+        const dy = e.clientY - dragStart.y;
+        const preview = previewRef.current;
+        if (!preview) return;
+        const rect = preview.getBoundingClientRect();
+        const newX = Math.min(Math.max(0, dragStart.wmX + dx), rect.width - wmWidth);
+        const newY = Math.min(Math.max(0, dragStart.wmY + dy), rect.height - (wmWidth * 0.5));
+        setWmX(newX);
+        setWmY(newY);
+      }
+      if (resizeStart) {
+        const dx = e.clientX - resizeStart.x;
+        const preview = previewRef.current;
+        if (!preview) return;
+        const rect = preview.getBoundingClientRect();
+        const newW = Math.min(Math.max(24, resizeStart.wmWidth + dx), rect.width - wmX - 8);
+        setWmWidth(newW);
+      }
+    };
+
+    const onPointerUp = () => { dragStart = null; resizeStart = null; };
+
+    const onDocPointerDown = (e: PointerEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (!target) return;
+      if (target.dataset && target.dataset.action === 'wm-drag') {
+        dragStart = { x: e.clientX, y: e.clientY, wmX, wmY };
+      }
+      if (target.dataset && target.dataset.action === 'wm-resize') {
+        resizeStart = { x: e.clientX, wmWidth };
+      }
+    };
+
+    document.addEventListener('pointerdown', onDocPointerDown);
+    document.addEventListener('pointermove', onPointerMove);
+    document.addEventListener('pointerup', onPointerUp);
+
+    return () => {
+      document.removeEventListener('pointerdown', onDocPointerDown);
+      document.removeEventListener('pointermove', onPointerMove);
+      document.removeEventListener('pointerup', onPointerUp);
+    };
+  }, [wmWidth, wmX, wmY]);
+
+  const persistSelectedLayout = (id: string) => {
+    const updated = presets.map(p => p.id === id ? { ...p, x: wmX, y: wmY, width: wmWidth } : p);
+    savePresets(updated);
   };
 
   const renderPositionButton = (pos: WatermarkPosition, current: WatermarkPosition, onClick: (p: WatermarkPosition) => void) => (
@@ -220,6 +308,54 @@ export default function Watermarks() {
               <Droplet className="w-5 h-5 text-primary-400" /> Saved Presets ({presets.length})
             </h2>
 
+            {/* Preview area for selected preset */}
+            <div className="mb-6">
+              <div ref={previewRef} className="w-full h-64 bg-gradient-to-br from-slate-900 to-slate-800 rounded-2xl relative overflow-hidden border border-slate-700/40">
+                {/* Example background content */}
+                <div className="absolute inset-0 flex items-center justify-center text-slate-600 text-sm">Preview area — drag the watermark to reposition and use corner to resize</div>
+
+                {selectedPresetId && (() => {
+                  const preset = presets.find(p => p.id === selectedPresetId);
+                  if (!preset) return null;
+                  return (
+                    <div
+                      data-action="wm-drag"
+                      className="absolute cursor-move"
+                      style={{ left: wmX, top: wmY, width: wmWidth }}
+                    >
+                      <img src={preset.imageUrl} alt={preset.imageName} style={{ width: '100%', height: 'auto', display: 'block' }} />
+                      <div
+                        data-action="wm-resize"
+                        className="absolute right-0 bottom-0 w-4 h-4 bg-white/20 rounded-sm cursor-nwse-resize"
+                        style={{ transform: 'translate(50%, 50%)' }}
+                      />
+                    </div>
+                  );
+                })()}
+              </div>
+              <div className="flex items-center gap-3 mt-3">
+                {selectedPresetId ? (
+                  <>
+                    <button
+                      onClick={() => selectedPresetId && persistSelectedLayout(selectedPresetId)}
+                      className="py-2 px-3 bg-primary-600 text-white rounded-xl text-sm"
+                    >
+                      Save Layout
+                    </button>
+                    <button
+                      onClick={() => setSelectedPresetId(null)}
+                      className="py-2 px-3 bg-slate-800 text-slate-300 rounded-xl text-sm"
+                    >
+                      Close Preview
+                    </button>
+                    <div className="text-xs text-slate-400 ml-auto">Width: {Math.round(wmWidth)}px</div>
+                  </>
+                ) : (
+                  <div className="text-sm text-slate-400">Select a preset to preview and resize the watermark.</div>
+                )}
+              </div>
+            </div>
+
             {presets.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-16 text-center">
                 <div className="w-20 h-20 bg-slate-800/50 rounded-full flex items-center justify-center mb-6">
@@ -249,6 +385,12 @@ export default function Watermarks() {
                         className="text-xs text-red-400 hover:text-red-300 font-medium px-2 py-1 bg-red-500/10 hover:bg-red-500/20 rounded transition-colors"
                       >
                         Delete
+                      </button>
+                      <button
+                        onClick={() => selectPreset(preset)}
+                        className="ml-2 text-xs text-slate-200 bg-slate-700/30 hover:bg-slate-700/50 font-medium px-2 py-1 rounded transition-colors"
+                      >
+                        Preview & Resize
                       </button>
                     </div>
                   </div>
