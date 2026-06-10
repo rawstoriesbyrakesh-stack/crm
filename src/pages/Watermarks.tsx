@@ -22,6 +22,7 @@ export default function Watermarks() {
   const [wmWidth, setWmWidth] = useState<number>(120);
   const [wmX, setWmX] = useState<number>(20);
   const [wmY, setWmY] = useState<number>(20);
+  const [wmAspect, setWmAspect] = useState<number>(1);
   const previewRef = useRef<HTMLDivElement | null>(null);
   const [newImage, setNewImage] = useState<string | null>(null);
   const [newImageName, setNewImageName] = useState('');
@@ -123,6 +124,7 @@ export default function Watermarks() {
     setWmWidth(initWidth);
     setWmX(initX);
     setWmY(initY);
+    setWmAspect(aspect);
   };
 
   // Drag / resize handlers (document-level listeners)
@@ -137,8 +139,9 @@ export default function Watermarks() {
         const preview = previewRef.current;
         if (!preview) return;
         const rect = preview.getBoundingClientRect();
-        const newX = Math.min(Math.max(0, dragStart.wmX + dx), rect.width - wmWidth);
-        const newY = Math.min(Math.max(0, dragStart.wmY + dy), rect.height - (wmWidth * 0.5));
+        const imgH = wmWidth * wmAspect;
+        const newX = Math.min(Math.max(0, dragStart.wmX + dx), Math.max(0, rect.width - wmWidth));
+        const newY = Math.min(Math.max(0, dragStart.wmY + dy), Math.max(0, rect.height - imgH));
         setWmX(newX);
         setWmY(newY);
       }
@@ -147,7 +150,7 @@ export default function Watermarks() {
         const preview = previewRef.current;
         if (!preview) return;
         const rect = preview.getBoundingClientRect();
-        const newW = Math.min(Math.max(24, resizeStart.wmWidth + dx), rect.width - wmX - 8);
+        const newW = Math.min(Math.max(24, resizeStart.wmWidth + dx), Math.max(24, rect.width - wmX - 8));
         setWmWidth(newW);
       }
     };
@@ -155,13 +158,17 @@ export default function Watermarks() {
     const onPointerUp = () => { dragStart = null; resizeStart = null; };
 
     const onDocPointerDown = (e: PointerEvent) => {
-      const target = e.target as HTMLElement | null;
-      if (!target) return;
-      if (target.dataset && target.dataset.action === 'wm-drag') {
+      const el = (e.target as HTMLElement | null);
+      if (!el) return;
+      const dragTarget = el.closest('[data-action="wm-drag"]') as HTMLElement | null;
+      const resizeTarget = el.closest('[data-action="wm-resize"]') as HTMLElement | null;
+      if (dragTarget) {
         dragStart = { x: e.clientX, y: e.clientY, wmX, wmY };
+        e.preventDefault();
       }
-      if (target.dataset && target.dataset.action === 'wm-resize') {
+      if (resizeTarget) {
         resizeStart = { x: e.clientX, wmWidth };
+        e.preventDefault();
       }
     };
 
@@ -312,7 +319,7 @@ export default function Watermarks() {
             <div className="mb-6">
               <div ref={previewRef} className="w-full h-64 bg-gradient-to-br from-slate-900 to-slate-800 rounded-2xl relative overflow-hidden border border-slate-700/40">
                 {/* Example background content */}
-                <div className="absolute inset-0 flex items-center justify-center text-slate-600 text-sm">Preview area — drag the watermark to reposition and use corner to resize</div>
+                <div className="absolute inset-0 flex items-center justify-center text-slate-600 text-sm pointer-events-none">Preview area — drag the watermark to reposition and use corner to resize</div>
 
                 {selectedPresetId && (() => {
                   const preset = presets.find(p => p.id === selectedPresetId);
@@ -321,13 +328,13 @@ export default function Watermarks() {
                     <div
                       data-action="wm-drag"
                       className="absolute cursor-move"
-                      style={{ left: wmX, top: wmY, width: wmWidth }}
+                      style={{ left: wmX, top: wmY, width: wmWidth, zIndex: 20 }}
                     >
                       <img src={preset.imageUrl} alt={preset.imageName} style={{ width: '100%', height: 'auto', display: 'block' }} />
                       <div
                         data-action="wm-resize"
-                        className="absolute right-0 bottom-0 w-4 h-4 bg-white/20 rounded-sm cursor-nwse-resize"
-                        style={{ transform: 'translate(50%, 50%)' }}
+                        className="absolute right-0 bottom-0 w-5 h-5 bg-white/30 rounded-sm cursor-nwse-resize"
+                        style={{ transform: 'translate(50%, 50%)', zIndex: 30 }}
                       />
                     </div>
                   );
