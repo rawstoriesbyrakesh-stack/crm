@@ -23,6 +23,7 @@ export default function Watermarks() {
   const [wmX, setWmX] = useState<number>(20);
   const [wmY, setWmY] = useState<number>(20);
   const [wmAspect, setWmAspect] = useState<number>(1);
+  const [keyboardEnabled, setKeyboardEnabled] = useState<boolean>(false);
   const previewRef = useRef<HTMLDivElement | null>(null);
   const [newImage, setNewImage] = useState<string | null>(null);
   const [newImageName, setNewImageName] = useState('');
@@ -188,6 +189,46 @@ export default function Watermarks() {
     savePresets(updated);
   };
 
+  // Keyboard controls: arrow keys to nudge, +/- to resize, Enter save, Esc close
+  useEffect(() => {
+    if (!selectedPresetId) {
+      setKeyboardEnabled(false);
+      return;
+    }
+    setKeyboardEnabled(true);
+    const onKey = (e: KeyboardEvent) => {
+      if (!selectedPresetId) return;
+      const step = e.shiftKey ? 10 : 1;
+      if (e.key === 'ArrowLeft') {
+        setWmX(x => Math.max(0, x - step));
+        e.preventDefault();
+      } else if (e.key === 'ArrowRight') {
+        setWmX(x => x + step);
+        e.preventDefault();
+      } else if (e.key === 'ArrowUp') {
+        setWmY(y => Math.max(0, y - step));
+        e.preventDefault();
+      } else if (e.key === 'ArrowDown') {
+        setWmY(y => y + step);
+        e.preventDefault();
+      } else if (e.key === '+' || e.key === '=') {
+        setWmWidth(w => w + step);
+        e.preventDefault();
+      } else if (e.key === '-') {
+        setWmWidth(w => Math.max(8, w - step));
+        e.preventDefault();
+      } else if (e.key === 'Enter') {
+        persistSelectedLayout(selectedPresetId);
+        e.preventDefault();
+      } else if (e.key === 'Escape') {
+        setSelectedPresetId(null);
+        e.preventDefault();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [selectedPresetId, persistSelectedLayout]);
+
   const renderPositionButton = (pos: WatermarkPosition, current: WatermarkPosition, onClick: (p: WatermarkPosition) => void) => (
     <button
       onClick={() => onClick(pos)}
@@ -328,14 +369,16 @@ export default function Watermarks() {
                     <div
                       data-action="wm-drag"
                       className="absolute cursor-move"
-                      style={{ left: wmX, top: wmY, width: wmWidth, zIndex: 20 }}
+                      style={{ left: wmX, top: wmY, width: wmWidth, zIndex: 20, boxShadow: '0 6px 18px rgba(0,0,0,0.6)', borderRadius: 6, overflow: 'visible' }}
                     >
-                      <img src={preset.imageUrl} alt={preset.imageName} style={{ width: '100%', height: 'auto', display: 'block' }} />
+                      <img src={preset.imageUrl} alt={preset.imageName} style={{ width: '100%', height: 'auto', display: 'block', borderRadius: 6 }} />
                       <div
                         data-action="wm-resize"
-                        className="absolute right-0 bottom-0 w-5 h-5 bg-white/30 rounded-sm cursor-nwse-resize"
+                        className="absolute right-0 bottom-0 w-7 h-7 bg-white/20 border border-white/20 rounded-sm cursor-nwse-resize flex items-center justify-center"
                         style={{ transform: 'translate(50%, 50%)', zIndex: 30 }}
-                      />
+                      >
+                        <div className="w-2 h-2 bg-white/60 rotate-45" />
+                      </div>
                     </div>
                   );
                 })()}
