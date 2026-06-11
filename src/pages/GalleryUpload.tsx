@@ -151,18 +151,42 @@ function GalleryUpload() {
           watermarkImg.src = preset.imageUrl;
 
           watermarkImg.onload = () => {
-            const watermarkSize = width * 0.2;
-            let watermarkX = width - watermarkSize - (width * 0.05); 
-            let watermarkY = height - watermarkSize - (height * 0.05);
-            
-            if (preset.position === 'top-left') { watermarkX = width * 0.05; watermarkY = height * 0.05; }
-            else if (preset.position === 'top-right') { watermarkX = width - watermarkSize - (width * 0.05); watermarkY = height * 0.05; }
-            else if (preset.position === 'bottom-left') { watermarkX = width * 0.05; watermarkY = height - watermarkSize - (height * 0.05); }
-            else if (preset.position === 'center') { watermarkX = (width - watermarkSize) / 2; watermarkY = (height - watermarkSize) / 2; }
+            const watermarkAspect = watermarkImg.naturalHeight / watermarkImg.naturalWidth || 1;
+            const resolvedWidth = width * (preset.sizeRatio ?? 0.2);
+            const watermarkWidth = Math.max(24, Math.min(width, resolvedWidth));
+            const watermarkHeight = watermarkWidth * watermarkAspect;
+            const opacity = typeof preset.opacity === 'number' ? preset.opacity : 0.7;
+            const rotation = typeof preset.rotation === 'number' ? preset.rotation : 0;
+            const marginX = width * 0.05;
+            const marginY = height * 0.05;
 
-            ctx.globalAlpha = 0.6;
-            ctx.drawImage(watermarkImg, watermarkX, watermarkY, watermarkSize, watermarkSize);
-            ctx.globalAlpha = 1.0;
+            let watermarkX = typeof preset.xRatio === 'number'
+              ? preset.xRatio * width
+              : width - watermarkWidth - marginX;
+            let watermarkY = typeof preset.yRatio === 'number'
+              ? preset.yRatio * height
+              : height - watermarkHeight - marginY;
+
+            if (preset.position === 'top-left') {
+              watermarkX = typeof preset.xRatio === 'number' ? watermarkX : marginX;
+              watermarkY = typeof preset.yRatio === 'number' ? watermarkY : marginY;
+            } else if (preset.position === 'top-right') {
+              watermarkX = typeof preset.xRatio === 'number' ? watermarkX : width - watermarkWidth - marginX;
+              watermarkY = typeof preset.yRatio === 'number' ? watermarkY : marginY;
+            } else if (preset.position === 'bottom-left') {
+              watermarkX = typeof preset.xRatio === 'number' ? watermarkX : marginX;
+              watermarkY = typeof preset.yRatio === 'number' ? watermarkY : height - watermarkHeight - marginY;
+            } else if (preset.position === 'center') {
+              watermarkX = typeof preset.xRatio === 'number' ? watermarkX : (width - watermarkWidth) / 2;
+              watermarkY = typeof preset.yRatio === 'number' ? watermarkY : (height - watermarkHeight) / 2;
+            }
+
+            ctx.save();
+            ctx.globalAlpha = opacity;
+            ctx.translate(watermarkX + watermarkWidth / 2, watermarkY + watermarkHeight / 2);
+            ctx.rotate((rotation * Math.PI) / 180);
+            ctx.drawImage(watermarkImg, -watermarkWidth / 2, -watermarkHeight / 2, watermarkWidth, watermarkHeight);
+            ctx.restore();
             finishProcessing();
           };
           watermarkImg.onerror = () => finishProcessing();

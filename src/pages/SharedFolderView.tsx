@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   ArrowLeft, Grid3X3, List, Download, Eye, X, Loader2,
   AlertCircle, Lock, Check, ChevronLeft, ChevronRight,
-  Image, Play, ZoomIn, Camera, MessageSquare, Send
+  Image, Play, ZoomIn, Camera, MessageSquare, Send, RotateCw, GripHorizontal,
+  Heart, MessageCircle
 } from 'lucide-react';
 import { rawStoriesApiUrl } from '../api/rawStoriesBackend';
 
@@ -43,8 +44,60 @@ export default function SharedFolderView() {
   const [showComments, setShowComments] = useState(false);
   const [newComment, setNewComment] = useState('');
   const [authorName, setAuthorName] = useState('');
+  const [lightboxRotation, setLightboxRotation] = useState(0);
+  const lightboxGestureRef = useRef<{ startX: number; startY: number; active: boolean } | null>(null);
+
+  // Client Favorites Proofing States & Functions
+  const [favorites, setFavorites] = useState<Set<string>>(new Set());
+  const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
+  const [isSubmittingFavs, setIsSubmittingFavs] = useState(false);
+  const [showFavoritesSubmittedModal, setShowFavoritesSubmittedModal] = useState(false);
+
+  const toggleFavorite = (id: string) => {
+    setFavorites(p => {
+      const n = new Set(p);
+      if (n.has(id)) {
+        n.delete(id);
+      } else {
+        n.add(id);
+      }
+      return n;
+    });
+  };
+
+  const submitFavorites = async () => {
+    if (!shareId) return;
+    setIsSubmittingFavs(true);
+    try {
+      const res = await fetch(SHARE_API, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'submit_favorites',
+          sharedId: shareId,
+          favorites: Array.from(favorites)
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setShowFavoritesSubmittedModal(true);
+        notify(setNotifications, 'Favorites submitted successfully!', 'success');
+      } else {
+        throw new Error(data.message);
+      }
+    } catch (err: any) {
+      notify(setNotifications, err.message || 'Failed to submit favorites', 'error');
+    } finally {
+      setIsSubmittingFavs(false);
+    }
+  };
 
   const decoded = folderPath ? decodeURIComponent(folderPath) : '';
+
+  const filteredItems = items.filter(item => {
+    if (showFavoritesOnly) return favorites.has(item.id);
+    return true;
+  });
 
   // ── Check access on mount ────────────────────────────────────────────────
   useEffect(() => {
@@ -66,6 +119,14 @@ export default function SharedFolderView() {
         }
         
         if (data.branding) setBranding(data.branding);
+
+        if (data.favorites && Array.isArray(data.favorites)) {
+          setFavorites(new Set(data.favorites));
+        }
+
+        if (link?.allowDownload === false) {
+          setAllowDownload(false);
+        }
         
         if (link?.isPinProtected || data.isPinProtected) { setIsPinProtected(true); setPhase('pin'); }
         else { setPhase('gallery'); }
@@ -124,7 +185,20 @@ export default function SharedFolderView() {
       });
       const data = await res.json().catch(() => null);
       if (!res.ok || !data?.success) { setPinError(data?.message || 'Incorrect PIN. Try again.'); setPin(''); }
-      else { setPhase('gallery'); }
+      else { 
+        if (data.branding) setBranding(data.branding);
+        if (data.favorites && Array.isArray(data.favorites)) {
+          setFavorites(new Set(data.favorites));
+        }
+        const link = data.shareLink;
+        if (link?.items && link.items.length > 0) {
+          setSharedItemsList(link.items);
+        }
+        if (link?.allowDownload === false) {
+          setAllowDownload(false);
+        }
+        setPhase('gallery'); 
+      }
     } catch { setPinError('Verification failed. Please try again.'); }
     finally { setPinLoading(false); }
   };
@@ -149,11 +223,59 @@ export default function SharedFolderView() {
   const toggleSelect = (id: string) =>
     setSelected(p => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; });
 
+  const handleNextImage = () => {
+    if (lightbox !== null && lightbox < filteredItems.length - 1) {
+      setLightbox(lightbox + 1);
+    }
+  };
+
+  const handlePrevImage = () => {
+    if (lightbox !== null && lightbox > 0) {
+      setLightbox(lightbox - 1);
+    }
+  };
+
+  const handleRotateCurrentImage = () => {
+    if (lightbox === null) return;
+    const item = filteredItems[lightbox];
+    if (!item || item.isVideo) return;
+    setLightboxRotation(rotation => (rotation + 90) % 360);
+  };
+
+  const handleLightboxPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    lightboxGestureRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      active: true,
+    };
+  };
+
+  const handleLightboxPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    const gesture = lightboxGestureRef.current;
+    lightboxGestureRef.current = null;
+    if (!gesture?.active) return;
+
+    const deltaX = e.clientX - gesture.startX;
+    const deltaY = e.clientY - gesture.startY;
+    const swipeThreshold = 60;
+
+    if (Math.abs(deltaX) < swipeThreshold || Math.abs(deltaX) < Math.abs(deltaY)) {
+      return;
+    }
+
+    if (deltaX < 0) {
+      handleNextImage();
+    } else {
+      handlePrevImage();
+    }
+  };
+
   // ── Add Comment ──────────────────────────────────────────────────────────
   const handleAddComment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (lightbox === null || !newComment.trim()) return;
-    const item = items[lightbox];
+    const item = filteredItems[lightbox];
     const author = authorName.trim() || 'Guest';
     try {
       const res = await fetch(rawStoriesApiUrl('/default/addcomment'), {
@@ -162,7 +284,7 @@ export default function SharedFolderView() {
       });
       const data = await res.json();
       if (data.success) {
-        setItems(prev => prev.map((it, idx) => idx === lightbox ? { ...it, comments: [...(it.comments||[]), { text: newComment, author, createdAt: new Date().toISOString() }] } : it));
+        setItems(prev => prev.map((it) => it.id === item.id ? { ...it, comments: [...(it.comments||[]), { text: newComment, author, createdAt: new Date().toISOString() }] } : it));
         setNewComment('');
         notify(setNotifications, 'Comment added', 'success');
       } else { throw new Error(data.message); }
@@ -173,13 +295,18 @@ export default function SharedFolderView() {
   useEffect(() => {
     if (lightbox === null) return;
     const h = (e: KeyboardEvent) => {
-      if (e.key === 'ArrowRight') setLightbox(p => p !== null && p < items.length - 1 ? p + 1 : p);
+      if (e.key === 'ArrowRight') setLightbox(p => p !== null && p < filteredItems.length - 1 ? p + 1 : p);
       if (e.key === 'ArrowLeft')  setLightbox(p => p !== null && p > 0 ? p - 1 : p);
       if (e.key === 'Escape')     setLightbox(null);
     };
     window.addEventListener('keydown', h);
     return () => window.removeEventListener('keydown', h);
-  }, [lightbox, items.length]);
+  }, [lightbox, filteredItems.length]);
+
+  useEffect(() => {
+    setLightboxRotation(0);
+    lightboxGestureRef.current = null;
+  }, [lightbox]);
 
   // ─────────────────────────────────────────────────────────────────────────
   //  RENDER: Checking
@@ -285,12 +412,34 @@ export default function SharedFolderView() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {favorites.size > 0 && (
+              <button 
+                onClick={submitFavorites} 
+                disabled={isSubmittingFavs}
+                className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-lg text-sm font-medium transition-all shadow-md shrink-0"
+              >
+                {isSubmittingFavs ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Heart className="h-4 w-4 fill-current" />
+                )}
+                Submit Favorites ({favorites.size})
+              </button>
+            )}
             {selected.size > 0 && (
               <button onClick={downloadSelected} className="flex items-center gap-2 px-4 py-2 text-white rounded-lg text-sm font-medium transition-all" style={{ backgroundColor: brandColor }}>
                 <Download className="h-4 w-4" />{selected.size} selected
               </button>
             )}
-            <div className="flex items-center bg-white/10 rounded-lg p-1">
+            <div className="flex items-center bg-white/10 rounded-lg p-1 gap-1">
+              <button 
+                onClick={() => setShowFavoritesOnly(!showFavoritesOnly)} 
+                className={`p-1.5 rounded-md transition-all flex items-center gap-1 text-xs ${showFavoritesOnly ? 'bg-red-600 text-white font-semibold' : 'text-stone-400 hover:text-white'}`}
+                title="Filter by Favorites"
+              >
+                <Heart className={`h-3.5 w-3.5 ${showFavoritesOnly ? 'fill-current' : ''}`} />
+                <span className="hidden sm:inline">Favorites Only</span>
+              </button>
               <button onClick={() => setViewMode('grid')} className={`p-1.5 rounded-md transition-all ${viewMode==='grid'?'text-white':'text-stone-400 hover:text-white'}`} style={viewMode==='grid'?{backgroundColor: brandColor}:{}}>
                 <Grid3X3 className="h-4 w-4" />
               </button>
@@ -335,14 +484,20 @@ export default function SharedFolderView() {
             {/* Grid */}
             {viewMode === 'grid' ? (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
-                {items.map((item, idx) => {
+                {filteredItems.map((item, idx) => {
                   const isSelected = selected.has(item.id);
+                  const isFavorite = favorites.has(item.id);
                   return (
                     <div key={item.id} className={`group relative bg-stone-800 rounded-xl overflow-hidden cursor-pointer border-2 transition-all duration-200 ${isSelected ? 'border-amber-500 shadow-lg shadow-amber-500/20' : 'border-transparent hover:border-white/20'}`}>
                       {/* Checkbox */}
                       <button onClick={e => { e.stopPropagation(); toggleSelect(item.id); }}
                         className={`absolute top-2 left-2 z-10 w-6 h-6 rounded-md border-2 flex items-center justify-center transition-all ${isSelected ? 'bg-amber-500 border-amber-500' : 'bg-black/50 border-white/40 opacity-0 group-hover:opacity-100'}`}>
                         {isSelected && <Check className="h-3.5 w-3.5 text-white" />}
+                      </button>
+                      {/* Heart (Favorite) button */}
+                      <button onClick={e => { e.stopPropagation(); toggleFavorite(item.id); }}
+                        className={`absolute top-2 right-2 z-10 w-6 h-6 rounded-md flex items-center justify-center transition-all bg-black/50 border-0 ${isFavorite ? 'text-red-500' : 'text-white/60 opacity-0 group-hover:opacity-100 hover:text-white'}`}>
+                        <Heart className={`h-4 w-4 ${isFavorite ? 'fill-current text-red-500' : ''}`} />
                       </button>
                       {/* Thumbnail */}
                       <div className="aspect-square" onClick={() => setLightbox(idx)}>
@@ -376,7 +531,7 @@ export default function SharedFolderView() {
             ) : (
               /* List view */
               <div className="space-y-2">
-                {items.map((item, idx) => {
+                {filteredItems.map((item, idx) => {
                   const isSelected = selected.has(item.id);
                   return (
                     <div key={item.id} className={`flex items-center gap-4 p-3 rounded-xl border transition-all ${isSelected ? 'bg-amber-500/10 border-amber-500/50' : 'bg-white/5 border-white/10 hover:bg-white/10'}`}>
@@ -387,6 +542,9 @@ export default function SharedFolderView() {
                       </div>
                       <span className="flex-1 text-stone-200 text-sm truncate">{item.title}</span>
                       <div className="flex items-center gap-2">
+                        <button onClick={e => { e.stopPropagation(); toggleFavorite(item.id); }} className={`p-2 rounded-lg transition-all ${favorites.has(item.id) ? 'text-red-500' : 'text-stone-400 hover:text-white hover:bg-white/10'}`}>
+                          <Heart className={`h-4 w-4 ${favorites.has(item.id) ? 'fill-current text-red-500' : ''}`} />
+                        </button>
                         <button onClick={() => setLightbox(idx)} className="p-2 text-stone-400 hover:text-white rounded-lg hover:bg-white/10 transition-all"><Eye className="h-4 w-4" /></button>
                         <button onClick={() => downloadItem(item)} className="p-2 text-stone-400 hover:text-white rounded-lg hover:bg-white/10 transition-all"><Download className="h-4 w-4" /></button>
                       </div>
@@ -400,7 +558,7 @@ export default function SharedFolderView() {
       </main>
 
       {/* Lightbox */}
-      {lightbox !== null && items[lightbox] && (
+      {lightbox !== null && filteredItems[lightbox] && (
         <div className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center" onClick={() => setLightbox(null)}>
           <button onClick={e => { e.stopPropagation(); setLightbox(null); }} className="absolute top-4 right-4 p-2 text-white/70 hover:text-white bg-white/10 rounded-full transition-all z-10">
             <X className="h-6 w-6" />
@@ -410,23 +568,51 @@ export default function SharedFolderView() {
               <ChevronLeft className="h-6 w-6" />
             </button>
           )}
-          {lightbox < items.length - 1 && (
+          {lightbox < filteredItems.length - 1 && (
             <button onClick={e => { e.stopPropagation(); setLightbox(p => p! + 1); }} className="absolute right-4 top-1/2 -translate-y-1/2 p-3 text-white/70 hover:text-white bg-white/10 rounded-full transition-all z-10">
               <ChevronRight className="h-6 w-6" />
             </button>
           )}
-          <div className="max-w-5xl max-h-[90vh] w-full mx-16" onClick={e => e.stopPropagation()}>
-            {items[lightbox].isVideo ? (
-              <video src={items[lightbox].imageUrl} controls className="max-h-[70vh] max-w-full mx-auto rounded-lg" />
+          <div
+            className="max-w-5xl max-h-[90vh] w-full mx-16"
+            onClick={e => e.stopPropagation()}
+            onPointerDown={handleLightboxPointerDown}
+            onPointerUp={handleLightboxPointerUp}
+            onPointerCancel={() => { lightboxGestureRef.current = null; }}
+            onPointerLeave={() => { lightboxGestureRef.current = null; }}
+            style={{ touchAction: 'none' }}
+          >
+            <div className="mb-4 flex justify-center">
+              <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-xs text-stone-200 shadow-lg backdrop-blur-md">
+                <GripHorizontal className="h-4 w-4 text-amber-300" />
+                Swipe left or right to change photos
+              </div>
+            </div>
+            {filteredItems[lightbox].isVideo ? (
+              <video src={filteredItems[lightbox].imageUrl} controls className="max-h-[70vh] max-w-full mx-auto rounded-lg" />
             ) : (
-              <img src={items[lightbox].imageUrl} alt={items[lightbox].title} className="max-h-[70vh] max-w-full mx-auto object-contain rounded-lg shadow-2xl" />
+              <img
+                src={filteredItems[lightbox].imageUrl}
+                alt={filteredItems[lightbox].title}
+                className="max-h-[70vh] max-w-full mx-auto object-contain rounded-lg shadow-2xl"
+                style={{ transform: `rotate(${lightboxRotation}deg)`, transition: 'transform 180ms ease-out' }}
+              />
             )}
-            <div className="text-center mt-3 flex items-center justify-center gap-4">
-              <p className="text-stone-400 text-sm">{items[lightbox].title}</p>
-              <button onClick={() => setShowComments(!showComments)} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm transition-all ${showComments ? 'bg-amber-600 text-white' : 'bg-white/10 text-stone-300 hover:bg-white/20'}`}>
-                <MessageSquare className="h-4 w-4" />{(items[lightbox].comments||[]).length} Comments
+            <div className="text-center mt-3 flex items-center justify-center gap-4 flex-wrap">
+              <p className="text-stone-400 text-sm">{filteredItems[lightbox].title}</p>
+              <button onClick={() => toggleFavorite(filteredItems[lightbox].id)} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm transition-all ${favorites.has(filteredItems[lightbox].id) ? 'bg-red-600 text-white shadow-md' : 'bg-white/10 text-stone-300 hover:bg-white/20'}`}>
+                <Heart className={`h-4 w-4 ${favorites.has(filteredItems[lightbox].id) ? 'fill-current' : ''}`} />
+                {favorites.has(filteredItems[lightbox].id) ? 'Favorited' : 'Favorite'}
               </button>
-              <button onClick={() => downloadItem(items[lightbox!])} className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-600/80 hover:bg-amber-500 text-white rounded-lg text-sm transition-all">
+              <button onClick={() => setShowComments(!showComments)} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm transition-all ${showComments ? 'bg-amber-600 text-white' : 'bg-white/10 text-stone-300 hover:bg-white/20'}`}>
+                <MessageSquare className="h-4 w-4" />{(filteredItems[lightbox].comments||[]).length} Comments
+              </button>
+              {!filteredItems[lightbox].isVideo && (
+                <button onClick={handleRotateCurrentImage} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm transition-all bg-white/10 text-stone-300 hover:bg-white/20">
+                  <RotateCw className="h-4 w-4" />Rotate 90°
+                </button>
+              )}
+              <button onClick={() => downloadItem(filteredItems[lightbox!])} className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-600/80 hover:bg-amber-500 text-white rounded-lg text-sm transition-all">
                 <Download className="h-4 w-4" />Download
               </button>
             </div>
@@ -459,6 +645,40 @@ export default function SharedFolderView() {
             )}
             
             <p className="text-center text-stone-600 text-xs mt-3">{lightbox + 1} / {items.length}</p>
+          </div>
+        </div>
+      )}
+
+      {/* Favorites Submitted Modal */}
+      {showFavoritesSubmittedModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
+          <div className="bg-stone-900 border border-white/10 rounded-3xl p-8 max-w-md w-full shadow-2xl text-center">
+            <div className="w-16 h-16 bg-emerald-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
+              <Heart className="h-8 w-8 text-emerald-400 fill-current" />
+            </div>
+            <h3 className="text-2xl font-bold text-white mb-2">Favorites Submitted!</h3>
+            <p className="text-stone-300 text-sm mb-6 leading-relaxed">
+              Your selection of {favorites.size} photo{favorites.size !== 1 ? 's' : ''} has been successfully sent to the photographer.
+            </p>
+            <div className="flex flex-col gap-3">
+              <a
+                href={`https://api.whatsapp.com/send?text=${encodeURIComponent(
+                  `Hi! I have selected my ${favorites.size} favorites in the shared gallery: ${window.location.href}`
+                )}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-semibold transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20 text-sm"
+              >
+                <MessageCircle className="h-4 w-4 fill-current" />
+                Notify on WhatsApp
+              </a>
+              <button
+                onClick={() => setShowFavoritesSubmittedModal(false)}
+                className="w-full py-3 bg-stone-850 hover:bg-stone-800 text-stone-300 rounded-xl font-semibold transition-all text-sm"
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}

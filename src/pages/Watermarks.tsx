@@ -13,7 +13,16 @@ interface WatermarkPreset {
   x?: number;
   y?: number;
   width?: number;
+  xRatio?: number;
+  yRatio?: number;
+  sizeRatio?: number;
+  opacity?: number;
+  rotation?: number;
   lastUsed: number;
+  isText?: boolean;
+  text?: string;
+  fontFamily?: string;
+  fontColor?: string;
 }
 
 export default function Watermarks() {
@@ -23,12 +32,29 @@ export default function Watermarks() {
   const [wmX, setWmX] = useState<number>(20);
   const [wmY, setWmY] = useState<number>(20);
   const [wmAspect, setWmAspect] = useState<number>(1);
+  const [wmOpacity, setWmOpacity] = useState<number>(70);
+  const [wmRotation, setWmRotation] = useState<number>(0);
   const [keyboardEnabled, setKeyboardEnabled] = useState<boolean>(false);
   const previewRef = useRef<HTMLDivElement | null>(null);
   const [newImage, setNewImage] = useState<string | null>(null);
   const [newImageName, setNewImageName] = useState('');
   const [newPosition, setNewPosition] = useState<WatermarkPosition>('bottom-right');
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Text watermark state
+  const [wmType, setWmType] = useState<'image' | 'text'>('image');
+  const [newText, setNewText] = useState('STUDIO LOGO');
+  const [newFontFamily, setNewFontFamily] = useState('sans-serif');
+  const [newFontColor, setNewFontColor] = useState('#ffffff');
+
+  useEffect(() => {
+    if (wmType === 'text') {
+      const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="400" height="150"><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="${newFontColor}" font-family="${newFontFamily}" font-size="28" font-weight="bold">${newText}</text></svg>`;
+      const base64Svg = btoa(unescape(encodeURIComponent(svg)));
+      setNewImage(`data:image/svg+xml;base64,${base64Svg}`);
+      setNewImageName(newText || 'Text Watermark');
+    }
+  }, [wmType, newText, newFontFamily, newFontColor]);
 
   useEffect(() => {
     loadPresets();
@@ -84,7 +110,14 @@ export default function Watermarks() {
       imageUrl: newImage,
       imageName: newImageName || 'Untitled Watermark',
       position: newPosition,
+      sizeRatio: 0.2,
+      opacity: 0.7,
+      rotation: 0,
       lastUsed: Date.now(),
+      isText: wmType === 'text',
+      text: wmType === 'text' ? newText : undefined,
+      fontFamily: wmType === 'text' ? newFontFamily : undefined,
+      fontColor: wmType === 'text' ? newFontColor : undefined,
     };
 
     const updated = [...presets, newPreset];
@@ -92,6 +125,10 @@ export default function Watermarks() {
     setNewImage(null);
     setNewImageName('');
     if (fileInputRef.current) fileInputRef.current.value = '';
+    // Reset text fields if text type
+    if (wmType === 'text') {
+      setNewText('STUDIO LOGO');
+    }
   };
 
   const handleDeletePreset = (id: string) => {
@@ -117,15 +154,17 @@ export default function Watermarks() {
     if (!preview) return;
     const rect = preview.getBoundingClientRect();
     const dims = await loadImageDimensions(preset.imageUrl);
-    const initWidth = preset.width ?? Math.min(160, rect.width * 0.25);
+    const initWidth = preset.width ?? Math.min(180, rect.width * (preset.sizeRatio ?? 0.2));
     const aspect = dims.h / dims.w || 1;
     const initHeight = initWidth * aspect;
-    const initX = preset.x ?? Math.max(8, (rect.width - initWidth) / 2);
-    const initY = preset.y ?? Math.max(8, (rect.height - initHeight) / 2);
+    const initX = preset.x ?? (typeof preset.xRatio === 'number' ? preset.xRatio * rect.width : Math.max(8, (rect.width - initWidth) / 2));
+    const initY = preset.y ?? (typeof preset.yRatio === 'number' ? preset.yRatio * rect.height : Math.max(8, (rect.height - initHeight) / 2));
     setWmWidth(initWidth);
     setWmX(initX);
     setWmY(initY);
     setWmAspect(aspect);
+    setWmOpacity(Math.round((preset.opacity ?? 0.7) * 100));
+    setWmRotation(preset.rotation ?? 0);
   };
 
   // Drag / resize handlers (document-level listeners)
@@ -185,7 +224,19 @@ export default function Watermarks() {
   }, [wmWidth, wmX, wmY]);
 
   const persistSelectedLayout = (id: string) => {
-    const updated = presets.map(p => p.id === id ? { ...p, x: wmX, y: wmY, width: wmWidth } : p);
+    const preview = previewRef.current;
+    const rect = preview?.getBoundingClientRect();
+    const updated = presets.map(p => p.id === id ? {
+      ...p,
+      x: wmX,
+      y: wmY,
+      width: wmWidth,
+      xRatio: rect ? wmX / rect.width : p.xRatio,
+      yRatio: rect ? wmY / rect.height : p.yRatio,
+      sizeRatio: rect ? wmWidth / rect.width : p.sizeRatio,
+      opacity: wmOpacity / 100,
+      rotation: wmRotation,
+    } : p);
     savePresets(updated);
   };
 
@@ -288,38 +339,116 @@ export default function Watermarks() {
               <Plus className="w-5 h-5 text-primary-400" /> Add New Preset
             </h2>
 
+            <div className="flex bg-slate-800/80 p-1.5 rounded-2xl mb-6 border border-slate-700/50 relative z-10">
+              <button
+                type="button"
+                onClick={() => { setWmType('image'); setNewImage(null); }}
+                className={`flex-1 py-2 text-xs font-semibold rounded-xl transition-all ${
+                  wmType === 'image' ? 'bg-primary-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                Image Logo
+              </button>
+              <button
+                type="button"
+                onClick={() => setWmType('text')}
+                className={`flex-1 py-2 text-xs font-semibold rounded-xl transition-all ${
+                  wmType === 'text' ? 'bg-primary-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                Text Logo
+              </button>
+            </div>
+
             <div className="space-y-6 relative z-10">
-              <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">Watermark Image</label>
-                <input
-                  type="file"
-                  accept="image/png,image/jpeg,image/svg+xml"
-                  ref={fileInputRef}
-                  onChange={handleFileChange}
-                  className="hidden"
-                />
-                {!newImage ? (
-                  <button
-                    onClick={() => fileInputRef.current?.click()}
-                    className="w-full py-8 border-2 border-dashed border-slate-600 rounded-2xl text-slate-400 hover:border-primary-500 hover:text-primary-400 hover:bg-primary-500/5 transition-all flex flex-col items-center gap-3"
-                  >
-                    <ImageIcon className="w-8 h-8" />
-                    <span>Click to select image</span>
-                    <span className="text-xs opacity-60">Max size: 500KB (PNG recommended)</span>
-                  </button>
-                ) : (
-                  <div className="relative group rounded-2xl overflow-hidden border border-slate-700 bg-slate-800/50 p-4 flex flex-col items-center">
-                    <img src={newImage} alt="Preview" className="max-h-32 object-contain" />
+              {wmType === 'image' ? (
+                <div>
+                  <label className="block text-sm font-medium text-slate-300 mb-2">Watermark Image</label>
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/svg+xml"
+                    ref={fileInputRef}
+                    onChange={handleFileChange}
+                    className="hidden"
+                  />
+                  {!newImage ? (
                     <button
-                      onClick={() => { setNewImage(null); if (fileInputRef.current) fileInputRef.current.value = ''; }}
-                      className="absolute top-2 right-2 p-1.5 bg-red-500/80 hover:bg-red-500 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="w-full py-8 border-2 border-dashed border-slate-600 rounded-2xl text-slate-400 hover:border-primary-500 hover:text-primary-400 hover:bg-primary-500/5 transition-all flex flex-col items-center gap-3"
                     >
-                      <Trash2 className="w-4 h-4" />
+                      <ImageIcon className="w-8 h-8" />
+                      <span>Click to select image</span>
+                      <span className="text-xs opacity-60">Max size: 500KB (PNG recommended)</span>
                     </button>
-                    <p className="text-xs text-slate-400 mt-3 truncate w-full text-center">{newImageName}</p>
+                  ) : (
+                    <div className="relative group rounded-2xl overflow-hidden border border-slate-700 bg-slate-800/50 p-4 flex flex-col items-center">
+                      <img src={newImage} alt="Preview" className="max-h-32 object-contain" />
+                      <button
+                        onClick={() => { setNewImage(null); if (fileInputRef.current) fileInputRef.current.value = ''; }}
+                        className="absolute top-2 right-2 p-1.5 bg-red-500/80 hover:bg-red-500 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                      <p className="text-xs text-slate-400 mt-3 truncate w-full text-center">{newImageName}</p>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {newImage && (
+                    <div className="relative rounded-2xl overflow-hidden border border-slate-700 bg-slate-800/50 p-4 flex flex-col items-center">
+                      <img src={newImage} alt="Preview" className="max-h-24 object-contain" style={{ filter: 'drop-shadow(0 2px 8px rgba(0,0,0,0.5))' }} />
+                      <p className="text-xs text-slate-400 mt-3 truncate w-full text-center">{newImageName}</p>
+                    </div>
+                  )}
+                  <div>
+                    <label className="block text-sm font-medium text-slate-300 mb-1.5">Watermark Text</label>
+                    <input
+                      type="text"
+                      value={newText}
+                      onChange={(e) => setNewText(e.target.value)}
+                      placeholder="e.g. STUDIO BY RAKESH"
+                      className="w-full bg-slate-800/50 border border-slate-700 text-white rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent placeholder-slate-600"
+                    />
                   </div>
-                )}
-              </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-slate-300 mb-1.5">Font Family</label>
+                      <select
+                        value={newFontFamily}
+                        onChange={(e) => setNewFontFamily(e.target.value)}
+                        className="w-full bg-slate-800/55 border border-slate-700 text-white rounded-xl px-3 py-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      >
+                        <option value="sans-serif">Sans Serif</option>
+                        <option value="serif">Serif</option>
+                        <option value="monospace">Monospace</option>
+                        <option value="cursive">Cursive</option>
+                        <option value="Georgia">Georgia</option>
+                        <option value="Impact">Impact</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-300 mb-1.5">Font Color</label>
+                      <div className="flex gap-2">
+                        <input
+                          type="color"
+                          value={newFontColor}
+                          onChange={(e) => setNewFontColor(e.target.value)}
+                          className="w-10 h-10 bg-transparent border-0 cursor-pointer rounded-lg shrink-0"
+                        />
+                        <input
+                          type="text"
+                          value={newFontColor}
+                          onChange={(e) => setNewFontColor(e.target.value)}
+                          placeholder="#ffffff"
+                          maxLength={7}
+                          className="w-full bg-slate-800/55 border border-slate-700 text-white rounded-xl px-2 py-2.5 text-xs font-mono text-center focus:outline-none focus:ring-2 focus:ring-primary-500"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {newImage && (
                 <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }}>
@@ -371,7 +500,18 @@ export default function Watermarks() {
                       className="absolute cursor-move"
                       style={{ left: wmX, top: wmY, width: wmWidth, zIndex: 20, boxShadow: '0 6px 18px rgba(0,0,0,0.6)', borderRadius: 6, overflow: 'visible' }}
                     >
-                      <img src={preset.imageUrl} alt={preset.imageName} style={{ width: '100%', height: 'auto', display: 'block', borderRadius: 6 }} />
+                      <img
+                        src={preset.imageUrl}
+                        alt={preset.imageName}
+                        style={{
+                          width: '100%',
+                          height: 'auto',
+                          display: 'block',
+                          borderRadius: 6,
+                          opacity: wmOpacity / 100,
+                          transform: `rotate(${wmRotation}deg)`,
+                        }}
+                      />
                       <div
                         data-action="wm-resize"
                         className="absolute right-0 bottom-0 w-7 h-7 bg-white/20 border border-white/20 rounded-sm cursor-nwse-resize flex items-center justify-center"
@@ -383,6 +523,52 @@ export default function Watermarks() {
                   );
                 })()}
               </div>
+              {selectedPresetId && (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+                  <label className="space-y-2">
+                    <span className="flex justify-between text-xs text-slate-400">
+                      <span>Size</span>
+                      <span>{Math.round(wmWidth)}px</span>
+                    </span>
+                    <input
+                      type="range"
+                      min="40"
+                      max="320"
+                      value={wmWidth}
+                      onChange={(e) => setWmWidth(Number(e.target.value))}
+                      className="w-full accent-primary-500"
+                    />
+                  </label>
+                  <label className="space-y-2">
+                    <span className="flex justify-between text-xs text-slate-400">
+                      <span>Opacity</span>
+                      <span>{wmOpacity}%</span>
+                    </span>
+                    <input
+                      type="range"
+                      min="10"
+                      max="100"
+                      value={wmOpacity}
+                      onChange={(e) => setWmOpacity(Number(e.target.value))}
+                      className="w-full accent-primary-500"
+                    />
+                  </label>
+                  <label className="space-y-2">
+                    <span className="flex justify-between text-xs text-slate-400">
+                      <span>Rotation</span>
+                      <span>{wmRotation} deg</span>
+                    </span>
+                    <input
+                      type="range"
+                      min="-45"
+                      max="45"
+                      value={wmRotation}
+                      onChange={(e) => setWmRotation(Number(e.target.value))}
+                      className="w-full accent-primary-500"
+                    />
+                  </label>
+                </div>
+              )}
               <div className="flex items-center gap-3 mt-3">
                 {selectedPresetId ? (
                   <>
@@ -398,7 +584,7 @@ export default function Watermarks() {
                     >
                       Close Preview
                     </button>
-                    <div className="text-xs text-slate-400 ml-auto">Width: {Math.round(wmWidth)}px</div>
+                    <div className="text-xs text-slate-400 ml-auto">Drag, resize, rotate, then save.</div>
                   </>
                 ) : (
                   <div className="text-sm text-slate-400">Select a preset to preview and resize the watermark.</div>
@@ -428,7 +614,7 @@ export default function Watermarks() {
                       <h4 className="text-white font-medium truncate mb-1">{preset.imageName}</h4>
                       <p className="text-xs text-slate-400 flex items-center gap-1.5 mb-2">
                         <span className="w-1.5 h-1.5 bg-primary-500 rounded-full"></span>
-                        {getPositionLabel(preset.position)}
+                        {getPositionLabel(preset.position)} · {Math.round((preset.sizeRatio ?? 0.2) * 100)}% · {Math.round((preset.opacity ?? 0.7) * 100)}%
                       </p>
                       <button
                         onClick={() => handleDeletePreset(preset.id)}

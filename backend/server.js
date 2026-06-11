@@ -108,6 +108,7 @@ const shareSchema = new mongoose.Schema({
   ips:          { type: [String], default: [] },
   lastAccess:   { type: Date, default: null },
   downloadCount:{ type: Number, default: 0 },
+  favorites:    { type: [String], default: [] },
 }, { timestamps: true });
 
 const fileMetaSchema = new mongoose.Schema({
@@ -716,11 +717,27 @@ const server = http.createServer(async (req, res) => {
         return sendError(res, 410, 'This share link has expired');
       }
 
+      let branding = {};
+      if (share.folderPrefix) {
+        const meta = await FolderMeta.findOne({ path: share.folderPrefix }).lean().catch(() => null);
+        if (meta) {
+          branding = { logoUrl: meta.logoUrl, brandColor: meta.brandColor, client: meta.client };
+        }
+      }
+
       if (action === 'get_share_link_status') {
         return sendJson(res, 200, { success: true, shareLink: {
           shareId, isActive: share.isActive, isPinProtected: !!share.sharePin,
           createdAt: share.createdAt, expiresAt: share.expiresAt,
-        }});
+          items: share.items,
+          allowDownload: share.allowDownload,
+        }, branding, favorites: share.favorites || [] });
+      }
+
+      if (action === 'submit_favorites') {
+        const favs = body?.favorites || [];
+        await Share.findOneAndUpdate({ shareId }, { favorites: favs });
+        return sendJson(res, 200, { success: true, message: 'Favorites saved successfully' });
       }
 
       if (action === 'verify_pin') {
@@ -729,6 +746,14 @@ const server = http.createServer(async (req, res) => {
         return sendJson(res, 200, { success: true, message: 'PIN verified',
           folderPrefix: share.folderPrefix,
           shareUrl: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/shared-folder-view/${encodeURIComponent(share.folderPrefix || shareId)}?sid=${shareId}`,
+          shareLink: {
+            shareId, isActive: share.isActive, isPinProtected: !!share.sharePin,
+            createdAt: share.createdAt, expiresAt: share.expiresAt,
+            items: share.items,
+            allowDownload: share.allowDownload,
+          },
+          branding,
+          favorites: share.favorites || [],
         });
       }
 
@@ -756,16 +781,8 @@ const server = http.createServer(async (req, res) => {
           isVideo: /\.(mp4|mov|avi|mkv|webm)$/i.test(key), allowDownload: share.allowDownload, comments: meta?.comments || [] };
       }));
 
-      let branding = {};
-      if (share.folderPrefix) {
-        const meta = await FolderMeta.findOne({ path: share.folderPrefix }).lean();
-        if (meta) {
-          branding = { logoUrl: meta.logoUrl, brandColor: meta.brandColor, client: meta.client };
-        }
-      }
-
       return sendJson(res, 200, { success: true, shareId, isPinProtected: !!share.sharePin,
-        allowDownload: share.allowDownload, folderPrefix: share.folderPrefix, items: resolvedItems, branding });
+        allowDownload: share.allowDownload, folderPrefix: share.folderPrefix, items: resolvedItems, branding, favorites: share.favorites || [] });
     }
 
     // ── Mail stub ──────────────────────────────────────────────────────────
