@@ -110,6 +110,14 @@ function SharedImages() {
   // Decode the folder path from URL
   const decodedFolderPath = folderPath ? decodeURIComponent(folderPath) : '';
 
+  const safeDecode = (value: string) => {
+    try {
+      return decodeURIComponent(value);
+    } catch {
+      return value;
+    }
+  };
+
   // Check share link status and PIN requirement on mount
   useEffect(() => {
     const checkShareLinkAccess = async () => {
@@ -245,8 +253,8 @@ function SharedImages() {
       name = cleanPath.split('/').pop() || cleanPath || 'default';
     }
 
-    // Clean up the name: replace underscores and hyphens with spaces, handle multiple spaces
-    name = name.replace(/_/g, ' ').replace(/-/g, ' ').replace(/\s+/g, ' ').trim();
+    // Clean up the name: decode URL-encoded text and normalize separators
+    name = safeDecode(name).replace(/_/g, ' ').replace(/-/g, ' ').replace(/\s+/g, ' ').trim();
 
     setProjectName(name || 'Gallery');
   }, [decodedFolderPath]);
@@ -477,85 +485,56 @@ function SharedImages() {
 
   // fetchAllImages was previously used by a different download flow; removed as unused.
 
-  // Download a zip via Lambda using file keys (avoids direct Wasabi CORS)
+  // Download using backend presigned URLs for each key.
   const downloadWithLambda = async (fileKeys: string[], zipName: string) => {
     try {
-      const response = await fetch(rawStoriesApiUrl('/default/downloadimage'), {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ fileKeys }),
-      });
+      if (!Array.isArray(fileKeys) || fileKeys.length === 0) return false;
 
-      // Handle non-2xx with clearer messages
-      if (!response.ok) {
-        const text = await response.text().catch(() => '');
-        if (response.status === 400) {
-          // Often used for too-large zips or bad input
-          try {
-            const j = JSON.parse(text);
-            addNotification(j?.message || j?.error || 'Download failed (bad request)', 'error');
-          } catch {
-            addNotification(text || 'Download failed (bad request)', 'error');
-          }
-        } else if (response.status === 500) {
-          addNotification('Server error while preparing download. Please try again or reduce selection.', 'error');
-        } else {
-          addNotification(`Download failed (${response.status})`, 'error');
+      let successCount = 0;
+      for (let i = 0; i < fileKeys.length; i++) {
+        const key = fileKeys[i];
+        const query = new URLSearchParams({ key });
+        if (shareId) query.set('shareId', shareId);
+
+        const presignRes = await fetch(rawStoriesApiUrl(`/default/downloadimage?${query.toString()}`), {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' },
+        });
+        const presignData = await presignRes.json().catch(() => null);
+        if (!presignRes.ok || !presignData?.success || !presignData?.url) {
+          continue;
         }
+
+        const mediaRes = await fetch(presignData.url, {
+          method: 'GET',
+          mode: 'cors',
+          credentials: 'omit',
+          cache: 'no-cache',
+        });
+        if (!mediaRes.ok) {
+          continue;
+        }
+
+        const blob = await mediaRes.blob();
+        const rawName = key.split('/').pop() || `download_${i + 1}`;
+        const baseName = rawName.replace(/\.[^.]+$/, '') || `download_${i + 1}`;
+        const ext = rawName.includes('.') ? rawName.split('.').pop() : '';
+        const safeBase = baseName.replace(/[\\/:*?"<>|]/g, '_').trim();
+        const fallbackBase = (zipName || 'download').replace(/\.[^.]+$/, '').replace(/[\\/:*?"<>|]/g, '_').trim() || 'download';
+        const fileName = fileKeys.length === 1
+          ? `${fallbackBase}${ext ? `.${ext}` : ''}`
+          : `${safeBase}${ext ? `.${ext}` : ''}`;
+
+        saveAs(blob, fileName);
+        successCount += 1;
+      }
+
+      if (successCount === 0) {
+        addNotification('Download failed for all selected files', 'error');
         return false;
       }
 
-      // Try to detect binary zip vs base64 body
-      const contentType = response.headers.get('content-type') || '';
-      let blob: Blob | null = null;
-
-      if (contentType.includes('application/zip') || contentType.includes('application/octet-stream')) {
-        // Binary zip path
-        blob = await response.blob();
-      } else {
-        // Might be base64 string or JSON with base64 body
-        const text = await response.text();
-        try {
-          const parsed = JSON.parse(text);
-          // Case: API Gateway proxy with isBase64Encoded true and body base64
-          const base64 = parsed?.body || parsed?.data || '';
-          if (!base64) throw new Error('No base64 body in response');
-          const byteChars = atob(base64);
-          const bytes = new Uint8Array(byteChars.length);
-          for (let i = 0; i < byteChars.length; i++) bytes[i] = byteChars.charCodeAt(i);
-          blob = new Blob([bytes], { type: 'application/zip' });
-        } catch {
-          // If plain base64 string
-          try {
-            const byteChars = atob(text.trim());
-            const bytes = new Uint8Array(byteChars.length);
-            for (let i = 0; i < byteChars.length; i++) bytes[i] = byteChars.charCodeAt(i);
-            blob = new Blob([bytes], { type: 'application/zip' });
-          } catch (e) {
-            console.error('Unexpected download response format');
-            addNotification('Unexpected download response format', 'error');
-            return false;
-          }
-        }
-      }
-
-      if (!blob) {
-        addNotification('Failed to prepare download', 'error');
-        return false;
-      }
-
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = zipName || 'download.zip';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
-
-      return true;
+      return successCount === fileKeys.length;
     } catch (err: any) {
       console.error('Download error:', err);
       addNotification(`Download failed: ${err.message}`, 'error');
@@ -975,6 +954,7 @@ const handleDownloadSelected = async (downloadAll: boolean = false): Promise<num
 
     // Get the last segment
     let title = segments.length > 0 ? segments[segments.length - 1] : cleanPath;
+    title = safeDecode(title);
 
     // Clean up: replace underscores and hyphens with spaces, handle multiple spaces
     title = title.replace(/_/g, ' ').replace(/-/g, ' ').replace(/\s+/g, ' ').trim();

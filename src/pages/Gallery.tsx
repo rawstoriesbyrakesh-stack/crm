@@ -244,6 +244,14 @@ function Gallery() {
   // When inside a folder, show a compact, uniform thumbnail grid like Image 2
   const compactView = currentPath.split('/').some(Boolean);
 
+  const safeDecode = (value: string) => {
+    try {
+      return decodeURIComponent(value);
+    } catch {
+      return value;
+    }
+  };
+
   // -------------------- Notifications --------------------
   const addNotification = (message: string, type: 'success' | 'error' | 'info') => {
     const id = Math.random().toString(36).substring(2, 11);
@@ -319,7 +327,7 @@ function Gallery() {
       const mappedItems: GalleryItem[] = data.files.map((item: any, idx: number) => {
         const keyParts = item.key.split('/');
         const rawFilename = keyParts.pop() || 'Untitled.jpg';
-        const title = rawFilename.replace(/\.[^/.]+$/, '');
+        const title = safeDecode(rawFilename.replace(/\.[^/.]+$/, ''));
         let eventDate = item.last_modified ? item.last_modified.split('T')[0] : '';
 
         const dateMatch = title.match(/(\d{4})(\d{2})(\d{2})/);
@@ -350,7 +358,7 @@ function Gallery() {
       });
 
       const mappedFolders: FolderItem[] = data.folders.map((folder: any) => ({
-        name: folder.name,
+        name: safeDecode(folder.name || ''),
         path: `/${folder.path.replace(/\/$/, '')}`,
       }));
 
@@ -371,7 +379,7 @@ function Gallery() {
             const favoritesData = await favoritesResponse.json();
             if (favoritesData && Array.isArray(favoritesData.folders)) {
               favoritesFolders = favoritesData.folders.map((folder: any) => ({
-                name: `❤️ ${folder.name}`,
+                name: `❤️ ${safeDecode(folder.name || '')}`,
                 path: `/${folder.path.replace(/\/$/, '')}`,
               }));
             }
@@ -1019,9 +1027,14 @@ function Gallery() {
     try {
       // Determine folderPrefix from selected folders
       const selectedFolders = folders.filter(f => selectedItems.includes(f.path));
+      const selectedFileItems = items.filter(it => selectedItems.includes(it.id));
+      const primaryFileKey = selectedFileItems[0]?.key || selectedFileItems[0]?.id || '';
+      const derivedFilePrefix = primaryFileKey.includes('/')
+        ? primaryFileKey.slice(0, primaryFileKey.lastIndexOf('/') + 1)
+        : '';
       const folderPrefix = selectedFolders.length > 0
         ? selectedFolders[0].path.replace(/^\//, '')
-        : (currentPath ? currentPath.replace(/^\//, '') : '');
+        : (currentPath ? currentPath.replace(/^\//, '') : derivedFilePrefix);
 
       const res = await fetch(rawStoriesApiUrl('/default/sharelink'), {
         method: 'POST',
@@ -1197,7 +1210,7 @@ function Gallery() {
     let currentBreadcrumbPath = '';
     parts.forEach((part) => {
       currentBreadcrumbPath += `/${part}`;
-      breadcrumbs.push({ name: part, path: currentBreadcrumbPath });
+      breadcrumbs.push({ name: safeDecode(part).replace(/[_-]+/g, ' '), path: currentBreadcrumbPath });
     });
 
     return breadcrumbs;
@@ -2515,7 +2528,7 @@ function Gallery() {
                       <button onClick={() => navigate(-1)} className="p-1 hover:bg-white/10 rounded-lg transition-colors">
                         <ChevronLeft className="h-6 w-6 text-gray-400" />
                       </button>
-                      {currentPath.split('/').filter(Boolean).pop() || 'Gallery'}
+                      {safeDecode(currentPath.split('/').filter(Boolean).pop() || 'Gallery').replace(/[_-]+/g, ' ')}
                     </span>
                   ) : 'Gallery'}
                 </h1>

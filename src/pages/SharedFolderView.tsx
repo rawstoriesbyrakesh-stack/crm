@@ -94,6 +94,14 @@ export default function SharedFolderView() {
 
   const decoded = folderPath ? decodeURIComponent(folderPath) : '';
 
+  const safeDecode = (value: string) => {
+    try {
+      return decodeURIComponent(value);
+    } catch {
+      return value;
+    }
+  };
+
   const filteredItems = items.filter(item => {
     if (showFavoritesOnly) return favorites.has(item.id);
     return true;
@@ -141,6 +149,37 @@ export default function SharedFolderView() {
   const fetchItems = useCallback(async () => {
     setLoading(true); setError('');
     try {
+      const hasFolderShare = sharedItemsList.some(item => item.endsWith('/'));
+
+      // File-only shares do not always have a usable folder prefix in the URL.
+      // In that case, ask the share-access API for resolved items directly.
+      if (shareId && sharedItemsList.length > 0 && !hasFolderShare) {
+        const accessRes = await fetch(SHARE_API, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sharedId: shareId,
+            ...(pin ? { pin } : {}),
+          }),
+        });
+        const accessData = await accessRes.json().catch(() => null);
+        if (!accessRes.ok || !accessData?.success) {
+          throw new Error(accessData?.message || 'Failed to load shared items');
+        }
+
+        const resolved: Item[] = (accessData.items || []).map((it: any) => ({
+          id: it.id,
+          title: (it.title || it.id?.split('/').pop() || '').replace(/\.[^.]+$/, ''),
+          imageUrl: it.imageUrl || it.presigned_url || '',
+          isVideo: !!it.isVideo,
+          allowDownload: it.allowDownload !== false,
+          comments: it.comments || [],
+        }));
+        setItems(resolved);
+        setLoading(false);
+        return;
+      }
+
       let prefix = decoded;
       if (prefix.startsWith('/')) prefix = prefix.slice(1);
       if (!prefix.endsWith('/')) prefix += '/';
@@ -159,7 +198,6 @@ export default function SharedFolderView() {
       // If the share link was created for specific items, filter the gallery to ONLY show those items
       if (sharedItemsList && sharedItemsList.length > 0) {
         // If shared items include a folder, we don't strictly filter out its contents
-        const hasFolderShare = sharedItemsList.some(item => item.endsWith('/'));
         if (!hasFolderShare) {
           mapped = mapped.filter(item => sharedItemsList.includes(item.id));
         }
@@ -170,7 +208,7 @@ export default function SharedFolderView() {
       setError(e.message || 'Failed to load shared items');
     }
     finally { setLoading(false); }
-  }, [decoded, sharedItemsList]);
+  }, [decoded, sharedItemsList, shareId, pin]);
 
   useEffect(() => { if (phase === 'gallery') fetchItems(); }, [phase, fetchItems]);
 
@@ -378,7 +416,9 @@ export default function SharedFolderView() {
   // ─────────────────────────────────────────────────────────────────────────
   //  RENDER: Gallery
   // ─────────────────────────────────────────────────────────────────────────
-  const defaultTitle = decoded.split('/').filter(Boolean).pop() || 'Shared Gallery';
+  const defaultTitle = safeDecode(decoded.split('/').filter(Boolean).pop() || 'Shared Gallery')
+    .replace(/[_-]+/g, ' ')
+    .trim();
   const galleryTitle = branding?.client ? `${branding.client} Gallery` : defaultTitle;
   const brandColor = branding?.brandColor || '#d97706'; // default amber-600
 

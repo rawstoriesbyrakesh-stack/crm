@@ -123,6 +123,23 @@ export default function SharedLinks() {
     return `<iframe src="${getShareUrl(link)}" width="100%" height="800" style="border:none; border-radius:12px; overflow:hidden;" allowfullscreen></iframe>`;
   };
 
+  const openFavoriteFile = async (key: string) => {
+    try {
+      const res = await fetch(rawStoriesApiUrl(`/default/downloadimage?key=${encodeURIComponent(key)}`), {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.success || !data?.url) {
+        throw new Error(data?.message || 'Unable to open file');
+      }
+      window.open(data.url, '_blank', 'noopener,noreferrer');
+    } catch (error) {
+      console.error('Failed to open favorite file:', error);
+      alert('Failed to open this file. Please try again.');
+    }
+  };
+
   const filteredLinks = links.filter(link => 
     link.shareId.toLowerCase().includes(searchTerm.toLowerCase()) || 
     (link.folderPrefix || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -477,14 +494,12 @@ export default function SharedLinks() {
               {selectedFavoritesLink.favorites?.map((fav, idx) => (
                 <div key={idx} className="bg-slate-850 border border-slate-800 rounded-xl p-3 flex items-center justify-between">
                   <span className="text-slate-300 text-sm font-mono truncate mr-4" title={fav}>{fav.replace(/^\//, '')}</span>
-                  <a
-                    href={rawStoriesApiUrl(`/default/downloadimage?key=${encodeURIComponent(fav)}`)}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                  <button
+                    onClick={() => openFavoriteFile(fav)}
                     className="text-xs text-primary-400 hover:text-primary-300 font-semibold px-2 py-1 bg-primary-500/10 hover:bg-primary-500/20 rounded-lg transition-all"
                   >
                     View/Download
-                  </a>
+                  </button>
                 </div>
               ))}
             </div>
