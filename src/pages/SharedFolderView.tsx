@@ -49,6 +49,16 @@ export default function SharedFolderView() {
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 12; // Decreased from 24 to 12 for faster image loading
+  const [loadedImageIds, setLoadedImageIds] = useState<Set<string>>(new Set());
+  const [lightboxImageLoaded, setLightboxImageLoaded] = useState(false);
+
+  const handleImageLoad = (id: string) => {
+    setLoadedImageIds(prev => {
+      const next = new Set(prev);
+      next.add(id);
+      return next;
+    });
+  };
 
   // Client Favorites Proofing States & Functions
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
@@ -142,6 +152,35 @@ export default function SharedFolderView() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentPage, items, showFavoritesOnly]);
+
+  // Preload next and previous lightbox images in the background for instant transitions
+  useEffect(() => {
+    if (lightbox === null) return;
+    const preloadUrls: string[] = [];
+    if (lightbox < filteredItems.length - 1) {
+      const nextItem = filteredItems[lightbox + 1];
+      if (nextItem && !nextItem.isVideo && nextItem.imageUrl) {
+        preloadUrls.push(nextItem.imageUrl);
+      }
+    }
+    if (lightbox > 0) {
+      const prevItem = filteredItems[lightbox - 1];
+      if (prevItem && !prevItem.isVideo && prevItem.imageUrl) {
+        preloadUrls.push(prevItem.imageUrl);
+      }
+    }
+    
+    const imgs: HTMLImageElement[] = [];
+    preloadUrls.forEach((url) => {
+      const img = new globalThis.Image();
+      img.src = url;
+      imgs.push(img);
+    });
+    
+    return () => {
+      imgs.forEach((im) => { im.onload = null; im.onerror = null; });
+    };
+  }, [lightbox, filteredItems]);
 
   // ── Check access on mount ────────────────────────────────────────────────
   useEffect(() => {
@@ -401,6 +440,7 @@ export default function SharedFolderView() {
   }, [lightbox, filteredItems.length]);
 
   useEffect(() => {
+    setLightboxImageLoaded(false);
     setLightboxRotation(0);
     lightboxGestureRef.current = null;
   }, [lightbox]);
@@ -609,14 +649,17 @@ export default function SharedFolderView() {
                         <Heart className={`h-4 w-4 ${isFavorite ? 'fill-current text-red-500' : ''}`} />
                       </button>
                       {/* Thumbnail */}
-                      <div className="aspect-square" onClick={() => setLightbox(indexOfFirstItem + idx)}>
+                      <div className="aspect-square" onClick={() => setLightbox(indexOfFirstItem + idx)} style={{ contentVisibility: 'auto' }}>
                         {item.isVideo ? (
                           <div className="w-full h-full bg-stone-700 flex items-center justify-center">
                             <Play className="h-8 w-8 text-white/60" />
                           </div>
                         ) : (
-                          <img src={item.imageUrl} alt={item.title} loading="lazy"
-                            className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                          <img src={item.imageUrl} alt={item.title} loading="lazy" decoding="async"
+                            onLoad={() => handleImageLoad(item.id)}
+                            className={`w-full h-full object-cover transition-all duration-500 group-hover:scale-105 ${
+                              loadedImageIds.has(item.id) ? 'opacity-100 scale-100 filter-none' : 'opacity-0 scale-95 blur-sm'
+                            }`}
                             onError={e => { (e.target as HTMLImageElement).src = 'https://picsum.photos/400/400?grayscale'; }} />
                         )}
                         {/* Hover overlay */}
@@ -649,7 +692,12 @@ export default function SharedFolderView() {
                       <input type="checkbox" checked={isSelected} onChange={() => toggleSelect(item.id)} className="accent-amber-500 w-4 h-4 flex-shrink-0" />
                       <div className="w-12 h-12 rounded-lg overflow-hidden flex-shrink-0 bg-stone-700 cursor-pointer" onClick={() => setLightbox(indexOfFirstItem + idx)}>
                         {item.isVideo ? <div className="w-full h-full flex items-center justify-center"><Play className="h-5 w-5 text-white/60"/></div>
-                          : <img src={item.imageUrl} alt={item.title} className="w-full h-full object-cover" onError={e => { (e.target as HTMLImageElement).src='https://picsum.photos/50/50?grayscale'; }} />}
+                          : <img src={item.imageUrl} alt={item.title} decoding="async"
+                              onLoad={() => handleImageLoad(item.id)}
+                              className={`w-full h-full object-cover transition-opacity duration-300 ${
+                                loadedImageIds.has(item.id) ? 'opacity-100' : 'opacity-0'
+                              }`}
+                              onError={e => { (e.target as HTMLImageElement).src='https://picsum.photos/50/50?grayscale'; }} />}
                       </div>
                       <span className="flex-1 text-stone-200 text-sm truncate">{item.title}</span>
                       <div className="flex items-center gap-2">
@@ -745,8 +793,12 @@ export default function SharedFolderView() {
               <img
                 src={filteredItems[lightbox].imageUrl}
                 alt={filteredItems[lightbox].title}
-                className="max-h-[70vh] max-w-full mx-auto object-contain rounded-lg shadow-2xl"
-                style={{ transform: `rotate(${lightboxRotation}deg)`, transition: 'transform 180ms ease-out' }}
+                decoding="async"
+                onLoad={() => setLightboxImageLoaded(true)}
+                className={`max-h-[70vh] max-w-full mx-auto object-contain rounded-lg shadow-2xl transition-all duration-300 ${
+                  lightboxImageLoaded ? 'opacity-100 scale-100' : 'opacity-0 scale-95'
+                }`}
+                style={{ transform: `rotate(${lightboxRotation}deg)`, transition: 'transform 180ms ease-out, opacity 300ms, transform 300ms' }}
               />
             )}
             <div className="text-center mt-3 flex items-center justify-center gap-4 flex-wrap">
