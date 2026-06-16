@@ -4,7 +4,19 @@ import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import mongoose from 'mongoose';
-import sharp from 'sharp';
+// sharp is loaded lazily so a missing native binary never crashes the server
+let _sharp = null;
+const getSharp = async () => {
+  if (_sharp) return _sharp;
+  try {
+    const mod = await import('sharp');
+    _sharp = mod.default;
+    return _sharp;
+  } catch (err) {
+    console.warn('sharp not available (thumbnail resize disabled):', err.message);
+    return null;
+  }
+};
 import {
   S3Client, PutObjectCommand, DeleteObjectsCommand,
   ListObjectsV2Command, CopyObjectCommand, HeadObjectCommand,
@@ -314,7 +326,7 @@ const server = http.createServer(async (req, res) => {
 
     // ── Thumbnail: resize + cache image from S3 ─────────────────────────────
     // Returns a compressed WebP thumbnail (~10-50 KB) instead of full-res (5-20 MB).
-    // Used by the gallery and shared folder grids for fast loading.
+    // Falls back to a presigned URL redirect if sharp is unavailable.
     if (pathname === '/default/thumbnail' && req.method === 'GET') {
       const key = url.searchParams.get('key');
       const size = Math.min(Number(url.searchParams.get('size') || 400), 800);
@@ -335,6 +347,16 @@ const server = http.createServer(async (req, res) => {
           return;
         }
 
+        // Try to load sharp (lazy, won't crash server if missing)
+        const sharpFn = await getSharp();
+        if (!sharpFn) {
+          // sharp unavailable — redirect to presigned URL (full-res fallback)
+          const signedUrl = await presignGet(key, 300);
+          res.writeHead(302, { Location: signedUrl, ...cors });
+          res.end();
+          return;
+        }
+
         // Fetch from Wasabi S3
         const s3Res = await s3.send(new GetObjectCommand({ Bucket: WASABI_BUCKET, Key: key }));
         const chunks = [];
@@ -342,7 +364,7 @@ const server = http.createServer(async (req, res) => {
         const rawBuf = Buffer.concat(chunks);
 
         // Resize and compress with sharp
-        const webpBuf = await sharp(rawBuf)
+        const webpBuf = await sharpFn(rawBuf)
           .resize(size, size, { fit: 'inside', withoutEnlargement: true })
           .webp({ quality: 72 })
           .toBuffer();
@@ -358,7 +380,7 @@ const server = http.createServer(async (req, res) => {
         res.end(webpBuf);
       } catch (err) {
         console.error('Thumbnail generation failed:', err.message);
-        // Fallback: redirect to presigned URL so image still shows
+        // Fallback: redirect to presigned URL so the image still shows
         try {
           const signedUrl = await presignGet(key, 300);
           res.writeHead(302, { Location: signedUrl, ...cors });
