@@ -486,6 +486,16 @@ export default function SharedFolderView() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <a 
+              href="https://wa.me/917997743743" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-medium transition-all shadow-md hover:scale-105 shrink-0"
+              title="Contact on WhatsApp"
+            >
+              <MessageCircle className="h-4 w-4 fill-current" />
+              <span className="hidden sm:inline">WhatsApp</span>
+            </a>
             {favorites.size > 0 && (
               <button 
                 onClick={submitFavorites} 
