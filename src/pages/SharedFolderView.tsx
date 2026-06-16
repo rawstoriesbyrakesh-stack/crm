@@ -371,7 +371,9 @@ export default function SharedFolderView() {
   };
 
   // ── Download ─────────────────────────────────────────────────────────────
+  // Always saves the file to disk — never opens in browser tab.
   const downloadItem = async (item: Item) => {
+    notify(setNotifications, `Preparing download…`, 'info');
     try {
       const res = await fetch(
         rawStoriesApiUrl(`/default/downloadimage?key=${encodeURIComponent(item.id)}&shareId=${encodeURIComponent(shareId || '')}`)
@@ -381,41 +383,52 @@ export default function SharedFolderView() {
         throw new Error('Failed to resolve download URL');
       }
 
-      // Try fetching as Blob first to download locally without opening new tab
+      // Derive filename from the key (most reliable source)
+      const keyParts = (item.id || '').split('/');
+      const rawFilename = keyParts[keyParts.length - 1] || 'image.jpg';
+      const safeFilename = rawFilename.replace(/[\\/:*?"<>|]/g, '_') || 'image.jpg';
+
       try {
+        // Fetch the image as a Blob, then force-download via object URL
         const mediaRes = await fetch(data.url, {
           method: 'GET',
           mode: 'cors',
           credentials: 'omit',
           cache: 'no-cache',
         });
-        if (!mediaRes.ok) throw new Error(`HTTP status ${mediaRes.status}`);
+        if (!mediaRes.ok) throw new Error(`HTTP ${mediaRes.status}`);
         const blob = await mediaRes.blob();
 
-        const urlPart = data.url.split('?')[0];
-        const extension = urlPart.split('.').pop()?.toLowerCase() || 'jpg';
-        const safeTitle = (item.title || 'image')
-          .replace(/[\\/:*?"<>|]/g, '_')
-          .trim();
-        const filename = `${safeTitle}.${extension}`;
+        // Force download using object URL — avoids browser opening the image
+        const objectUrl = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = objectUrl;
+        a.download = safeFilename; // 'download' attribute forces save, not open
+        a.style.display = 'none';
+        document.body.appendChild(a);
+        a.click();
+        // Small delay before revoking so browser has time to start download
+        setTimeout(() => {
+          URL.revokeObjectURL(objectUrl);
+          document.body.removeChild(a);
+        }, 2000);
 
-        saveAs(blob, filename);
-        notify(setNotifications, `Downloaded ${item.title}`, 'success');
-      } catch (err) {
-        console.warn('Direct download fetch failed, falling back to new tab:', err);
+        notify(setNotifications, `Saved: ${safeFilename}`, 'success');
+      } catch (fetchErr) {
+        // CORS blocked the direct fetch — use anchor with download attribute only
+        console.warn('Blob fetch failed, using direct anchor download:', fetchErr);
         const a = document.createElement('a');
         a.href = data.url;
-        a.download = item.title;
-        a.target = '_blank';
-        a.rel = 'noopener noreferrer';
+        a.download = safeFilename;
+        a.style.display = 'none';
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
-        notify(setNotifications, `Download started for ${item.title}`, 'info');
+        notify(setNotifications, `Download started: ${safeFilename}`, 'info');
       }
     } catch (err) {
       console.error('Download failed:', err);
-      notify(setNotifications, 'Download failed', 'error');
+      notify(setNotifications, 'Download failed. Please try again.', 'error');
     }
   };
 
