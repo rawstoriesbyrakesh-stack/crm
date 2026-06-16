@@ -206,6 +206,7 @@ function Gallery() {
   const [uploadModal, setUploadModal] = useState(false); // Upload modal state
   const watermarkInputRef = useRef<HTMLInputElement>(null);
   const [currentPage, setCurrentPage] = useState(1);
+  const [lightboxImageLoaded, setLightboxImageLoaded] = useState(false);
   const itemsPerPage = 12; // Decreased from 24 to 12 for faster image loading
   const [savedWatermarks, setSavedWatermarks] = useState<WatermarkPreset[]>(() => {
     // Load saved watermarks from localStorage on init
@@ -1369,6 +1370,42 @@ function Gallery() {
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [previewModal.isOpen, selectedItems, items, filteredImages]);
+
+  useEffect(() => {
+    setLightboxImageLoaded(false);
+  }, [previewModal.currentImage]);
+
+  // Preload next and previous preview modal images in the background for instant transitions
+  useEffect(() => {
+    if (!previewModal.isOpen || !previewModal.currentImage) return;
+    const currentIndex = filteredImages.findIndex(item => item.id === previewModal.currentImage!.id);
+    if (currentIndex === -1) return;
+
+    const preloadUrls: string[] = [];
+    if (currentIndex < filteredImages.length - 1) {
+      const nextItem = filteredImages[currentIndex + 1];
+      if (nextItem && !nextItem.isVideo && nextItem.imageUrl) {
+        preloadUrls.push(nextItem.imageUrl);
+      }
+    }
+    if (currentIndex > 0) {
+      const prevItem = filteredImages[currentIndex - 1];
+      if (prevItem && !prevItem.isVideo && prevItem.imageUrl) {
+        preloadUrls.push(prevItem.imageUrl);
+      }
+    }
+
+    const imgs: HTMLImageElement[] = [];
+    preloadUrls.forEach((url) => {
+      const img = new globalThis.Image();
+      img.src = url;
+      imgs.push(img);
+    });
+
+    return () => {
+      imgs.forEach((im) => { im.onload = null; im.onerror = null; });
+    };
+  }, [previewModal.isOpen, previewModal.currentImage, filteredImages]);
 
   const handleSelectAll = () => {
     const allIds = [
@@ -3156,8 +3193,9 @@ function Gallery() {
                                   style={{ 
                                     backgroundColor: '#f3f4f6',
                                     minHeight: compactView && viewMode === 'grid' ? undefined : (viewMode === 'grid' ? '192px' : '96px'),
-                                    transition: 'opacity 0.3s ease-in-out',
-                                    opacity: loadedImages.has(item.id) ? 1 : 0.7
+                                    transition: 'opacity 0.5s ease-in-out, transform 0.5s ease-in-out',
+                                    opacity: loadedImages.has(item.id) ? 1 : 0,
+                                    transform: loadedImages.has(item.id) ? 'scale(1)' : 'scale(0.95)'
                                   }}
                                 />
                                 
@@ -3379,7 +3417,11 @@ function Gallery() {
                   <img
                     src={previewModal.currentImage.imageUrl}
                     alt={previewModal.currentImage.title}
-                    className="w-full max-h-[80vh] object-contain rounded-lg"
+                    decoding="async"
+                    onLoad={() => setLightboxImageLoaded(true)}
+                    className={`w-full max-h-[80vh] object-contain rounded-lg transition-all duration-300 ${
+                      lightboxImageLoaded ? 'opacity-100 scale-100' : 'opacity-0 scale-95'
+                    }`}
                     onError={handleImageError}
                   />
                 )}

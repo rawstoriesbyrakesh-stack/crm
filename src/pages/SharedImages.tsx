@@ -75,6 +75,16 @@ function SharedImages() {
   const [projectName, setProjectName] = useState<string>('default');
   const [selectedImageIndex, setSelectedImageIndex] = useState<number | null>(null);
   const [isImageModalOpen, setIsImageModalOpen] = useState(false);
+  const [loadedImageIds, setLoadedImageIds] = useState<Set<string>>(new Set());
+  const [lightboxImageLoaded, setLightboxImageLoaded] = useState(false);
+
+  const handleImageLoad = (id: string) => {
+    setLoadedImageIds(prev => {
+      const next = new Set(prev);
+      next.add(id);
+      return next;
+    });
+  };
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 12; // Set to 12 for consistency and faster loading in shared views
   const [isDownloading, setIsDownloading] = useState(false);
@@ -390,6 +400,39 @@ function SharedImages() {
       imgs.forEach((im) => { im.onload = null; im.onerror = null; });
     };
   }, [items, currentPage]);
+
+  useEffect(() => {
+    setLightboxImageLoaded(false);
+  }, [selectedImageIndex, isImageModalOpen]);
+
+  // Preload next and previous lightbox images in the background for instant transitions
+  useEffect(() => {
+    if (!isImageModalOpen || selectedImageIndex === null) return;
+    const preloadUrls: string[] = [];
+    if (selectedImageIndex < items.length - 1) {
+      const nextItem = items[selectedImageIndex + 1];
+      if (nextItem && !nextItem.isVideo && nextItem.imageUrl) {
+        preloadUrls.push(nextItem.imageUrl);
+      }
+    }
+    if (selectedImageIndex > 0) {
+      const prevItem = items[selectedImageIndex - 1];
+      if (prevItem && !prevItem.isVideo && prevItem.imageUrl) {
+        preloadUrls.push(prevItem.imageUrl);
+      }
+    }
+
+    const imgs: HTMLImageElement[] = [];
+    preloadUrls.forEach((url) => {
+      const img = new globalThis.Image();
+      img.src = url;
+      imgs.push(img);
+    });
+
+    return () => {
+      imgs.forEach((im) => { im.onload = null; im.onerror = null; });
+    };
+  }, [selectedImageIndex, isImageModalOpen, items]);
 
   const handleItemFavorite = async (itemId: string) => {
     const isCurrentlyFavorited = favoritedItems.includes(itemId);
@@ -1184,9 +1227,12 @@ const handleDownloadSelected = async (downloadAll: boolean = false): Promise<num
                       <img
                         src={item.imageUrl}
                         alt={item.title}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                         loading="lazy"
                         decoding="async"
+                        onLoad={() => handleImageLoad(item.id)}
+                        className={`w-full h-full object-cover transition-all duration-500 group-hover:scale-105 ${
+                          loadedImageIds.has(item.id) ? 'opacity-100 scale-100 filter-none' : 'opacity-0 scale-95 blur-sm'
+                        }`}
                         onError={(e) => {
                           e.currentTarget.src = 'https://via.placeholder.com/300x300?text=Image+Not+Available';
                           addNotification(`Failed to load ${item.title}`, 'error');
@@ -1513,7 +1559,11 @@ const handleDownloadSelected = async (downloadAll: boolean = false): Promise<num
                 <img
                   src={items[selectedImageIndex]?.imageUrl}
                   alt={items[selectedImageIndex]?.title}
-                  className="max-w-full max-h-[90vh] object-contain rounded-lg"
+                  decoding="async"
+                  onLoad={() => setLightboxImageLoaded(true)}
+                  className={`max-w-full max-h-[90vh] object-contain rounded-lg transition-all duration-300 ${
+                    lightboxImageLoaded ? 'opacity-100 scale-100' : 'opacity-0 scale-95'
+                  }`}
                   onClick={(e) => e.stopPropagation()}
                   onError={(e) => {
                     e.currentTarget.src = 'https://via.placeholder.com/300x300?text=Image+Not+Available';
