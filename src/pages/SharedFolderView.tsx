@@ -19,6 +19,73 @@ function notify(setFn: React.Dispatch<React.SetStateAction<{id:string;msg:string
   setTimeout(() => setFn(p => p.filter(n => n.id !== id)), 4500);
 }
 
+// ── LazyImage: IntersectionObserver-based image component ──────────────────
+// Only starts loading when the element enters the viewport. This prevents
+// flooding the browser with 12+ simultaneous full-resolution S3 requests.
+interface LazyImageProps {
+  src: string;
+  alt: string;
+  className?: string;
+  priority?: boolean; // true = load immediately (first ~4 images)
+  onLoaded?: () => void;
+  style?: React.CSSProperties;
+}
+
+const LazyImage: React.FC<LazyImageProps> = ({ src, alt, className, priority = false, onLoaded, style }) => {
+  const [loaded, setLoaded] = useState(false);
+  const [shouldLoad, setShouldLoad] = useState(priority);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const observerRef = useRef<IntersectionObserver | null>(null);
+
+  // Attach / re-attach IntersectionObserver whenever src changes (page navigation)
+  useEffect(() => {
+    setLoaded(false);
+    if (priority) {
+      setShouldLoad(true);
+      return;
+    }
+    setShouldLoad(false);
+
+    const el = containerRef.current;
+    if (!el) return;
+
+    observerRef.current?.disconnect();
+    observerRef.current = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          setShouldLoad(true);
+          observerRef.current?.disconnect();
+        }
+      },
+      { rootMargin: '300px 0px', threshold: 0 } // start loading 300px before entering viewport
+    );
+    observerRef.current.observe(el);
+
+    return () => observerRef.current?.disconnect();
+  }, [src, priority]);
+
+  return (
+    <div ref={containerRef} className="absolute inset-0">
+      {/* Shimmer skeleton — visible until image is done loading */}
+      {!loaded && <div className="absolute inset-0 shimmer-bg" />}
+      {shouldLoad && (
+        <img
+          src={src}
+          alt={alt}
+          loading={priority ? 'eager' : 'lazy'}
+          decoding="async"
+          // @ts-ignore – fetchpriority is valid HTML but TypeScript types lag behind
+          fetchpriority={priority ? 'high' : 'low'}
+          onLoad={() => { setLoaded(true); onLoaded?.(); }}
+          onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; setLoaded(true); }}
+          className={`absolute inset-0 ${className || ''} transition-opacity duration-500 ${loaded ? 'opacity-100' : 'opacity-0'}`}
+          style={style}
+        />
+      )}
+    </div>
+  );
+};
+
 export default function SharedFolderView() {
   const { folderPath } = useParams<{ folderPath: string }>();
   const [searchParams] = useSearchParams();
@@ -136,23 +203,9 @@ export default function SharedFolderView() {
     setCurrentPage(1);
   }, [showFavoritesOnly, items]);
 
-  // Preload current page images for faster loading
-  useEffect(() => {
-    if (currentItems.length === 0) return;
-    const imgs: HTMLImageElement[] = [];
-    currentItems.forEach((item) => {
-      if (!item.isVideo && item.imageUrl) {
-        const img = new globalThis.Image();
-        img.decoding = 'async';
-        img.src = item.imageUrl;
-        imgs.push(img);
-      }
-    });
-    return () => {
-      imgs.forEach((im) => { im.onload = null; im.onerror = null; });
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentPage, items, showFavoritesOnly]);
+  // NOTE: Removed aggressive preload-all effect. The LazyImage component handles
+  // loading via IntersectionObserver which prevents flooding the browser with
+  // simultaneous full-resolution S3 requests. Priority images (first 4) load eagerly.
 
   // Preload next and previous lightbox images in the background for instant transitions
   useEffect(() => {
@@ -502,11 +555,21 @@ export default function SharedFolderView() {
   //  RENDER: PIN Entry
   // ─────────────────────────────────────────────────────────────────────────
   if (phase === 'pin') return (
-    <div className="min-h-screen bg-gradient-to-br from-stone-900 via-stone-800 to-amber-900 flex items-center justify-center p-4">
-      <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-3xl p-10 max-w-sm w-full shadow-2xl">
+    <div className="min-h-screen bg-gradient-to-br from-stone-950 via-stone-900 to-stone-950 flex flex-col items-center justify-center p-4">
+      {/* Brand Logo at top */}
+      <div className="mb-8 flex flex-col items-center gap-3">
+        <img
+          src="/rawstories-logo.png"
+          alt="Raw Stories by Rakesh"
+          className="h-16 object-contain drop-shadow-[0_0_24px_rgba(217,119,6,0.3)]"
+          style={{ filter: 'invert(1) brightness(1.1)' }}
+        />
+      </div>
+
+      <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-8 max-w-sm w-full shadow-2xl">
         <div className="text-center mb-8">
-          <div className="w-20 h-20 bg-amber-500/20 rounded-full flex items-center justify-center mx-auto mb-5">
-            <Lock className="h-10 w-10 text-amber-400" />
+          <div className="w-14 h-14 bg-amber-500/20 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-amber-500/30">
+            <Lock className="h-7 w-7 text-amber-400" />
           </div>
           <h2 className="text-2xl font-bold text-white mb-2">Protected Gallery</h2>
           <p className="text-stone-400 text-sm">Enter the PIN provided by the photographer</p>
@@ -533,6 +596,20 @@ export default function SharedFolderView() {
             <Check className="h-5 w-5" />Access Gallery
           </>}
         </button>
+
+        {/* Social links */}
+        <div className="mt-6 pt-5 border-t border-white/10 flex items-center justify-center gap-4">
+          <a href="https://wa.me/917997743743" target="_blank" rel="noopener noreferrer"
+            className="flex items-center gap-1.5 text-xs text-stone-400 hover:text-emerald-400 transition-colors">
+            <MessageCircle className="h-4 w-4" /> WhatsApp
+          </a>
+          <span className="text-stone-700">|</span>
+          <a href="https://www.instagram.com/rawstoriesbyrakesh?igsh=MXg4NTJjeDBybmxndQ==" target="_blank" rel="noopener noreferrer"
+            className="flex items-center gap-1.5 text-xs text-stone-400 hover:text-pink-400 transition-colors">
+            <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z"/></svg>
+            Instagram
+          </a>
+        </div>
       </div>
     </div>
   );
@@ -576,6 +653,19 @@ export default function SharedFolderView() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {/* Instagram */}
+            <a
+              href="https://www.instagram.com/rawstoriesbyrakesh?igsh=MXg4NTJjeDBybmxndQ=="
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 px-3 py-2 text-white rounded-lg text-sm font-medium transition-all shadow-md hover:scale-105 shrink-0"
+              style={{ background: 'linear-gradient(135deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%)' }}
+              title="Follow on Instagram"
+            >
+              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z"/></svg>
+              <span className="hidden sm:inline">Instagram</span>
+            </a>
+            {/* WhatsApp */}
             <a 
               href="https://wa.me/917997743743" 
               target="_blank" 
@@ -674,21 +764,22 @@ export default function SharedFolderView() {
                         <Heart className={`h-4 w-4 ${isFavorite ? 'fill-current text-red-500' : ''}`} />
                       </button>
                       {/* Thumbnail */}
-                      <div className="aspect-square" onClick={() => setLightbox(indexOfFirstItem + idx)} style={{ contentVisibility: 'auto' }}>
+                      <div className="aspect-square relative overflow-hidden" onClick={() => setLightbox(indexOfFirstItem + idx)}>
                         {item.isVideo ? (
-                          <div className="w-full h-full bg-stone-700 flex items-center justify-center">
+                          <div className="absolute inset-0 bg-stone-700 flex items-center justify-center">
                             <Play className="h-8 w-8 text-white/60" />
                           </div>
                         ) : (
-                          <img src={item.imageUrl} alt={item.title} loading="lazy" decoding="async"
-                            onLoad={() => handleImageLoad(item.id)}
-                            className={`w-full h-full object-cover transition-all duration-500 group-hover:scale-105 ${
-                              loadedImageIds.has(item.id) ? 'opacity-100 scale-100 filter-none' : 'opacity-0 scale-95 blur-sm'
-                            }`}
-                            onError={e => { (e.target as HTMLImageElement).src = 'https://picsum.photos/400/400?grayscale'; }} />
+                          <LazyImage
+                            src={item.imageUrl}
+                            alt={item.title}
+                            priority={idx < 4} // first 4 items load immediately
+                            onLoaded={() => handleImageLoad(item.id)}
+                            className="w-full h-full object-cover group-hover:scale-105"
+                          />
                         )}
                         {/* Hover overlay */}
-                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-all flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100">
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-all flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 z-10">
                           <button className="p-2 bg-white/20 backdrop-blur rounded-full text-white hover:bg-white/30 transition-all" onClick={e => { e.stopPropagation(); setLightbox(indexOfFirstItem + idx); }}>
                             <ZoomIn className="h-4 w-4" />
                           </button>
@@ -715,14 +806,15 @@ export default function SharedFolderView() {
                   return (
                     <div key={item.id} className={`flex items-center gap-4 p-3 rounded-xl border transition-all ${isSelected ? 'bg-amber-500/10 border-amber-500/50' : 'bg-white/5 border-white/10 hover:bg-white/10'}`}>
                       <input type="checkbox" checked={isSelected} onChange={() => toggleSelect(item.id)} className="accent-amber-500 w-4 h-4 flex-shrink-0" />
-                      <div className="w-12 h-12 rounded-lg overflow-hidden flex-shrink-0 bg-stone-700 cursor-pointer" onClick={() => setLightbox(indexOfFirstItem + idx)}>
+                      <div className="w-12 h-12 rounded-lg overflow-hidden flex-shrink-0 bg-stone-700 cursor-pointer relative" onClick={() => setLightbox(indexOfFirstItem + idx)}>
                         {item.isVideo ? <div className="w-full h-full flex items-center justify-center"><Play className="h-5 w-5 text-white/60"/></div>
-                          : <img src={item.imageUrl} alt={item.title} decoding="async"
-                              onLoad={() => handleImageLoad(item.id)}
-                              className={`w-full h-full object-cover transition-opacity duration-300 ${
-                                loadedImageIds.has(item.id) ? 'opacity-100' : 'opacity-0'
-                              }`}
-                              onError={e => { (e.target as HTMLImageElement).src='https://picsum.photos/50/50?grayscale'; }} />}
+                          : <LazyImage
+                              src={item.imageUrl}
+                              alt={item.title}
+                              priority={idx < 8} // list view: first 8 load eagerly
+                              onLoaded={() => handleImageLoad(item.id)}
+                              className="w-full h-full object-cover"
+                            />}
                       </div>
                       <span className="flex-1 text-stone-200 text-sm truncate">{item.title}</span>
                       <div className="flex items-center gap-2">

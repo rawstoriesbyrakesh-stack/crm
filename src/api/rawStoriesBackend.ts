@@ -9,6 +9,34 @@ export const rawStoriesApiUrl = (path: string) => {
   return `${RAWSTORIES_API_BASE}${pathPrefix}${path}`;
 };
 
+/**
+ * Returns a backend thumbnail URL for a given S3 key (or presigned URL).
+ * The backend resizes the image to `size` px and returns WebP (~20-50 KB).
+ * Falls back to the original URL if key cannot be extracted.
+ */
+export const getThumbnailUrl = (keyOrPresignedUrl: string, size = 400): string => {
+  if (!keyOrPresignedUrl) return keyOrPresignedUrl;
+  // If it looks like an S3 key (no http), use it directly
+  let key = keyOrPresignedUrl;
+  if (keyOrPresignedUrl.startsWith('http')) {
+    // Extract the path from the URL (before the query string), strip leading slash and bucket name
+    try {
+      const u = new URL(keyOrPresignedUrl);
+      // path is like /bucketname/folder/file.jpg or /folder/file.jpg
+      let p = decodeURIComponent(u.pathname);
+      // Remove leading slash
+      if (p.startsWith('/')) p = p.slice(1);
+      // If path starts with bucket name, remove it
+      const bucket = import.meta.env.VITE_WASABI_BUCKET || 'raw12';
+      if (p.startsWith(bucket + '/')) p = p.slice(bucket.length + 1);
+      key = p;
+    } catch {
+      return keyOrPresignedUrl; // cannot parse, use original
+    }
+  }
+  return rawStoriesApiUrl(`/default/thumbnail?key=${encodeURIComponent(key)}&size=${size}`);
+};
+
 export const isRawStoriesAuthenticated = () => Boolean(localStorage.getItem('rawstories_session_token'));
 
 export const getRawStoriesToken = () => localStorage.getItem('rawstories_session_token') || '';

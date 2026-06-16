@@ -4,6 +4,7 @@ import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import mongoose from 'mongoose';
+import sharp from 'sharp';
 import {
   S3Client, PutObjectCommand, DeleteObjectsCommand,
   ListObjectsV2Command, CopyObjectCommand, HeadObjectCommand,
@@ -48,6 +49,29 @@ const s3 = new S3Client({
 
 const presignGet = (key, expiresIn = PRESIGNED_EXPIRY) =>
   getSignedUrl(s3, new GetObjectCommand({ Bucket: WASABI_BUCKET, Key: key }), { expiresIn });
+
+// ─── Thumbnail In-Memory Cache ─────────────────────────────────────────────────
+// Caches resized WebP thumbnails so repeated page loads are instant.
+// Max 500 entries, each with a 24-hour TTL.
+const THUMB_CACHE = new Map(); // key -> { buf: Buffer, ts: number }
+const THUMB_CACHE_MAX = 500;
+const THUMB_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
+
+const getThumbCached = (key) => {
+  const entry = THUMB_CACHE.get(key);
+  if (!entry) return null;
+  if (Date.now() - entry.ts > THUMB_CACHE_TTL) { THUMB_CACHE.delete(key); return null; }
+  return entry.buf;
+};
+
+const setThumbCached = (key, buf) => {
+  // Evict oldest entries when cache is full
+  if (THUMB_CACHE.size >= THUMB_CACHE_MAX) {
+    const oldest = THUMB_CACHE.keys().next().value;
+    THUMB_CACHE.delete(oldest);
+  }
+  THUMB_CACHE.set(key, { buf, ts: Date.now() });
+};
 
 const presignPut = (key, contentType = 'application/octet-stream', expiresIn = PRESIGNED_EXPIRY) =>
   getSignedUrl(s3, new PutObjectCommand({ Bucket: WASABI_BUCKET, Key: key, ContentType: contentType, CacheControl: 'public, max-age=31536000, immutable' }), { expiresIn });
@@ -286,6 +310,64 @@ const server = http.createServer(async (req, res) => {
           message: 'Stats are temporarily unavailable',
         });
       }
+    }
+
+    // ── Thumbnail: resize + cache image from S3 ─────────────────────────────
+    // Returns a compressed WebP thumbnail (~10-50 KB) instead of full-res (5-20 MB).
+    // Used by the gallery and shared folder grids for fast loading.
+    if (pathname === '/default/thumbnail' && req.method === 'GET') {
+      const key = url.searchParams.get('key');
+      const size = Math.min(Number(url.searchParams.get('size') || 400), 800);
+      if (!key) return sendError(res, 400, 'key is required');
+
+      try {
+        // Return from cache if available
+        const cacheKey = `${key}::${size}`;
+        const cached = getThumbCached(cacheKey);
+        if (cached) {
+          res.writeHead(200, {
+            'Content-Type': 'image/webp',
+            'Cache-Control': 'public, max-age=86400, stale-while-revalidate=3600',
+            'Content-Length': cached.length,
+            ...cors,
+          });
+          res.end(cached);
+          return;
+        }
+
+        // Fetch from Wasabi S3
+        const s3Res = await s3.send(new GetObjectCommand({ Bucket: WASABI_BUCKET, Key: key }));
+        const chunks = [];
+        for await (const chunk of s3Res.Body) chunks.push(chunk);
+        const rawBuf = Buffer.concat(chunks);
+
+        // Resize and compress with sharp
+        const webpBuf = await sharp(rawBuf)
+          .resize(size, size, { fit: 'inside', withoutEnlargement: true })
+          .webp({ quality: 72 })
+          .toBuffer();
+
+        setThumbCached(cacheKey, webpBuf);
+
+        res.writeHead(200, {
+          'Content-Type': 'image/webp',
+          'Cache-Control': 'public, max-age=86400, stale-while-revalidate=3600',
+          'Content-Length': webpBuf.length,
+          ...cors,
+        });
+        res.end(webpBuf);
+      } catch (err) {
+        console.error('Thumbnail generation failed:', err.message);
+        // Fallback: redirect to presigned URL so image still shows
+        try {
+          const signedUrl = await presignGet(key, 300);
+          res.writeHead(302, { Location: signedUrl, ...cors });
+          res.end();
+        } catch {
+          return sendError(res, 500, 'Thumbnail generation failed');
+        }
+      }
+      return;
     }
 
     // ── Gallery: list folder contents ──────────────────────────────────────
