@@ -38,7 +38,6 @@ export default function SharedFolderView() {
   const [notifications, setNotifications] = useState<{id:string;msg:string;type:string}[]>([]);
   const [allowDownload, setAllowDownload] = useState(true);
   const [denyReason, setDenyReason] = useState('');
-  const [isPinProtected, setIsPinProtected] = useState(false);
   const [sharedItemsList, setSharedItemsList] = useState<string[]>([]);
   const [branding, setBranding] = useState<{ logoUrl?: string; brandColor?: string; client?: string } | null>(null);
   const [showComments, setShowComments] = useState(false);
@@ -141,6 +140,7 @@ export default function SharedFolderView() {
     return () => {
       imgs.forEach((im) => { im.onload = null; im.onerror = null; });
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentPage, items, showFavoritesOnly]);
 
   // ── Check access on mount ────────────────────────────────────────────────
@@ -172,7 +172,7 @@ export default function SharedFolderView() {
           setAllowDownload(false);
         }
         
-        if (link?.isPinProtected || data.isPinProtected) { setIsPinProtected(true); setPhase('pin'); }
+        if (link?.isPinProtected || data.isPinProtected) { setPhase('pin'); }
         else { setPhase('gallery'); }
       } catch {
         setDenyReason('Unable to verify access. Please try again.');
@@ -310,7 +310,15 @@ export default function SharedFolderView() {
   };
 
   const toggleSelect = (id: string) =>
-    setSelected(p => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; });
+    setSelected(p => {
+      const n = new Set(p);
+      if (n.has(id)) {
+        n.delete(id);
+      } else {
+        n.add(id);
+      }
+      return n;
+    });
 
   const handleNextImage = () => {
     if (lightbox !== null && lightbox < filteredItems.length - 1) {
@@ -527,7 +535,7 @@ export default function SharedFolderView() {
                 Submit Favorites ({favorites.size})
               </button>
             )}
-            {selected.size > 0 && (
+            {allowDownload && selected.size > 0 && (
               <button onClick={downloadSelected} className="flex items-center gap-2 px-4 py-2 text-white rounded-lg text-sm font-medium transition-all" style={{ backgroundColor: brandColor }}>
                 <Download className="h-4 w-4" />{selected.size} selected
               </button>
@@ -616,9 +624,11 @@ export default function SharedFolderView() {
                           <button className="p-2 bg-white/20 backdrop-blur rounded-full text-white hover:bg-white/30 transition-all" onClick={e => { e.stopPropagation(); setLightbox(indexOfFirstItem + idx); }}>
                             <ZoomIn className="h-4 w-4" />
                           </button>
-                          <button className="p-2 bg-white/20 backdrop-blur rounded-full text-white hover:bg-white/30 transition-all" onClick={e => { e.stopPropagation(); downloadItem(item); }}>
-                            <Download className="h-4 w-4" />
-                          </button>
+                          {allowDownload && (
+                            <button className="p-2 bg-white/20 backdrop-blur rounded-full text-white hover:bg-white/30 transition-all" onClick={e => { e.stopPropagation(); downloadItem(item); }}>
+                              <Download className="h-4 w-4" />
+                            </button>
+                          )}
                         </div>
                       </div>
                       {/* Title */}
@@ -647,7 +657,9 @@ export default function SharedFolderView() {
                           <Heart className={`h-4 w-4 ${favorites.has(item.id) ? 'fill-current text-red-500' : ''}`} />
                         </button>
                         <button onClick={() => setLightbox(indexOfFirstItem + idx)} className="p-2 text-stone-400 hover:text-white rounded-lg hover:bg-white/10 transition-all"><Eye className="h-4 w-4" /></button>
-                        <button onClick={() => downloadItem(item)} className="p-2 text-stone-400 hover:text-white rounded-lg hover:bg-white/10 transition-all"><Download className="h-4 w-4" /></button>
+                        {allowDownload && (
+                          <button onClick={() => downloadItem(item)} className="p-2 text-stone-400 hover:text-white rounded-lg hover:bg-white/10 transition-all"><Download className="h-4 w-4" /></button>
+                        )}
                       </div>
                     </div>
                   );
@@ -751,9 +763,11 @@ export default function SharedFolderView() {
                   <RotateCw className="h-4 w-4" />Rotate 90°
                 </button>
               )}
-              <button onClick={() => downloadItem(filteredItems[lightbox!])} className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-600/80 hover:bg-amber-500 text-white rounded-lg text-sm transition-all">
-                <Download className="h-4 w-4" />Download
-              </button>
+              {allowDownload && (
+                <button onClick={() => downloadItem(filteredItems[lightbox!])} className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-600/80 hover:bg-amber-500 text-white rounded-lg text-sm transition-all">
+                  <Download className="h-4 w-4" />Download
+                </button>
+              )}
             </div>
             
             {showComments && (
