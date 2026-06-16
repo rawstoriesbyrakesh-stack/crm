@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import { saveAs } from 'file-saver';
 import {
   ArrowLeft, Grid3X3, List, Download, Eye, X, Loader2,
   AlertCircle, Lock, Check, ChevronLeft, ChevronRight,
@@ -327,14 +328,38 @@ export default function SharedFolderView() {
         throw new Error('Failed to resolve download URL');
       }
 
-      const a = document.createElement('a');
-      a.href = data.url;
-      a.download = item.title;
-      a.target = '_blank';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      notify(setNotifications, `Downloaded ${item.title}`, 'success');
+      // Try fetching as Blob first to download locally without opening new tab
+      try {
+        const mediaRes = await fetch(data.url, {
+          method: 'GET',
+          mode: 'cors',
+          credentials: 'omit',
+          cache: 'no-cache',
+        });
+        if (!mediaRes.ok) throw new Error(`HTTP status ${mediaRes.status}`);
+        const blob = await mediaRes.blob();
+
+        const urlPart = data.url.split('?')[0];
+        const extension = urlPart.split('.').pop()?.toLowerCase() || 'jpg';
+        const safeTitle = (item.title || 'image')
+          .replace(/[\\/:*?"<>|]/g, '_')
+          .trim();
+        const filename = `${safeTitle}.${extension}`;
+
+        saveAs(blob, filename);
+        notify(setNotifications, `Downloaded ${item.title}`, 'success');
+      } catch (err) {
+        console.warn('Direct download fetch failed, falling back to new tab:', err);
+        const a = document.createElement('a');
+        a.href = data.url;
+        a.download = item.title;
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        notify(setNotifications, `Download started for ${item.title}`, 'info');
+      }
     } catch (err) {
       console.error('Download failed:', err);
       notify(setNotifications, 'Download failed', 'error');
