@@ -205,6 +205,8 @@ function Gallery() {
   const [watermarkImageName, setWatermarkImageName] = useState<string>(''); // Watermark image name
   const [uploadModal, setUploadModal] = useState(false); // Upload modal state
   const watermarkInputRef = useRef<HTMLInputElement>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 24;
   const [savedWatermarks, setSavedWatermarks] = useState<WatermarkPreset[]>(() => {
     // Load saved watermarks from localStorage on init
     try {
@@ -1116,6 +1118,20 @@ function Gallery() {
         return aValue < bValue ? 1 : -1;
       }
     });
+
+  const indexOfLastItem = currentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+  const currentImages = filteredImages.slice(indexOfFirstItem, indexOfLastItem);
+  const totalPages = Math.ceil(filteredImages.length / itemsPerPage);
+
+  const paginate = (pageNumber: number) => {
+    setCurrentPage(pageNumber);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filters, sortBy, sortOrder, currentPath]);
 
   // -------------------- Drag and Drop Reordering Handlers --------------------
   const handleDragStartItem = useCallback((e: React.DragEvent, id: string) => {
@@ -3031,7 +3047,7 @@ function Gallery() {
                       ))}
 
                       {/* Images/Videos */}
-                      {filteredImages.map((item) => (
+                      {currentImages.map((item) => (
                         <div
                           key={item.id}
                           className={`group relative ${
@@ -3194,6 +3210,44 @@ function Gallery() {
                           )}
                         </div>
                       ))}
+                    </div>
+                  )}
+
+                  {/* Pagination UI */}
+                  {totalPages > 1 && (
+                    <div className="mt-10 flex items-center justify-between gap-3 text-sm py-4 border-t border-white/5">
+                      <button
+                        onClick={() => currentPage > 1 && paginate(currentPage - 1)}
+                        disabled={currentPage === 1}
+                        className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-xl border text-xs sm:text-sm transition-all ${
+                          currentPage === 1
+                            ? 'border-white/5 text-gray-500 bg-white/5 cursor-not-allowed'
+                            : 'border-white/10 text-white bg-white/10 hover:bg-white/20'
+                        }`}
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                        <span>Previous</span>
+                      </button>
+
+                      <div className="flex flex-col items-center justify-center">
+                        <span className="text-[10px] uppercase tracking-wider text-gray-400">Page</span>
+                        <span className="text-sm font-semibold text-white">
+                          {currentPage} / {totalPages}
+                        </span>
+                      </div>
+
+                      <button
+                        onClick={() => currentPage < totalPages && paginate(currentPage + 1)}
+                        disabled={currentPage === totalPages}
+                        className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-xl border text-xs sm:text-sm transition-all ${
+                          currentPage === totalPages
+                            ? 'border-white/5 text-gray-500 bg-white/5 cursor-not-allowed'
+                            : 'border-white/10 text-white bg-white/10 hover:bg-white/20'
+                        }`}
+                      >
+                        <span>Next</span>
+                        <ChevronRight className="h-4 w-4" />
+                      </button>
                     </div>
                   )}
                 </>

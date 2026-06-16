@@ -47,6 +47,10 @@ export default function SharedFolderView() {
   const [lightboxRotation, setLightboxRotation] = useState(0);
   const lightboxGestureRef = useRef<{ startX: number; startY: number; active: boolean } | null>(null);
 
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 24;
+
   // Client Favorites Proofing States & Functions
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
@@ -106,6 +110,21 @@ export default function SharedFolderView() {
     if (showFavoritesOnly) return favorites.has(item.id);
     return true;
   });
+
+  // Pagination Calculations
+  const indexOfLastItem = currentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+  const currentItems = filteredItems.slice(indexOfFirstItem, indexOfLastItem);
+  const totalPages = Math.ceil(filteredItems.length / itemsPerPage);
+
+  const paginate = (pageNumber: number) => {
+    setCurrentPage(pageNumber);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [showFavoritesOnly, items]);
 
   // ── Check access on mount ────────────────────────────────────────────────
   useEffect(() => {
@@ -539,7 +558,7 @@ export default function SharedFolderView() {
             {/* Grid */}
             {viewMode === 'grid' ? (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
-                {filteredItems.map((item, idx) => {
+                {currentItems.map((item, idx) => {
                   const isSelected = selected.has(item.id);
                   const isFavorite = favorites.has(item.id);
                   return (
@@ -555,7 +574,7 @@ export default function SharedFolderView() {
                         <Heart className={`h-4 w-4 ${isFavorite ? 'fill-current text-red-500' : ''}`} />
                       </button>
                       {/* Thumbnail */}
-                      <div className="aspect-square" onClick={() => setLightbox(idx)}>
+                      <div className="aspect-square" onClick={() => setLightbox(indexOfFirstItem + idx)}>
                         {item.isVideo ? (
                           <div className="w-full h-full bg-stone-700 flex items-center justify-center">
                             <Play className="h-8 w-8 text-white/60" />
@@ -567,7 +586,7 @@ export default function SharedFolderView() {
                         )}
                         {/* Hover overlay */}
                         <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-all flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100">
-                          <button className="p-2 bg-white/20 backdrop-blur rounded-full text-white hover:bg-white/30 transition-all" onClick={e => { e.stopPropagation(); setLightbox(idx); }}>
+                          <button className="p-2 bg-white/20 backdrop-blur rounded-full text-white hover:bg-white/30 transition-all" onClick={e => { e.stopPropagation(); setLightbox(indexOfFirstItem + idx); }}>
                             <ZoomIn className="h-4 w-4" />
                           </button>
                           <button className="p-2 bg-white/20 backdrop-blur rounded-full text-white hover:bg-white/30 transition-all" onClick={e => { e.stopPropagation(); downloadItem(item); }}>
@@ -586,12 +605,12 @@ export default function SharedFolderView() {
             ) : (
               /* List view */
               <div className="space-y-2">
-                {filteredItems.map((item, idx) => {
+                {currentItems.map((item, idx) => {
                   const isSelected = selected.has(item.id);
                   return (
                     <div key={item.id} className={`flex items-center gap-4 p-3 rounded-xl border transition-all ${isSelected ? 'bg-amber-500/10 border-amber-500/50' : 'bg-white/5 border-white/10 hover:bg-white/10'}`}>
                       <input type="checkbox" checked={isSelected} onChange={() => toggleSelect(item.id)} className="accent-amber-500 w-4 h-4 flex-shrink-0" />
-                      <div className="w-12 h-12 rounded-lg overflow-hidden flex-shrink-0 bg-stone-700 cursor-pointer" onClick={() => setLightbox(idx)}>
+                      <div className="w-12 h-12 rounded-lg overflow-hidden flex-shrink-0 bg-stone-700 cursor-pointer" onClick={() => setLightbox(indexOfFirstItem + idx)}>
                         {item.isVideo ? <div className="w-full h-full flex items-center justify-center"><Play className="h-5 w-5 text-white/60"/></div>
                           : <img src={item.imageUrl} alt={item.title} className="w-full h-full object-cover" onError={e => { (e.target as HTMLImageElement).src='https://picsum.photos/50/50?grayscale'; }} />}
                       </div>
@@ -600,12 +619,50 @@ export default function SharedFolderView() {
                         <button onClick={e => { e.stopPropagation(); toggleFavorite(item.id); }} className={`p-2 rounded-lg transition-all ${favorites.has(item.id) ? 'text-red-500' : 'text-stone-400 hover:text-white hover:bg-white/10'}`}>
                           <Heart className={`h-4 w-4 ${favorites.has(item.id) ? 'fill-current text-red-500' : ''}`} />
                         </button>
-                        <button onClick={() => setLightbox(idx)} className="p-2 text-stone-400 hover:text-white rounded-lg hover:bg-white/10 transition-all"><Eye className="h-4 w-4" /></button>
+                        <button onClick={() => setLightbox(indexOfFirstItem + idx)} className="p-2 text-stone-400 hover:text-white rounded-lg hover:bg-white/10 transition-all"><Eye className="h-4 w-4" /></button>
                         <button onClick={() => downloadItem(item)} className="p-2 text-stone-400 hover:text-white rounded-lg hover:bg-white/10 transition-all"><Download className="h-4 w-4" /></button>
                       </div>
                     </div>
                   );
                 })}
+              </div>
+            )}
+
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+              <div className="mt-10 flex items-center justify-between gap-3 text-sm py-4 border-t border-white/5">
+                <button
+                  onClick={() => currentPage > 1 && paginate(currentPage - 1)}
+                  disabled={currentPage === 1}
+                  className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-xl border text-xs sm:text-sm transition-all ${
+                    currentPage === 1
+                      ? 'border-white/5 text-stone-600 bg-white/5 cursor-not-allowed'
+                      : 'border-white/10 text-white bg-white/10 hover:bg-white/20'
+                  }`}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                  <span>Previous</span>
+                </button>
+
+                <div className="flex flex-col items-center justify-center">
+                  <span className="text-[10px] uppercase tracking-wider text-stone-500">Page</span>
+                  <span className="text-sm font-semibold text-white">
+                    {currentPage} / {totalPages}
+                  </span>
+                </div>
+
+                <button
+                  onClick={() => currentPage < totalPages && paginate(currentPage + 1)}
+                  disabled={currentPage === totalPages}
+                  className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-xl border text-xs sm:text-sm transition-all ${
+                    currentPage === totalPages
+                      ? 'border-white/5 text-stone-600 bg-white/5 cursor-not-allowed'
+                      : 'border-white/10 text-white bg-white/10 hover:bg-white/20'
+                  }`}
+                >
+                  <span>Next</span>
+                  <ChevronRight className="h-4 w-4" />
+                </button>
               </div>
             )}
           </>
@@ -675,10 +732,10 @@ export default function SharedFolderView() {
             {showComments && (
               <div className="mt-4 bg-stone-900 rounded-xl p-4 max-w-2xl mx-auto border border-white/10 max-h-64 flex flex-col">
                 <div className="flex-1 overflow-y-auto space-y-3 mb-3 pr-2">
-                  {(items[lightbox].comments||[]).length === 0 ? (
+                  {(filteredItems[lightbox].comments||[]).length === 0 ? (
                     <p className="text-stone-500 text-center text-sm py-4">No comments yet. Be the first to comment!</p>
                   ) : (
-                    (items[lightbox].comments||[]).map((c, i) => (
+                    (filteredItems[lightbox].comments||[]).map((c, i) => (
                       <div key={i} className="bg-white/5 rounded-lg p-3 text-left">
                         <div className="flex justify-between items-baseline mb-1">
                           <span className="text-amber-400 text-xs font-semibold">{c.author}</span>
@@ -698,8 +755,8 @@ export default function SharedFolderView() {
                 </form>
               </div>
             )}
-            
-            <p className="text-center text-stone-600 text-xs mt-3">{lightbox + 1} / {items.length}</p>
+
+            <p className="text-center text-stone-600 text-xs mt-3">{lightbox + 1} / {filteredItems.length}</p>
           </div>
         </div>
       )}
