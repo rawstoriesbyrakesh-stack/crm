@@ -49,7 +49,7 @@ export default function SharedFolderView() {
 
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 24;
+  const itemsPerPage = 12; // Decreased from 24 to 12 for faster image loading
 
   // Client Favorites Proofing States & Functions
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
@@ -125,6 +125,23 @@ export default function SharedFolderView() {
   useEffect(() => {
     setCurrentPage(1);
   }, [showFavoritesOnly, items]);
+
+  // Preload current page images for faster loading
+  useEffect(() => {
+    if (currentItems.length === 0) return;
+    const imgs: HTMLImageElement[] = [];
+    currentItems.forEach((item) => {
+      if (!item.isVideo && item.imageUrl) {
+        const img = new globalThis.Image();
+        img.decoding = 'async';
+        img.src = item.imageUrl;
+        imgs.push(img);
+      }
+    });
+    return () => {
+      imgs.forEach((im) => { im.onload = null; im.onerror = null; });
+    };
+  }, [currentPage, items, showFavoritesOnly]);
 
   // ── Check access on mount ────────────────────────────────────────────────
   useEffect(() => {

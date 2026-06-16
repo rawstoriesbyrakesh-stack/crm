@@ -206,7 +206,7 @@ function Gallery() {
   const [uploadModal, setUploadModal] = useState(false); // Upload modal state
   const watermarkInputRef = useRef<HTMLInputElement>(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 24;
+  const itemsPerPage = 12; // Decreased from 24 to 12 for faster image loading
   const [savedWatermarks, setSavedWatermarks] = useState<WatermarkPreset[]>(() => {
     // Load saved watermarks from localStorage on init
     try {
@@ -1132,6 +1132,23 @@ function Gallery() {
   useEffect(() => {
     setCurrentPage(1);
   }, [filters, sortBy, sortOrder, currentPath]);
+
+  // Preload current page images for faster loading
+  useEffect(() => {
+    if (currentImages.length === 0) return;
+    const imgs: HTMLImageElement[] = [];
+    currentImages.forEach((item) => {
+      if (!item.isVideo && item.imageUrl) {
+        const img = new globalThis.Image();
+        img.decoding = 'async';
+        img.src = item.imageUrl;
+        imgs.push(img);
+      }
+    });
+    return () => {
+      imgs.forEach((im) => { im.onload = null; im.onerror = null; });
+    };
+  }, [currentPage, items, filters, sortBy, sortOrder, currentPath]);
 
   // -------------------- Drag and Drop Reordering Handlers --------------------
   const handleDragStartItem = useCallback((e: React.DragEvent, id: string) => {

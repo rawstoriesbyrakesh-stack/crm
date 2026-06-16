@@ -76,7 +76,7 @@ function SharedImages() {
   const [selectedImageIndex, setSelectedImageIndex] = useState<number | null>(null);
   const [isImageModalOpen, setIsImageModalOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 15;
+  const itemsPerPage = 12; // Set to 12 for consistency and faster loading in shared views
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState({ current: 0, total: 0 });
   // Download flow modal
@@ -356,11 +356,13 @@ function SharedImages() {
     }
   }, [hasAccess, isCheckingAccess, isPinRequired, isAccessDenied, fetchFolderItems]);
 
-  // Preload initial images and warm Cache API for same-origin only (silent, no UI state)
+  // Preload current page images and warm Cache API for same-origin only (silent, no UI state)
   useEffect(() => {
     if (items.length === 0) return;
-    const preloadCount = Math.min(12, items.length);
-    const toPreload = items.slice(0, preloadCount).map(i => i.imageUrl);
+    const indexOfLastItem = currentPage * itemsPerPage;
+    const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+    const currentItems = items.slice(indexOfFirstItem, indexOfLastItem);
+    const toPreload = currentItems.map(i => i.imageUrl);
 
     // Best-effort Cache API warm-up for same-origin URLs only (avoid CORS console noise)
     (async () => {
@@ -387,7 +389,7 @@ function SharedImages() {
     return () => {
       imgs.forEach((im) => { im.onload = null; im.onerror = null; });
     };
-  }, [items]);
+  }, [items, currentPage]);
 
   const handleItemFavorite = async (itemId: string) => {
     const isCurrentlyFavorited = favoritedItems.includes(itemId);
