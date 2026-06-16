@@ -52,6 +52,9 @@ const presignGet = (key, expiresIn = PRESIGNED_EXPIRY) =>
 const presignPut = (key, contentType = 'application/octet-stream', expiresIn = PRESIGNED_EXPIRY) =>
   getSignedUrl(s3, new PutObjectCommand({ Bucket: WASABI_BUCKET, Key: key, ContentType: contentType, CacheControl: 'public, max-age=31536000, immutable' }), { expiresIn });
 
+const encodeCopySource = (bucket, key) =>
+  `${bucket}/${key.split('/').map(encodeURIComponent).join('/')}`;
+
 // Auto-configure Bucket CORS to allow browser uploads
 const configureBucketCors = async () => {
   try {
@@ -448,7 +451,7 @@ const server = http.createServer(async (req, res) => {
           try {
             await s3.send(new CopyObjectCommand({
               Bucket: WASABI_BUCKET,
-              CopySource: `${WASABI_BUCKET}/${srcKey}`,
+              CopySource: encodeCopySource(WASABI_BUCKET, srcKey),
               Key: key,
             }));
 
@@ -515,7 +518,7 @@ const server = http.createServer(async (req, res) => {
       for (const obj of objects) {
         if (!obj.Key) continue;
         const newObjKey = newKey + obj.Key.slice(oldKey.length);
-        await s3.send(new CopyObjectCommand({ Bucket: WASABI_BUCKET, CopySource: `${WASABI_BUCKET}/${obj.Key}`, Key: newObjKey }));
+        await s3.send(new CopyObjectCommand({ Bucket: WASABI_BUCKET, CopySource: encodeCopySource(WASABI_BUCKET, obj.Key), Key: newObjKey }));
       }
       // Delete old objects
       if (objects.length > 0) {
@@ -532,7 +535,7 @@ const server = http.createServer(async (req, res) => {
       const body = await readBody(req);
       const { oldKey, newKey } = body || {};
       if (!oldKey || !newKey) return sendError(res, 400, 'Missing oldKey or newKey');
-      await s3.send(new CopyObjectCommand({ Bucket: WASABI_BUCKET, CopySource: `${WASABI_BUCKET}/${oldKey}`, Key: newKey }));
+      await s3.send(new CopyObjectCommand({ Bucket: WASABI_BUCKET, CopySource: encodeCopySource(WASABI_BUCKET, oldKey), Key: newKey }));
       await s3.send(new DeleteObjectsCommand({ Bucket: WASABI_BUCKET, Delete: { Objects: [{ Key: oldKey }] } }));
       await FileMeta.findOneAndUpdate({ key: oldKey }, { key: newKey });
       return sendJson(res, 200, { success: true, message: 'Moved successfully' });
@@ -553,12 +556,12 @@ const server = http.createServer(async (req, res) => {
           for (const obj of objects) {
             if (!obj.Key) continue;
             const newObjKey = `trash/${obj.Key}`;
-            await s3.send(new CopyObjectCommand({ Bucket: WASABI_BUCKET, CopySource: `${WASABI_BUCKET}/${obj.Key}`, Key: newObjKey }));
+            await s3.send(new CopyObjectCommand({ Bucket: WASABI_BUCKET, CopySource: encodeCopySource(WASABI_BUCKET, obj.Key), Key: newObjKey }));
             toDeleteOriginal.push({ Key: obj.Key });
           }
           await FolderMeta.findOneAndUpdate({ path: key }, { path: `trash/${key}` });
         } else {
-          await s3.send(new CopyObjectCommand({ Bucket: WASABI_BUCKET, CopySource: `${WASABI_BUCKET}/${key}`, Key: `trash/${key}` }));
+          await s3.send(new CopyObjectCommand({ Bucket: WASABI_BUCKET, CopySource: encodeCopySource(WASABI_BUCKET, key), Key: `trash/${key}` }));
           toDeleteOriginal.push({ Key: key });
           await FileMeta.findOneAndUpdate({ key }, { key: `trash/${key}` });
         }
@@ -593,12 +596,12 @@ const server = http.createServer(async (req, res) => {
           for (const obj of objects) {
             if (!obj.Key) continue;
             const newObjKey = obj.Key.replace(/^trash\//, '');
-            await s3.send(new CopyObjectCommand({ Bucket: WASABI_BUCKET, CopySource: `${WASABI_BUCKET}/${obj.Key}`, Key: newObjKey }));
+            await s3.send(new CopyObjectCommand({ Bucket: WASABI_BUCKET, CopySource: encodeCopySource(WASABI_BUCKET, obj.Key), Key: newObjKey }));
             toDeleteTrash.push({ Key: obj.Key });
           }
           await FolderMeta.findOneAndUpdate({ path: trashKey }, { path: originalKey });
         } else {
-          await s3.send(new CopyObjectCommand({ Bucket: WASABI_BUCKET, CopySource: `${WASABI_BUCKET}/${trashKey}`, Key: originalKey }));
+          await s3.send(new CopyObjectCommand({ Bucket: WASABI_BUCKET, CopySource: encodeCopySource(WASABI_BUCKET, trashKey), Key: originalKey }));
           toDeleteTrash.push({ Key: trashKey });
           await FileMeta.findOneAndUpdate({ key: trashKey }, { key: originalKey });
         }
