@@ -140,7 +140,7 @@ const MAX_CONCURRENT_UPLOADS = 20;
 function Gallery() {
   const navigate = useNavigate();
   const location = useLocation();
-  const currentPath = location.pathname.replace('/gallery', '');
+  const currentPath = decodeURIComponent(location.pathname.replace('/gallery', ''));
   // sidebar removed; gallery takes full width
   const [items, setItems] = useState<GalleryItem[]>([]);
   const [folders, setFolders] = useState<FolderItem[]>([]);
@@ -1681,6 +1681,10 @@ function Gallery() {
 
   // Create optimized image URL with compression hints
   const getOptimizedImageUrl = (originalUrl: string, isGrid: boolean = true) => {
+    if (!originalUrl) return originalUrl;
+    if (originalUrl.includes('X-Amz-Signature') || originalUrl.includes('Signature=')) {
+      return originalUrl;
+    }
     // If the URL already has query parameters, append to them, otherwise start fresh
     const separator = originalUrl.includes('?') ? '&' : '?';
     const width = isGrid ? 400 : 150; // Smaller for list view

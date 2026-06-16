@@ -149,7 +149,7 @@ export default function SharedFolderView() {
   const fetchItems = useCallback(async () => {
     setLoading(true); setError('');
     try {
-      const hasFolderShare = sharedItemsList.some(item => item.endsWith('/'));
+      const hasFolderShare = sharedItemsList.some(item => item.startsWith('/') || item.endsWith('/'));
 
       // File-only shares do not always have a usable folder prefix in the URL.
       // In that case, ask the share-access API for resolved items directly.
@@ -244,11 +244,26 @@ export default function SharedFolderView() {
   // ── Download ─────────────────────────────────────────────────────────────
   const downloadItem = async (item: Item) => {
     try {
+      const res = await fetch(
+        rawStoriesApiUrl(`/default/downloadimage?key=${encodeURIComponent(item.id)}&shareId=${encodeURIComponent(shareId || '')}`)
+      );
+      const data = await res.json();
+      if (!res.ok || !data?.success || !data?.url) {
+        throw new Error('Failed to resolve download URL');
+      }
+
       const a = document.createElement('a');
-      a.href = item.imageUrl; a.download = item.title; a.target = '_blank';
-      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      a.href = data.url;
+      a.download = item.title;
+      a.target = '_blank';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
       notify(setNotifications, `Downloaded ${item.title}`, 'success');
-    } catch { notify(setNotifications, 'Download failed', 'error'); }
+    } catch (err) {
+      console.error('Download failed:', err);
+      notify(setNotifications, 'Download failed', 'error');
+    }
   };
 
   const downloadSelected = () => {

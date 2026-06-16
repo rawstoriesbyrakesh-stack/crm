@@ -290,27 +290,68 @@ const server = http.createServer(async (req, res) => {
       const prefix    = url.searchParams.get('prefix') || '';
       const recursive = url.searchParams.get('recursive') === 'true';
       try {
-        const listResult = await s3.send(new ListObjectsV2Command({
-          Bucket: WASABI_BUCKET,
-          Prefix: prefix,
-          Delimiter: recursive ? undefined : '/',
-        }));
+        const prefixes = [prefix];
+        if (prefix.includes(' ')) {
+          prefixes.push(prefix.replace(/ /g, '%20'));
+        } else if (prefix.includes('%20')) {
+          prefixes.push(prefix.replace(/%20/g, ' '));
+        }
+
+        const results = await Promise.all(prefixes.map(p =>
+          s3.send(new ListObjectsV2Command({
+            Bucket: WASABI_BUCKET,
+            Prefix: p,
+            Delimiter: recursive ? undefined : '/',
+          })).catch(err => {
+            console.error(`S3 list failed for prefix ${p}:`, err.message);
+            return null;
+          })
+        ));
+
+        // Merge CommonPrefixes and Contents from all list results
+        const folderPrefixes = [];
+        const objects = [];
+        const seenFolderPrefixes = new Set();
+        const seenObjectKeys = new Set();
+
+        for (const listResult of results) {
+          if (!listResult) continue;
+
+          // Folders
+          for (const cp of (listResult.CommonPrefixes || [])) {
+            if (cp.Prefix && !seenFolderPrefixes.has(cp.Prefix)) {
+              seenFolderPrefixes.add(cp.Prefix);
+              folderPrefixes.push(cp);
+            }
+          }
+
+          // Files
+          for (const o of (listResult.Contents || [])) {
+            if (o.Key && !seenObjectKeys.has(o.Key)) {
+              const isFolderPlaceholder = o.Key.endsWith('/') && (o.Size === 0 || !o.Size);
+              const isExactPrefix = prefixes.includes(o.Key);
+              if (!isExactPrefix && !isFolderPlaceholder && /\.(jpg|jpeg|png|gif|webp|bmp|svg|tiff|mp4|mov|avi|mkv|webm|cr2|nef|arw|dng)$/i.test(o.Key)) {
+                seenObjectKeys.add(o.Key);
+                objects.push(o);
+              }
+            }
+          }
+        }
 
         // Folders
-        const folderPrefixes = listResult.CommonPrefixes || [];
         const folders = (await Promise.allSettled(folderPrefixes.map(async cp => {
           const folderPrefix = cp.Prefix || '';
           const meta = await FolderMeta.findOne({ path: folderPrefix }).lean().catch(() => null);
-          const name = meta?.name || folderPrefix.replace(prefix, '').replace(/\/$/, '');
+          let name = meta?.name;
+          if (!name) {
+            const segments = folderPrefix.split('/').filter(Boolean);
+            const lastSegment = segments[segments.length - 1] || '';
+            name = decodeURIComponent(lastSegment);
+          }
           return { name, path: folderPrefix, description: meta?.description || '', client: meta?.client || '', tags: meta?.tags || [] };
         }))).flatMap(result => (result.status === 'fulfilled' ? [result.value] : []));
 
         // Files
-        const objects = (listResult.Contents || []).filter(o => {
-          const key = o.Key || '';
-          return key !== prefix && /\.(jpg|jpeg|png|gif|webp|bmp|svg|tiff|mp4|mov|avi|mkv|webm|cr2|nef|arw|dng)$/i.test(key);
-        });
-
         const files = (await Promise.allSettled(objects.map(async o => {
           const key = o.Key || '';
           const [meta, signedUrl] = await Promise.all([
@@ -330,7 +371,6 @@ const server = http.createServer(async (req, res) => {
             shootType: meta?.shootType || 'Unknown',
             downloadCount: meta?.downloadCount || 0,
             comments: meta?.comments || [],
-            isFavorite: meta?.isFavorite || false,
           };
         }))).flatMap(result => (result.status === 'fulfilled' ? [result.value] : []));
 
@@ -726,6 +766,17 @@ const server = http.createServer(async (req, res) => {
       }
 
       if (action === 'get_share_link_status') {
+        if (!share.sharePin) {
+          const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
+          await Share.findOneAndUpdate(
+            { shareId },
+            {
+              $inc: { viewCount: 1 },
+              $set: { lastAccess: new Date() },
+              $addToSet: { ips: ip }
+            }
+          );
+        }
         return sendJson(res, 200, { success: true, shareLink: {
           shareId, isActive: share.isActive, isPinProtected: !!share.sharePin,
           createdAt: share.createdAt, expiresAt: share.expiresAt,
@@ -743,6 +794,17 @@ const server = http.createServer(async (req, res) => {
       if (action === 'verify_pin') {
         if (share.sharePin && inputPin !== share.sharePin)
           return sendError(res, 401, 'Incorrect PIN');
+        
+        const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
+        await Share.findOneAndUpdate(
+          { shareId },
+          {
+            $inc: { viewCount: 1 },
+            $set: { lastAccess: new Date() },
+            $addToSet: { ips: ip }
+          }
+        );
+
         return sendJson(res, 200, { success: true, message: 'PIN verified',
           folderPrefix: share.folderPrefix,
           shareUrl: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/shared-folder-view/${encodeURIComponent(share.folderPrefix || shareId)}?sid=${shareId}`,
