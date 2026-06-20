@@ -904,12 +904,12 @@ export default function SharedFolderView() {
                     <div key={item.id} className={`group relative bg-stone-800 rounded-xl overflow-hidden cursor-pointer border-2 transition-all duration-200 ${isSelected ? 'border-amber-500 shadow-lg shadow-amber-500/20' : 'border-transparent hover:border-white/20'}`}>
                       {/* Checkbox */}
                       <button onClick={e => { e.stopPropagation(); toggleSelect(item.id); }}
-                        className={`absolute top-2 left-2 z-10 w-6 h-6 rounded-md border-2 flex items-center justify-center transition-all ${isSelected ? 'bg-amber-500 border-amber-500' : 'bg-black/50 border-white/40 opacity-0 group-hover:opacity-100'}`}>
+                        className={`absolute top-2 left-2 z-10 w-6 h-6 rounded-md border-2 flex items-center justify-center transition-all ${isSelected ? 'bg-amber-500 border-amber-500' : 'bg-black/50 border-white/40 opacity-100 md:opacity-0 md:group-hover:opacity-100'}`}>
                         {isSelected && <Check className="h-3.5 w-3.5 text-white" />}
                       </button>
                       {/* Heart (Favorite) button */}
                       <button onClick={e => { e.stopPropagation(); toggleFavorite(item.id); }}
-                        className={`absolute top-2 right-2 z-10 w-6 h-6 rounded-md flex items-center justify-center transition-all bg-black/50 border-0 ${isFavorite ? 'text-red-500' : 'text-white/60 opacity-0 group-hover:opacity-100 hover:text-white'}`}>
+                        className={`absolute top-2 right-2 z-10 w-6 h-6 rounded-md flex items-center justify-center transition-all bg-black/50 border-0 ${isFavorite ? 'text-red-500' : 'text-white/60 opacity-100 md:opacity-0 md:group-hover:opacity-100 hover:text-white'}`}>
                         <Heart className={`h-4 w-4 ${isFavorite ? 'fill-current text-red-500' : ''}`} />
                       </button>
                       {/* Thumbnail */}
@@ -1039,7 +1039,7 @@ export default function SharedFolderView() {
             </button>
           )}
           <div
-            className="max-w-5xl max-h-[90vh] w-full mx-16"
+            className="max-w-5xl max-h-[95vh] w-full mx-4 sm:mx-10 md:mx-16 flex flex-col justify-center"
             onClick={e => e.stopPropagation()}
             onPointerDown={handleLightboxPointerDown}
             onPointerUp={handleLightboxPointerUp}
@@ -1054,36 +1054,40 @@ export default function SharedFolderView() {
               </div>
             </div>
             {filteredItems[lightbox].isVideo ? (
-              <video src={filteredItems[lightbox].imageUrl} controls className="max-h-[70vh] max-w-full mx-auto rounded-lg" />
+              <video src={filteredItems[lightbox].imageUrl} controls className="max-h-[50vh] md:max-h-[70vh] max-w-full mx-auto rounded-lg" />
             ) : (
               <img
                 src={filteredItems[lightbox].imageUrl}
                 alt={filteredItems[lightbox].title}
                 decoding="async"
                 onLoad={() => setLightboxImageLoaded(true)}
-                className={`max-h-[70vh] max-w-full mx-auto object-contain rounded-lg shadow-2xl transition-all duration-300 ${
+                className={`max-h-[50vh] md:max-h-[70vh] max-w-full mx-auto object-contain rounded-lg shadow-2xl transition-all duration-300 ${
                   lightboxImageLoaded ? 'opacity-100 scale-100' : 'opacity-0 scale-95'
                 }`}
                 style={{ transform: `rotate(${lightboxRotation}deg)`, transition: 'transform 180ms ease-out, opacity 300ms, transform 300ms' }}
               />
             )}
-            <div className="text-center mt-3 flex items-center justify-center gap-4 flex-wrap">
-              <p className="text-stone-400 text-sm">{filteredItems[lightbox].title}</p>
+            <div className="text-center mt-3 flex items-center justify-center gap-2 md:gap-4 flex-wrap">
+              <p className="text-stone-400 text-sm w-full md:w-auto truncate mb-1 md:mb-0">{filteredItems[lightbox].title}</p>
               <button onClick={() => toggleFavorite(filteredItems[lightbox].id)} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm transition-all ${favorites.has(filteredItems[lightbox].id) ? 'bg-red-600 text-white shadow-md' : 'bg-white/10 text-stone-300 hover:bg-white/20'}`}>
                 <Heart className={`h-4 w-4 ${favorites.has(filteredItems[lightbox].id) ? 'fill-current' : ''}`} />
-                {favorites.has(filteredItems[lightbox].id) ? 'Favorited' : 'Favorite'}
+                <span className="hidden sm:inline">{favorites.has(filteredItems[lightbox].id) ? 'Favorited' : 'Favorite'}</span>
               </button>
               <button onClick={() => setShowComments(!showComments)} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm transition-all ${showComments ? 'bg-amber-600 text-white' : 'bg-white/10 text-stone-300 hover:bg-white/20'}`}>
-                <MessageSquare className="h-4 w-4" />{(filteredItems[lightbox].comments||[]).length} Comments
+                <MessageSquare className="h-4 w-4" />
+                <span className="hidden sm:inline">Comments </span>
+                <span className="text-xs">({(filteredItems[lightbox].comments||[]).length})</span>
               </button>
               {!filteredItems[lightbox].isVideo && (
                 <button onClick={handleRotateCurrentImage} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm transition-all bg-white/10 text-stone-300 hover:bg-white/20">
-                  <RotateCw className="h-4 w-4" />Rotate 90°
+                  <RotateCw className="h-4 w-4" />
+                  <span className="hidden sm:inline">Rotate 90°</span>
                 </button>
               )}
               {allowDownload && (
                 <button onClick={() => downloadItem(filteredItems[lightbox!])} className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-600/80 hover:bg-amber-500 text-white rounded-lg text-sm transition-all">
-                  <Download className="h-4 w-4" />Download
+                  <Download className="h-4 w-4" />
+                  <span className="hidden sm:inline">Download</span>
                 </button>
               )}
             </div>
