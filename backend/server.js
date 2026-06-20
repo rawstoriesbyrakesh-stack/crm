@@ -814,9 +814,11 @@ const server = http.createServer(async (req, res) => {
         const safeFilename = decodeURIComponent(rawFilename).replace(/[^\w.\- ]/g, '_');
         const contentType = s3Res.ContentType || 'application/octet-stream';
 
-        // Write response headers ONCE before streaming starts
+        // Write response headers ONCE before streaming starts.
+        // We force 'application/octet-stream' Content-Type to prevent mobile
+        // Safari/Chrome from opening the image inline instead of triggering the download.
         res.writeHead(200, {
-          'Content-Type': contentType,
+          'Content-Type': 'application/octet-stream',
           'Content-Disposition': `attachment; filename="${safeFilename}"; filename*=UTF-8''${encodeURIComponent(safeFilename)}`,
           'Cache-Control': 'no-store',
           ...(s3Res.ContentLength ? { 'Content-Length': String(s3Res.ContentLength) } : {}),

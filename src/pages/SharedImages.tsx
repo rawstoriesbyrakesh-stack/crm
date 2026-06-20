@@ -536,6 +536,31 @@ function SharedImages() {
     try {
       if (!Array.isArray(fileKeys) || fileKeys.length === 0) return false;
 
+      // For single file downloads, bypass client-side fetch + saveAs (which opens blobs in new tabs on iOS)
+      // and use the download-proxy directly.
+      if (fileKeys.length === 1) {
+        const key = fileKeys[0];
+        const proxyUrl = rawStoriesApiUrl(
+          `/default/download-proxy?key=${encodeURIComponent(key)}&shareId=${encodeURIComponent(shareId || '')}`
+        );
+
+        let rawKey: string;
+        try { rawKey = decodeURIComponent(key); }
+        catch { rawKey = key; }
+        const keyParts = rawKey.split('/');
+        const safeFilename = (keyParts[keyParts.length - 1] || 'image.jpg')
+          .replace(/[\\/:*?"<>|]/g, '_');
+
+        const a = document.createElement('a');
+        a.href = proxyUrl;
+        a.download = safeFilename;
+        a.style.display = 'none';
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => document.body.removeChild(a), 1000);
+        return true;
+      }
+
       let successCount = 0;
       for (let i = 0; i < fileKeys.length; i++) {
         const key = fileKeys[i];
