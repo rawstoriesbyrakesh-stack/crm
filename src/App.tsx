@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { SpeedInsights } from '@vercel/speed-insights/react';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Gallery from './pages/Gallery';
@@ -29,53 +30,56 @@ function App() {
   }, []);
 
   return (
-    <Router>
-      <Routes>
-        <Route path="/login" element={<Login />} />
-        <Route path="/shared-images/:folderPath" element={<SharedImages />} />
-        <Route path="/shared-folder/:sharedId" element={<SharedFolder />} />
-        <Route path="/shared-folder-view/:folderPath" element={<SharedFolderView />} />
-        <Route
-          path="/dashboard"
-          element={isAuthenticated ? <Layout><Dashboard /></Layout> : <Navigate to="/login" replace />}
-        />
-        <Route
-          path="/gallery"
-          element={isAuthenticated ? <Layout><Gallery /></Layout> : <Navigate to="/login" replace />}
-        />
-        <Route
-          path="/gallery/*"
-          element={isAuthenticated ? <Layout><Gallery /></Layout> : <Navigate to="/login" replace />}
-        />
-        <Route
-          path="/shared-links"
-          element={isAuthenticated ? <Layout><SharedLinks /></Layout> : <Navigate to="/login" replace />}
-        />
-        <Route
-          path="/smart-collections"
-          element={isAuthenticated ? <Layout><SmartCollections /></Layout> : <Navigate to="/login" replace />}
-        />
-        <Route
-          path="/watermarks"
-          element={isAuthenticated ? <Layout><Watermarks /></Layout> : <Navigate to="/login" replace />}
-        />
-        <Route
-          path="/trash"
-          element={isAuthenticated ? <Layout><Trash /></Layout> : <Navigate to="/login" replace />}
-        />
-        <Route
-          path="/gallery/upload/:projectId"
-          element={isAuthenticated ? <Layout><GalleryUpload /></Layout> : <Navigate to="/login" replace />}
-        />
-        <Route path="/signup" element={<Navigate to="/login" replace />} />
-        <Route path="/forgot-password" element={<Navigate to="/login" replace />} />
-        <Route
-          path="/"
-          element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <Navigate to="/login" replace />}
-        />
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-    </Router>
+    <>
+      <Router>
+        <Routes>
+          <Route path="/login" element={<Login />} />
+          <Route path="/shared-images/:folderPath" element={<SharedImages />} />
+          <Route path="/shared-folder/:sharedId" element={<SharedFolder />} />
+          <Route path="/shared-folder-view/:folderPath" element={<SharedFolderView />} />
+          <Route
+            path="/dashboard"
+            element={isAuthenticated ? <Layout><Dashboard /></Layout> : <Navigate to="/login" replace />}
+          />
+          <Route
+            path="/gallery"
+            element={isAuthenticated ? <Layout><Gallery /></Layout> : <Navigate to="/login" replace />}
+          />
+          <Route
+            path="/gallery/*"
+            element={isAuthenticated ? <Layout><Gallery /></Layout> : <Navigate to="/login" replace />}
+          />
+          <Route
+            path="/shared-links"
+            element={isAuthenticated ? <Layout><SharedLinks /></Layout> : <Navigate to="/login" replace />}
+          />
+          <Route
+            path="/smart-collections"
+            element={isAuthenticated ? <Layout><SmartCollections /></Layout> : <Navigate to="/login" replace />}
+          />
+          <Route
+            path="/watermarks"
+            element={isAuthenticated ? <Layout><Watermarks /></Layout> : <Navigate to="/login" replace />}
+          />
+          <Route
+            path="/trash"
+            element={isAuthenticated ? <Layout><Trash /></Layout> : <Navigate to="/login" replace />}
+          />
+          <Route
+            path="/gallery/upload/:projectId"
+            element={isAuthenticated ? <Layout><GalleryUpload /></Layout> : <Navigate to="/login" replace />}
+          />
+          <Route path="/signup" element={<Navigate to="/login" replace />} />
+          <Route path="/forgot-password" element={<Navigate to="/login" replace />} />
+          <Route
+            path="/"
+            element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <Navigate to="/login" replace />}
+          />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </Router>
+      <SpeedInsights />
+    </>
   );
 }
 
