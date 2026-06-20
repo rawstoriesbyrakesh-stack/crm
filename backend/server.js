@@ -295,12 +295,12 @@ const server = http.createServer(async (req, res) => {
       if (!isAuthed(req)) return sendError(res, 401, 'Unauthorized');
       try {
         const list = await s3.send(new ListObjectsV2Command({ Bucket: WASABI_BUCKET, Delimiter: '/' }));
-        const topFolders = (list.CommonPrefixes || []).length;
+        const topFolders = (list.CommonPrefixes || []).filter(cp => cp.Prefix !== '_thumbnails/').length;
         const allList = await s3.send(new ListObjectsV2Command({ Bucket: WASABI_BUCKET }));
 
         const imageObjects = (allList.Contents || []).filter(o => {
           const key = o.Key || '';
-          return /\.(jpg|jpeg|png|gif|webp|bmp|svg|tiff|mp4|mov|avi|mkv|webm|cr2|nef|arw|dng)$/i.test(key);
+          return !key.startsWith('_thumbnails/') && /\.(jpg|jpeg|png|gif|webp|bmp|svg|tiff|mp4|mov|avi|mkv|webm|cr2|nef|arw|dng)$/i.test(key);
         });
 
         const totalImages = imageObjects.length;
@@ -336,9 +336,24 @@ const server = http.createServer(async (req, res) => {
       const size = Math.min(Number(url.searchParams.get('size') || 400), 800);
       if (!key) return sendError(res, 400, 'key is required');
 
+      // Skip non-processable image formats (like video, raw formats, or unknown extensions)
+      const isProcessable = /\.(jpg|jpeg|png|webp|gif|tiff|bmp)$/i.test(key);
+      if (!isProcessable) {
+        try {
+          const signedUrl = await presignGet(key, 300);
+          res.writeHead(302, { Location: signedUrl, ...cors });
+          res.end();
+          return;
+        } catch {
+          return sendError(res, 500, 'Invalid key or S3 error');
+        }
+      }
+
+      const cacheKey = `${key}::${size}`;
+      const thumbKey = `_thumbnails/${size}/${key}.webp`;
+
       try {
-        // Return from cache if available
-        const cacheKey = `${key}::${size}`;
+        // 1. Try to serve from local in-memory cache first (for speed on repeated local requests)
         const cached = getThumbCached(cacheKey);
         if (cached) {
           res.writeHead(200, {
@@ -351,40 +366,66 @@ const server = http.createServer(async (req, res) => {
           return;
         }
 
-        // Try to load sharp (lazy, won't crash server if missing)
+        // 2. Check if the thumbnail already exists in S3 (persistent cache)
+        let exists = false;
+        try {
+          await s3.send(new HeadObjectCommand({ Bucket: WASABI_BUCKET, Key: thumbKey }));
+          exists = true;
+        } catch (headErr) {
+          if (headErr.name !== 'NotFound' && headErr.$metadata?.httpStatusCode !== 404) {
+            console.error('S3 HeadObject check failed for thumbnail:', headErr.message);
+          }
+        }
+
+        if (exists) {
+          // Redirect to S3 persistent thumbnail directly
+          const signedUrl = await presignGet(thumbKey, 3600);
+          res.writeHead(302, { Location: signedUrl, ...cors });
+          res.end();
+          return;
+        }
+
+        // 3. Load sharp loader
         const sharpFn = await getSharp();
         if (!sharpFn) {
-          // sharp unavailable — redirect to presigned URL (full-res fallback)
+          // Fall back to original image redirect if sharp is missing
           const signedUrl = await presignGet(key, 300);
           res.writeHead(302, { Location: signedUrl, ...cors });
           res.end();
           return;
         }
 
-        // Fetch from Wasabi S3
+        // 4. Fetch the original image from S3 (first time generation)
         const s3Res = await s3.send(new GetObjectCommand({ Bucket: WASABI_BUCKET, Key: key }));
         const chunks = [];
         for await (const chunk of s3Res.Body) chunks.push(chunk);
         const rawBuf = Buffer.concat(chunks);
 
-        // Resize and compress with sharp
+        // 5. Resize and convert to WebP
         const webpBuf = await sharpFn(rawBuf)
           .resize(size, size, { fit: 'inside', withoutEnlargement: true })
           .webp({ quality: 72 })
           .toBuffer();
 
+        // 6. Save back to S3 persistent cache
+        await s3.send(new PutObjectCommand({
+          Bucket: WASABI_BUCKET,
+          Key: thumbKey,
+          Body: webpBuf,
+          ContentType: 'image/webp',
+          CacheControl: 'public, max-age=31536000, immutable'
+        }));
+
+        // 7. Also write to local memory cache for this runtime instance
         setThumbCached(cacheKey, webpBuf);
 
-        res.writeHead(200, {
-          'Content-Type': 'image/webp',
-          'Cache-Control': 'public, max-age=86400, stale-while-revalidate=3600',
-          'Content-Length': webpBuf.length,
-          ...cors,
-        });
-        res.end(webpBuf);
+        // 8. Redirect client to S3 thumbnail
+        const signedUrl = await presignGet(thumbKey, 3600);
+        res.writeHead(302, { Location: signedUrl, ...cors });
+        res.end();
       } catch (err) {
-        console.error('Thumbnail generation failed:', err.message);
-        // Fallback: redirect to presigned URL so the image still shows
+        console.error('Thumbnail generation/cache failed:', err.message);
+        // Fallback: redirect to original image so image still loads
         try {
           const signedUrl = await presignGet(key, 300);
           res.writeHead(302, { Location: signedUrl, ...cors });
@@ -430,7 +471,7 @@ const server = http.createServer(async (req, res) => {
 
           // Folders
           for (const cp of (listResult.CommonPrefixes || [])) {
-            if (cp.Prefix && !seenFolderPrefixes.has(cp.Prefix)) {
+            if (cp.Prefix && cp.Prefix !== '_thumbnails/' && !seenFolderPrefixes.has(cp.Prefix)) {
               seenFolderPrefixes.add(cp.Prefix);
               folderPrefixes.push(cp);
             }
