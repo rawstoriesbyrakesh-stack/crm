@@ -407,22 +407,39 @@ const server = http.createServer(async (req, res) => {
           .webp({ quality: 72 })
           .toBuffer();
 
-        // 6. Save back to S3 persistent cache
-        await s3.send(new PutObjectCommand({
-          Bucket: WASABI_BUCKET,
-          Key: thumbKey,
-          Body: webpBuf,
-          ContentType: 'image/webp',
-          CacheControl: 'public, max-age=31536000, immutable'
-        }));
+        // 6. Try to save back to S3 persistent cache, but don't fail the request if it fails (e.g., due to billing limits)
+        let savedToS3 = false;
+        try {
+          await s3.send(new PutObjectCommand({
+            Bucket: WASABI_BUCKET,
+            Key: thumbKey,
+            Body: webpBuf,
+            ContentType: 'image/webp',
+            CacheControl: 'public, max-age=31536000, immutable'
+          }));
+          savedToS3 = true;
+        } catch (s3UploadErr) {
+          console.warn('⚠️ S3 persistent thumbnail upload failed (proceeding with direct buffer delivery):', s3UploadErr.message);
+        }
 
         // 7. Also write to local memory cache for this runtime instance
         setThumbCached(cacheKey, webpBuf);
 
-        // 8. Redirect client to S3 thumbnail
-        const signedUrl = await presignGet(thumbKey, 3600);
-        res.writeHead(302, { Location: signedUrl, ...cors });
-        res.end();
+        // 8. Deliver thumbnail. If saved to S3, redirecting is preferred to save server bandwidth.
+        // If S3 upload failed, serve the buffer directly to the client.
+        if (savedToS3) {
+          const signedUrl = await presignGet(thumbKey, 3600);
+          res.writeHead(302, { Location: signedUrl, ...cors });
+          res.end();
+        } else {
+          res.writeHead(200, {
+            'Content-Type': 'image/webp',
+            'Cache-Control': 'public, max-age=86400, stale-while-revalidate=3600',
+            'Content-Length': webpBuf.length,
+            ...cors,
+          });
+          res.end(webpBuf);
+        }
       } catch (err) {
         console.error('Thumbnail generation/cache failed:', err.message);
         // Fallback: redirect to original image so image still loads
