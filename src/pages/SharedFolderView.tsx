@@ -9,6 +9,148 @@ import {
 } from 'lucide-react';
 import { rawStoriesApiUrl } from '../api/rawStoriesBackend';
 
+// ── Photography Splash Loader ─────────────────────────────────────────────────
+// Camera aperture / shutter animation shown for ~2.2s on first load.
+const CameraShutterLoader: React.FC<{ onDone: () => void }> = ({ onDone }) => {
+  const [closing, setClosing] = useState(false);
+
+  useEffect(() => {
+    // Start exit animation after 1.7s, complete after 2.2s
+    const t1 = setTimeout(() => setClosing(true), 1700);
+    const t2 = setTimeout(onDone, 2200);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+  }, [onDone]);
+
+  // 6 aperture blades — each rotated 60deg apart
+  const blades = Array.from({ length: 6 }, (_, i) => i);
+
+  return (
+    <div
+      style={{
+        position: 'fixed', inset: 0, zIndex: 9999,
+        background: '#0a0a0a',
+        display: 'flex', flexDirection: 'column',
+        alignItems: 'center', justifyContent: 'center', gap: '2rem',
+        transition: 'opacity 0.5s ease',
+        opacity: closing ? 0 : 1,
+        pointerEvents: closing ? 'none' : 'all',
+      }}
+    >
+      <style>{`
+        @keyframes apertureOpen {
+          0%   { transform: rotate(var(--r)) scale(1.2); opacity: 1; }
+          60%  { transform: rotate(calc(var(--r) + 55deg)) scale(0.85); opacity: 0.8; }
+          100% { transform: rotate(calc(var(--r) + 60deg)) scale(0); opacity: 0; }
+        }
+        @keyframes shutterBlink {
+          0%,100% { opacity: 1; }
+          45%     { opacity: 1; }
+          50%     { opacity: 0.15; }
+          55%     { opacity: 1; }
+        }
+        @keyframes logoReveal {
+          0%   { opacity: 0; transform: translateY(12px) scale(0.95); filter: brightness(0); }
+          40%  { opacity: 0; }
+          70%  { opacity: 0.7; transform: translateY(0) scale(1); filter: brightness(0.7); }
+          100% { opacity: 1; filter: brightness(1.1); }
+        }
+        @keyframes scanLine {
+          0%   { top: 0; opacity: 0.6; }
+          100% { top: 100%; opacity: 0; }
+        }
+        @keyframes pulseRing {
+          0%   { transform: scale(0.8); opacity: 0.6; }
+          100% { transform: scale(1.6); opacity: 0; }
+        }
+      `}</style>
+
+      {/* Outer glow ring */}
+      <div style={{ position: 'relative', width: 200, height: 200 }}>
+        {/* Pulse rings */}
+        {[0, 0.4, 0.8].map((delay, i) => (
+          <div key={i} style={{
+            position: 'absolute', inset: 0, borderRadius: '50%',
+            border: '1px solid rgba(217,119,6,0.4)',
+            animation: `pulseRing 1.8s ${delay}s ease-out infinite`,
+          }} />
+        ))}
+
+        {/* Aperture SVG */}
+        <svg viewBox="0 0 200 200" width="200" height="200"
+          style={{ position: 'absolute', inset: 0, animation: 'shutterBlink 2.2s ease forwards' }}>
+          {/* Outer ring */}
+          <circle cx="100" cy="100" r="90" fill="none" stroke="rgba(217,119,6,0.3)" strokeWidth="1.5" />
+          <circle cx="100" cy="100" r="72" fill="none" stroke="rgba(217,119,6,0.15)" strokeWidth="0.5" />
+
+          {/* Aperture blades */}
+          {blades.map((i) => {
+            const angle = i * 60;
+            return (
+              <g key={i} style={{
+                transformOrigin: '100px 100px',
+                ['--r' as string]: `${angle}deg`,
+                animation: `apertureOpen 2.2s 0.2s cubic-bezier(0.4,0,0.2,1) forwards`,
+                transform: `rotate(${angle}deg)`,
+              }}>
+                <ellipse
+                  cx="100" cy="62"
+                  rx="28" ry="42"
+                  fill={`rgba(217,${100 + i * 8},6,${0.7 + i * 0.03})`}
+                  stroke="rgba(0,0,0,0.3)" strokeWidth="0.5"
+                />
+              </g>
+            );
+          })}
+
+          {/* Center lens */}
+          <circle cx="100" cy="100" r="18"
+            fill="#0a0a0a"
+            stroke="rgba(217,119,6,0.6)" strokeWidth="1.5" />
+          <circle cx="100" cy="100" r="8" fill="rgba(217,119,6,0.2)" />
+          {/* Lens reflection */}
+          <ellipse cx="94" cy="94" rx="4" ry="2.5"
+            fill="rgba(255,255,255,0.15)" transform="rotate(-30 94 94)" />
+        </svg>
+
+        {/* Scan line effect */}
+        <div style={{
+          position: 'absolute', left: 0, right: 0, height: 2,
+          background: 'linear-gradient(90deg, transparent, rgba(217,119,6,0.7), transparent)',
+          animation: 'scanLine 1.4s 0.3s ease-in-out infinite',
+          borderRadius: 1,
+        }} />
+      </div>
+
+      {/* Logo */}
+      <div style={{
+        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem',
+        animation: 'logoReveal 2.2s ease forwards',
+      }}>
+        <img
+          src="/rawstories-logo.png"
+          alt="Raw Stories by Rakesh"
+          style={{ height: 48, objectFit: 'contain',
+            filter: 'invert(1) brightness(1.05) drop-shadow(0 0 12px rgba(217,119,6,0.5))' }}
+        />
+        {/* Tagline */}
+        <p style={{
+          color: 'rgba(217,119,6,0.7)',
+          fontSize: '0.65rem', letterSpacing: '0.35em',
+          textTransform: 'uppercase', fontFamily: 'Inter, sans-serif',
+          marginTop: 4,
+        }}>Your Memories, Our Craft</p>
+      </div>
+
+      {/* Film grain overlay */}
+      <div style={{
+        position: 'absolute', inset: 0, opacity: 0.03, pointerEvents: 'none',
+        backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")`,
+        backgroundSize: '150px',
+      }} />
+    </div>
+  );
+};
+
 const SHARE_API = rawStoriesApiUrl('/default/SharedLinkAccess');
 
 interface Item { id: string; title: string; imageUrl: string; presigned_url?: string; isVideo?: boolean; allowDownload?: boolean; comments?: {text: string, author: string, createdAt: string}[]; }
@@ -91,6 +233,10 @@ export default function SharedFolderView() {
   const [searchParams] = useSearchParams();
   const shareId = searchParams.get('sid');
   const navigate = useNavigate();
+
+  // Splash loader — show photography animation on first open
+  const [splashDone, setSplashDone] = useState(false);
+  const handleSplashDone = useCallback(() => setSplashDone(true), []);
 
   // State
   const [phase, setPhase] = useState<'checking'|'pin'|'denied'|'gallery'>('checking');
@@ -371,61 +517,41 @@ export default function SharedFolderView() {
   };
 
   // ── Download ─────────────────────────────────────────────────────────────
-  // Always saves the file to disk — never opens in browser tab.
+  // Uses the same-origin /default/download-proxy endpoint which serves the
+  // file with Content-Disposition: attachment — the ONLY reliable way to
+  // force a save on ALL browsers (desktop Chrome, iOS Safari, Android).
+  //
+  // ⚠️  Key encoding note: S3 keys from the backend may already contain %20
+  //     (URL-encoded spaces). We must decode them first before re-encoding so
+  //     the server receives a single-encoded key that decodes to the real path.
   const downloadItem = async (item: Item) => {
     notify(setNotifications, `Preparing download…`, 'info');
     try {
-      const res = await fetch(
-        rawStoriesApiUrl(`/default/downloadimage?key=${encodeURIComponent(item.id)}&shareId=${encodeURIComponent(shareId || '')}`)
+      // Decode the key first (handles keys that already contain %20 or other
+      // percent-encoded characters), then re-encode cleanly for the URL param.
+      let rawKey: string;
+      try { rawKey = decodeURIComponent(item.id); }
+      catch { rawKey = item.id; } // if it's not encoded, use as-is
+
+      const proxyUrl = rawStoriesApiUrl(
+        `/default/download-proxy?key=${encodeURIComponent(rawKey)}&shareId=${encodeURIComponent(shareId || '')}`
       );
-      const data = await res.json();
-      if (!res.ok || !data?.success || !data?.url) {
-        throw new Error('Failed to resolve download URL');
-      }
 
-      // Derive filename from the key (most reliable source)
-      const keyParts = (item.id || '').split('/');
-      const rawFilename = keyParts[keyParts.length - 1] || 'image.jpg';
-      const safeFilename = rawFilename.replace(/[\\/:*?"<>|]/g, '_') || 'image.jpg';
+      // Filename from the decoded key
+      const keyParts = rawKey.split('/');
+      const safeFilename = (keyParts[keyParts.length - 1] || 'image.jpg')
+        .replace(/[\\/:*?"<>|]/g, '_');
 
-      try {
-        // Fetch the image as a Blob, then force-download via object URL
-        const mediaRes = await fetch(data.url, {
-          method: 'GET',
-          mode: 'cors',
-          credentials: 'omit',
-          cache: 'no-cache',
-        });
-        if (!mediaRes.ok) throw new Error(`HTTP ${mediaRes.status}`);
-        const blob = await mediaRes.blob();
+      // Same-origin anchor — download attribute is respected on ALL browsers
+      const a = document.createElement('a');
+      a.href = proxyUrl;
+      a.download = safeFilename;
+      a.style.display = 'none';
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => document.body.removeChild(a), 1000);
 
-        // Force download using object URL — avoids browser opening the image
-        const objectUrl = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = objectUrl;
-        a.download = safeFilename; // 'download' attribute forces save, not open
-        a.style.display = 'none';
-        document.body.appendChild(a);
-        a.click();
-        // Small delay before revoking so browser has time to start download
-        setTimeout(() => {
-          URL.revokeObjectURL(objectUrl);
-          document.body.removeChild(a);
-        }, 2000);
-
-        notify(setNotifications, `Saved: ${safeFilename}`, 'success');
-      } catch (fetchErr) {
-        // CORS blocked the direct fetch — use anchor with download attribute only
-        console.warn('Blob fetch failed, using direct anchor download:', fetchErr);
-        const a = document.createElement('a');
-        a.href = data.url;
-        a.download = safeFilename;
-        a.style.display = 'none';
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        notify(setNotifications, `Download started: ${safeFilename}`, 'info');
-      }
+      notify(setNotifications, `Downloading ${safeFilename}…`, 'success');
     } catch (err) {
       console.error('Download failed:', err);
       notify(setNotifications, 'Download failed. Please try again.', 'error');
@@ -537,15 +663,24 @@ export default function SharedFolderView() {
   }, [lightbox]);
 
   // ─────────────────────────────────────────────────────────────────────────
+  //  RENDER: Photography splash loader (shown on every page open)
+  // ─────────────────────────────────────────────────────────────────────────
+  // Renders as a fixed overlay — the rest of the page loads underneath.
+  // After 2.2s the splash fades out and splashDone becomes true.
+
+  // ─────────────────────────────────────────────────────────────────────────
   //  RENDER: Checking
   // ─────────────────────────────────────────────────────────────────────────
   if (phase === 'checking') return (
-    <div className="min-h-screen bg-gradient-to-br from-stone-900 via-stone-800 to-amber-900 flex items-center justify-center">
-      <div className="text-center text-white">
-        <Loader2 className="h-10 w-10 animate-spin mx-auto mb-4 text-amber-400" />
-        <p className="text-stone-300">Verifying access…</p>
+    <>
+      {!splashDone && <CameraShutterLoader onDone={handleSplashDone} />}
+      <div className="min-h-screen bg-gradient-to-br from-stone-950 via-stone-900 to-stone-950 flex items-center justify-center">
+        <div className="text-center text-white">
+          <Loader2 className="h-10 w-10 animate-spin mx-auto mb-4 text-amber-400" />
+          <p className="text-stone-300">Verifying access…</p>
+        </div>
       </div>
-    </div>
+    </>
   );
 
   // ─────────────────────────────────────────────────────────────────────────

@@ -790,6 +790,62 @@ const server = http.createServer(async (req, res) => {
       return sendJson(res, 200, { success: true, url: signedUrl });
     }
 
+    // ── Download Proxy: stream file with Content-Disposition: attachment ───
+    // Forces a file save on ALL browsers/devices (desktop + iOS + Android).
+    // Same-origin URL means the 'download' attribute is respected everywhere.
+    if (pathname === '/default/download-proxy' && req.method === 'GET') {
+      const key = url.searchParams.get('key') || '';
+      const shareId = url.searchParams.get('shareId') || '';
+      if (!key) return sendError(res, 400, 'Missing key');
+
+      try {
+        // Track download count (non-blocking, don't fail if DB is slow)
+        FileMeta.findOneAndUpdate({ key }, { $inc: { downloadCount: 1 }, $setOnInsert: { key } }, { upsert: true }).catch(() => {});
+        if (shareId) {
+          Share.findOneAndUpdate({ shareId }, { $inc: { downloadCount: 1 } }).catch(() => {});
+        }
+
+        // Fetch metadata + stream from S3
+        const s3Res = await s3.send(new GetObjectCommand({ Bucket: WASABI_BUCKET, Key: key }));
+
+        // Clean filename from the S3 key
+        const rawFilename = key.split('/').pop() || 'download';
+        // Keep original chars that are safe; replace the rest with underscore
+        const safeFilename = decodeURIComponent(rawFilename).replace(/[^\w.\- ]/g, '_');
+        const contentType = s3Res.ContentType || 'application/octet-stream';
+
+        // Write response headers ONCE before streaming starts
+        res.writeHead(200, {
+          'Content-Type': contentType,
+          'Content-Disposition': `attachment; filename="${safeFilename}"; filename*=UTF-8''${encodeURIComponent(safeFilename)}`,
+          'Cache-Control': 'no-store',
+          ...(s3Res.ContentLength ? { 'Content-Length': String(s3Res.ContentLength) } : {}),
+          ...cors,
+        });
+
+        // Stream S3 body directly — avoids loading entire file into memory
+        try {
+          for await (const chunk of s3Res.Body) {
+            if (!res.writableEnded) res.write(chunk);
+          }
+          if (!res.writableEnded) res.end();
+        } catch (streamErr) {
+          console.error('Download proxy stream error:', streamErr.message);
+          // Headers already sent — cannot send a new error response.
+          // Destroy the socket to signal failure to the client.
+          if (!res.writableEnded) res.destroy(streamErr);
+        }
+      } catch (err) {
+        console.error('Download proxy failed:', err.message);
+        // Headers NOT yet sent (failed before writeHead) — safe to send error
+        if (!res.headersSent) {
+          return sendError(res, 500, 'Download failed');
+        }
+        if (!res.writableEnded) res.destroy(err);
+      }
+      return;
+    }
+
     // ── Share: create ──────────────────────────────────────────────────────
     if (pathname === '/default/sharelink' && req.method === 'POST') {
       if (!isAuthed(req)) return sendError(res, 401, 'Unauthorized');
