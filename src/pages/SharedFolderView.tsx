@@ -527,17 +527,18 @@ export default function SharedFolderView() {
   const downloadItem = async (item: Item) => {
     notify(setNotifications, `Preparing download…`, 'info');
     try {
-      // Decode the key first (handles keys that already contain %20 or other
-      // percent-encoded characters), then re-encode cleanly for the URL param.
-      let rawKey: string;
-      try { rawKey = decodeURIComponent(item.id); }
-      catch { rawKey = item.id; } // if it's not encoded, use as-is
-
+      // Use the raw key directly. Calling encodeURIComponent on the raw S3 key (item.id)
+      // preserves any literal %20 or other characters, which the server will decode back
+      // exactly to the stored S3 key.
       const proxyUrl = rawStoriesApiUrl(
-        `/default/download-proxy?key=${encodeURIComponent(rawKey)}&shareId=${encodeURIComponent(shareId || '')}`
+        `/default/download-proxy?key=${encodeURIComponent(item.id)}&shareId=${encodeURIComponent(shareId || '')}`
       );
 
-      // Filename from the decoded key
+      // Decoded filename for the local file save
+      let rawKey: string;
+      try { rawKey = decodeURIComponent(item.id); }
+      catch { rawKey = item.id; }
+
       const keyParts = rawKey.split('/');
       const safeFilename = (keyParts[keyParts.length - 1] || 'image.jpg')
         .replace(/[\\/:*?"<>|]/g, '_');
