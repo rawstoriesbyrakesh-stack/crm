@@ -261,6 +261,10 @@ const server = http.createServer(async (req, res) => {
   const pathname = url.pathname;
 
   try {
+    // Ensure MongoDB is connected (non-fatal if it fails, but attempts to connect)
+    await ensureMongoConnected().catch(err => {
+      console.warn('MongoDB connection warning:', err.message);
+    });
 
     // ── Health ─────────────────────────────────────────────────────────────
     if (pathname === '/api/health') {
@@ -782,9 +786,13 @@ const server = http.createServer(async (req, res) => {
       const key = url.searchParams.get('key') || '';
       const shareId = url.searchParams.get('shareId') || '';
       if (!key) return sendError(res, 400, 'Missing key');
-      await FileMeta.findOneAndUpdate({ key }, { $inc: { downloadCount: 1 }, $setOnInsert: { key } }, { upsert: true });
-      if (shareId) {
-        await Share.findOneAndUpdate({ shareId }, { $inc: { downloadCount: 1 } });
+      try {
+        await FileMeta.findOneAndUpdate({ key }, { $inc: { downloadCount: 1 }, $setOnInsert: { key } }, { upsert: true });
+        if (shareId) {
+          await Share.findOneAndUpdate({ shareId }, { $inc: { downloadCount: 1 } });
+        }
+      } catch (dbErr) {
+        console.warn('MongoDB tracking failed for downloadimage:', dbErr.message);
       }
       const signedUrl = await presignGet(key, 300);
       return sendJson(res, 200, { success: true, url: signedUrl });
@@ -799,10 +807,16 @@ const server = http.createServer(async (req, res) => {
       if (!key) return sendError(res, 400, 'Missing key');
 
       try {
-        // Track download count (non-blocking, don't fail if DB is slow)
-        FileMeta.findOneAndUpdate({ key }, { $inc: { downloadCount: 1 }, $setOnInsert: { key } }, { upsert: true }).catch(() => {});
-        if (shareId) {
-          Share.findOneAndUpdate({ shareId }, { $inc: { downloadCount: 1 } }).catch(() => {});
+        // Track download count (non-blocking, don't fail if DB is slow or disconnected)
+        if (mongoose.connection.readyState === 1) {
+          try {
+            FileMeta.findOneAndUpdate({ key }, { $inc: { downloadCount: 1 }, $setOnInsert: { key } }, { upsert: true }).catch(() => {});
+            if (shareId) {
+              Share.findOneAndUpdate({ shareId }, { $inc: { downloadCount: 1 } }).catch(() => {});
+            }
+          } catch (dbErr) {
+            console.warn('Mongoose sync query error in download-proxy:', dbErr.message);
+          }
         }
 
         // Fetch metadata + stream from S3
