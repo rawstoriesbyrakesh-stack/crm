@@ -7,7 +7,7 @@ import {
   Image, Play, ZoomIn, Camera, MessageSquare, Send, RotateCw, GripHorizontal,
   Heart, MessageCircle
 } from 'lucide-react';
-import { rawStoriesApiUrl } from '../api/rawStoriesBackend';
+import { rawStoriesApiUrl, getThumbnailUrl } from '../api/rawStoriesBackend';
 
 // ── Photography Splash Loader ─────────────────────────────────────────────────
 // Camera aperture / shutter animation shown for ~2.2s on first load.
@@ -359,14 +359,14 @@ export default function SharedFolderView() {
     const preloadUrls: string[] = [];
     if (lightbox < filteredItems.length - 1) {
       const nextItem = filteredItems[lightbox + 1];
-      if (nextItem && !nextItem.isVideo && nextItem.imageUrl) {
-        preloadUrls.push(nextItem.imageUrl);
+      if (nextItem && !nextItem.isVideo && nextItem.id) {
+        preloadUrls.push(getThumbnailUrl(nextItem.id, 800));
       }
     }
     if (lightbox > 0) {
       const prevItem = filteredItems[lightbox - 1];
-      if (prevItem && !prevItem.isVideo && prevItem.imageUrl) {
-        preloadUrls.push(prevItem.imageUrl);
+      if (prevItem && !prevItem.isVideo && prevItem.id) {
+        preloadUrls.push(getThumbnailUrl(prevItem.id, 800));
       }
     }
     
@@ -920,7 +920,7 @@ export default function SharedFolderView() {
                           </div>
                         ) : (
                           <LazyImage
-                            src={item.imageUrl}
+                            src={getThumbnailUrl(item.id, 400)}
                             alt={item.title}
                             priority={idx < 4} // first 4 items load immediately
                             onLoaded={() => handleImageLoad(item.id)}
@@ -958,7 +958,7 @@ export default function SharedFolderView() {
                       <div className="w-12 h-12 rounded-lg overflow-hidden flex-shrink-0 bg-stone-700 cursor-pointer relative" onClick={() => setLightbox(indexOfFirstItem + idx)}>
                         {item.isVideo ? <div className="w-full h-full flex items-center justify-center"><Play className="h-5 w-5 text-white/60"/></div>
                           : <LazyImage
-                              src={item.imageUrl}
+                              src={getThumbnailUrl(item.id, 200)}
                               alt={item.title}
                               priority={idx < 8} // list view: first 8 load eagerly
                               onLoaded={() => handleImageLoad(item.id)}
@@ -1057,7 +1057,7 @@ export default function SharedFolderView() {
               <video src={filteredItems[lightbox].imageUrl} controls className="max-h-[50vh] md:max-h-[70vh] max-w-full mx-auto rounded-lg" />
             ) : (
               <img
-                src={filteredItems[lightbox].imageUrl}
+                src={getThumbnailUrl(filteredItems[lightbox].id, 800)}
                 alt={filteredItems[lightbox].title}
                 decoding="async"
                 onLoad={() => setLightboxImageLoaded(true)}
