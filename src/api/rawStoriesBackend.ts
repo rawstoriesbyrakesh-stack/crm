@@ -27,7 +27,7 @@ export const getThumbnailUrl = (keyOrPresignedUrl: string, size = 400): string =
       // Remove leading slash
       if (p.startsWith('/')) p = p.slice(1);
       // If path starts with bucket name, remove it
-      const bucket = import.meta.env.VITE_S3_BUCKET || import.meta.env.VITE_WASABI_BUCKET || 'raw12';
+      const bucket = import.meta.env.VITE_S3_BUCKET || 'raw';
       if (p.startsWith(bucket + '/')) p = p.slice(bucket.length + 1);
       key = p;
     } catch {

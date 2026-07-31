@@ -39,7 +39,7 @@ const MONGO_URI          = process.env.MONGO_URI;
 // Load generic S3 or fallback to WASABI
 const S3_ACCESS_KEY      = process.env.S3_ACCESS_KEY ?? process.env.WASABI_ACCESS_KEY;
 const S3_SECRET_KEY      = process.env.S3_SECRET_KEY ?? process.env.WASABI_SECRET_KEY;
-const WASABI_BUCKET      = process.env.S3_BUCKET ?? process.env.WASABI_BUCKET;
+const S3_BUCKET      = process.env.S3_BUCKET ?? process.env.S3_BUCKET;
 const S3_REGION          = process.env.S3_REGION ?? process.env.WASABI_REGION ?? 'auto';
 const S3_ENDPOINT        = process.env.S3_ENDPOINT ?? process.env.WASABI_ENDPOINT;
 const PRESIGNED_EXPIRY   = Number(process.env.PRESIGNED_URL_EXPIRY ?? 3600);
@@ -52,7 +52,7 @@ if (MISSING.length) {
   process.exit(1);
 }
 
-if (!S3_ACCESS_KEY || !S3_SECRET_KEY || !WASABI_BUCKET || !S3_ENDPOINT) {
+if (!S3_ACCESS_KEY || !S3_SECRET_KEY || !S3_BUCKET || !S3_ENDPOINT) {
   console.error(`\n❌  Missing S3 Storage configuration. Please set either generic S3_* variables or WASABI_* variables in backend/.env\n`);
   process.exit(1);
 }
@@ -71,7 +71,7 @@ const s3 = new S3Client({
 });
 
 const presignGet = (key, expiresIn = PRESIGNED_EXPIRY) =>
-  getSignedUrl(s3, new GetObjectCommand({ Bucket: WASABI_BUCKET, Key: key }), { expiresIn });
+  getSignedUrl(s3, new GetObjectCommand({ Bucket: S3_BUCKET, Key: key }), { expiresIn });
 
 // ─── Thumbnail In-Memory Cache ─────────────────────────────────────────────────
 // Caches resized WebP thumbnails so repeated page loads are instant.
@@ -97,7 +97,7 @@ const setThumbCached = (key, buf) => {
 };
 
 const presignPut = (key, contentType = 'application/octet-stream', expiresIn = PRESIGNED_EXPIRY) =>
-  getSignedUrl(s3, new PutObjectCommand({ Bucket: WASABI_BUCKET, Key: key, ContentType: contentType, CacheControl: 'public, max-age=31536000, immutable' }), { expiresIn });
+  getSignedUrl(s3, new PutObjectCommand({ Bucket: S3_BUCKET, Key: key, ContentType: contentType, CacheControl: 'public, max-age=31536000, immutable' }), { expiresIn });
 
 const encodeCopySource = (bucket, key) =>
   `${bucket}/${key.split('/').map(encodeURIComponent).join('/')}`;
@@ -106,7 +106,7 @@ const encodeCopySource = (bucket, key) =>
 const configureBucketCors = async () => {
   try {
     await s3.send(new PutBucketCorsCommand({
-      Bucket: WASABI_BUCKET,
+      Bucket: S3_BUCKET,
       CORSConfiguration: {
         CORSRules: [{
           AllowedHeaders: ['*'],
@@ -117,9 +117,9 @@ const configureBucketCors = async () => {
         }]
       }
     }));
-    console.log('✅ Wasabi bucket CORS policy automatically configured.');
+    console.log('✅ S3 bucket CORS policy automatically configured.');
   } catch (err) {
-    console.error('⚠️ Could not configure Wasabi CORS (user may lack permissions):', err.message);
+    console.error('⚠️ Could not configure S3 CORS (user may lack permissions):', err.message);
   }
 };
 configureBucketCors();
@@ -128,7 +128,7 @@ configureBucketCors();
 const configureBucketLifecycle = async () => {
   try {
     await s3.send(new PutBucketLifecycleConfigurationCommand({
-      Bucket: WASABI_BUCKET,
+      Bucket: S3_BUCKET,
       LifecycleConfiguration: {
         Rules: [{
           ID: "EmptyTrashAfter30Days",
@@ -138,7 +138,7 @@ const configureBucketLifecycle = async () => {
         }]
       }
     }));
-    console.log('✅ Wasabi bucket Lifecycle policy configured (Trash 30 days).');
+    console.log('✅ S3 bucket Lifecycle policy configured (Trash 30 days).');
   } catch (err) {
     console.error('⚠️ Could not configure Wasabi Lifecycle (user may lack permissions):', err.message);
   }
@@ -281,9 +281,9 @@ const server = http.createServer(async (req, res) => {
     if (pathname === '/api/health') {
       return sendJson(res, 200, {
         success: true,
-        storage: 'wasabi',
+        storage: 's3',
         db: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
-        bucket: WASABI_BUCKET,
+        bucket: S3_BUCKET,
       });
     }
 
@@ -305,9 +305,9 @@ const server = http.createServer(async (req, res) => {
     if (pathname === '/api/stats' && req.method === 'GET') {
       if (!isAuthed(req)) return sendError(res, 401, 'Unauthorized');
       try {
-        const list = await s3.send(new ListObjectsV2Command({ Bucket: WASABI_BUCKET, Delimiter: '/' }));
+        const list = await s3.send(new ListObjectsV2Command({ Bucket: S3_BUCKET, Delimiter: '/' }));
         const topFolders = (list.CommonPrefixes || []).filter(cp => cp.Prefix !== '_thumbnails/').length;
-        const allList = await s3.send(new ListObjectsV2Command({ Bucket: WASABI_BUCKET }));
+        const allList = await s3.send(new ListObjectsV2Command({ Bucket: S3_BUCKET }));
 
         const imageObjects = (allList.Contents || []).filter(o => {
           const key = o.Key || '';
@@ -380,7 +380,7 @@ const server = http.createServer(async (req, res) => {
         // 2. Check if the thumbnail already exists in S3 (persistent cache)
         let exists = false;
         try {
-          await s3.send(new HeadObjectCommand({ Bucket: WASABI_BUCKET, Key: thumbKey }));
+          await s3.send(new HeadObjectCommand({ Bucket: S3_BUCKET, Key: thumbKey }));
           exists = true;
         } catch (headErr) {
           if (headErr.name !== 'NotFound' && headErr.$metadata?.httpStatusCode !== 404) {
@@ -407,7 +407,7 @@ const server = http.createServer(async (req, res) => {
         }
 
         // 4. Fetch the original image from S3 (first time generation)
-        const s3Res = await s3.send(new GetObjectCommand({ Bucket: WASABI_BUCKET, Key: key }));
+        const s3Res = await s3.send(new GetObjectCommand({ Bucket: S3_BUCKET, Key: key }));
         const chunks = [];
         for await (const chunk of s3Res.Body) chunks.push(chunk);
         const rawBuf = Buffer.concat(chunks);
@@ -422,7 +422,7 @@ const server = http.createServer(async (req, res) => {
         let savedToS3 = false;
         try {
           await s3.send(new PutObjectCommand({
-            Bucket: WASABI_BUCKET,
+            Bucket: S3_BUCKET,
             Key: thumbKey,
             Body: webpBuf,
             ContentType: 'image/webp',
@@ -479,7 +479,7 @@ const server = http.createServer(async (req, res) => {
 
         const results = await Promise.all(prefixes.map(p =>
           s3.send(new ListObjectsV2Command({
-            Bucket: WASABI_BUCKET,
+            Bucket: S3_BUCKET,
             Prefix: p,
             Delimiter: recursive ? undefined : '/',
           })).catch(err => {
@@ -627,8 +627,8 @@ const server = http.createServer(async (req, res) => {
           
           try {
             await s3.send(new CopyObjectCommand({
-              Bucket: WASABI_BUCKET,
-              CopySource: encodeCopySource(WASABI_BUCKET, srcKey),
+              Bucket: S3_BUCKET,
+              CopySource: encodeCopySource(S3_BUCKET, srcKey),
               Key: key,
             }));
 
@@ -674,7 +674,7 @@ const server = http.createServer(async (req, res) => {
 
       if (!key.endsWith('/')) key += '/';
       // Create placeholder object in Wasabi
-      await s3.send(new PutObjectCommand({ Bucket: WASABI_BUCKET, Key: key }));
+      await s3.send(new PutObjectCommand({ Bucket: S3_BUCKET, Key: key }));
       const name = key.replace(/\/$/, '').split('/').pop() || key;
       await FolderMeta.findOneAndUpdate({ path: key }, { path: key, name }, { upsert: true, new: true });
       return sendJson(res, 200, { success: true, message: 'Folder created', folderPath: key });
@@ -690,16 +690,16 @@ const server = http.createServer(async (req, res) => {
       if (!newKey.endsWith('/')) newKey += '/';
 
       // List all objects under oldKey and copy them to newKey
-      const list = await s3.send(new ListObjectsV2Command({ Bucket: WASABI_BUCKET, Prefix: oldKey }));
+      const list = await s3.send(new ListObjectsV2Command({ Bucket: S3_BUCKET, Prefix: oldKey }));
       const objects = list.Contents || [];
       for (const obj of objects) {
         if (!obj.Key) continue;
         const newObjKey = newKey + obj.Key.slice(oldKey.length);
-        await s3.send(new CopyObjectCommand({ Bucket: WASABI_BUCKET, CopySource: encodeCopySource(WASABI_BUCKET, obj.Key), Key: newObjKey }));
+        await s3.send(new CopyObjectCommand({ Bucket: S3_BUCKET, CopySource: encodeCopySource(S3_BUCKET, obj.Key), Key: newObjKey }));
       }
       // Delete old objects
       if (objects.length > 0) {
-        await s3.send(new DeleteObjectsCommand({ Bucket: WASABI_BUCKET, Delete: { Objects: objects.map(o => ({ Key: o.Key })) } }));
+        await s3.send(new DeleteObjectsCommand({ Bucket: S3_BUCKET, Delete: { Objects: objects.map(o => ({ Key: o.Key })) } }));
       }
       const newName = newKey.replace(/\/$/, '').split('/').pop() || newKey;
       await FolderMeta.findOneAndUpdate({ path: oldKey }, { path: newKey, name: newName }, { upsert: true });
@@ -712,8 +712,8 @@ const server = http.createServer(async (req, res) => {
       const body = await readBody(req);
       const { oldKey, newKey } = body || {};
       if (!oldKey || !newKey) return sendError(res, 400, 'Missing oldKey or newKey');
-      await s3.send(new CopyObjectCommand({ Bucket: WASABI_BUCKET, CopySource: encodeCopySource(WASABI_BUCKET, oldKey), Key: newKey }));
-      await s3.send(new DeleteObjectsCommand({ Bucket: WASABI_BUCKET, Delete: { Objects: [{ Key: oldKey }] } }));
+      await s3.send(new CopyObjectCommand({ Bucket: S3_BUCKET, CopySource: encodeCopySource(S3_BUCKET, oldKey), Key: newKey }));
+      await s3.send(new DeleteObjectsCommand({ Bucket: S3_BUCKET, Delete: { Objects: [{ Key: oldKey }] } }));
       await FileMeta.findOneAndUpdate({ key: oldKey }, { key: newKey });
       return sendJson(res, 200, { success: true, message: 'Moved successfully' });
     }
@@ -728,17 +728,17 @@ const server = http.createServer(async (req, res) => {
       for (const key of keys) {
         if (key.endsWith('/')) {
           // it's a folder — list everything under it
-          const list = await s3.send(new ListObjectsV2Command({ Bucket: WASABI_BUCKET, Prefix: key }));
+          const list = await s3.send(new ListObjectsV2Command({ Bucket: S3_BUCKET, Prefix: key }));
           const objects = list.Contents || [];
           for (const obj of objects) {
             if (!obj.Key) continue;
             const newObjKey = `trash/${obj.Key}`;
-            await s3.send(new CopyObjectCommand({ Bucket: WASABI_BUCKET, CopySource: encodeCopySource(WASABI_BUCKET, obj.Key), Key: newObjKey }));
+            await s3.send(new CopyObjectCommand({ Bucket: S3_BUCKET, CopySource: encodeCopySource(S3_BUCKET, obj.Key), Key: newObjKey }));
             toDeleteOriginal.push({ Key: obj.Key });
           }
           await FolderMeta.findOneAndUpdate({ path: key }, { path: `trash/${key}` });
         } else {
-          await s3.send(new CopyObjectCommand({ Bucket: WASABI_BUCKET, CopySource: encodeCopySource(WASABI_BUCKET, key), Key: `trash/${key}` }));
+          await s3.send(new CopyObjectCommand({ Bucket: S3_BUCKET, CopySource: encodeCopySource(S3_BUCKET, key), Key: `trash/${key}` }));
           toDeleteOriginal.push({ Key: key });
           await FileMeta.findOneAndUpdate({ key }, { key: `trash/${key}` });
         }
@@ -748,7 +748,7 @@ const server = http.createServer(async (req, res) => {
         // Delete original objects in batches of 1000
         for (let i = 0; i < toDeleteOriginal.length; i += 1000) {
           await s3.send(new DeleteObjectsCommand({
-            Bucket: WASABI_BUCKET,
+            Bucket: S3_BUCKET,
             Delete: { Objects: toDeleteOriginal.slice(i, i + 1000) }
           }));
         }
@@ -768,17 +768,17 @@ const server = http.createServer(async (req, res) => {
         const originalKey = trashKey.replace(/^trash\//, '');
         
         if (trashKey.endsWith('/')) {
-          const list = await s3.send(new ListObjectsV2Command({ Bucket: WASABI_BUCKET, Prefix: trashKey }));
+          const list = await s3.send(new ListObjectsV2Command({ Bucket: S3_BUCKET, Prefix: trashKey }));
           const objects = list.Contents || [];
           for (const obj of objects) {
             if (!obj.Key) continue;
             const newObjKey = obj.Key.replace(/^trash\//, '');
-            await s3.send(new CopyObjectCommand({ Bucket: WASABI_BUCKET, CopySource: encodeCopySource(WASABI_BUCKET, obj.Key), Key: newObjKey }));
+            await s3.send(new CopyObjectCommand({ Bucket: S3_BUCKET, CopySource: encodeCopySource(S3_BUCKET, obj.Key), Key: newObjKey }));
             toDeleteTrash.push({ Key: obj.Key });
           }
           await FolderMeta.findOneAndUpdate({ path: trashKey }, { path: originalKey });
         } else {
-          await s3.send(new CopyObjectCommand({ Bucket: WASABI_BUCKET, CopySource: encodeCopySource(WASABI_BUCKET, trashKey), Key: originalKey }));
+          await s3.send(new CopyObjectCommand({ Bucket: S3_BUCKET, CopySource: encodeCopySource(S3_BUCKET, trashKey), Key: originalKey }));
           toDeleteTrash.push({ Key: trashKey });
           await FileMeta.findOneAndUpdate({ key: trashKey }, { key: originalKey });
         }
@@ -787,7 +787,7 @@ const server = http.createServer(async (req, res) => {
       if (toDeleteTrash.length > 0) {
         for (let i = 0; i < toDeleteTrash.length; i += 1000) {
           await s3.send(new DeleteObjectsCommand({
-            Bucket: WASABI_BUCKET,
+            Bucket: S3_BUCKET,
             Delete: { Objects: toDeleteTrash.slice(i, i + 1000) }
           }));
         }
@@ -798,14 +798,14 @@ const server = http.createServer(async (req, res) => {
     // ── File/Folder: empty trash (hard delete) ─────────────────────────────
     if (pathname === '/default/emptytrash' && req.method === 'POST') {
       if (!isAuthed(req)) return sendError(res, 401, 'Unauthorized');
-      const list = await s3.send(new ListObjectsV2Command({ Bucket: WASABI_BUCKET, Prefix: 'trash/' }));
+      const list = await s3.send(new ListObjectsV2Command({ Bucket: S3_BUCKET, Prefix: 'trash/' }));
       const objects = list.Contents || [];
       const toDelete = objects.map(o => ({ Key: o.Key }));
       
       if (toDelete.length > 0) {
         for (let i = 0; i < toDelete.length; i += 1000) {
           await s3.send(new DeleteObjectsCommand({
-            Bucket: WASABI_BUCKET,
+            Bucket: S3_BUCKET,
             Delete: { Objects: toDelete.slice(i, i + 1000) }
           }));
         }
@@ -889,7 +889,7 @@ const server = http.createServer(async (req, res) => {
         }
 
         // Fetch metadata + stream from S3
-        const s3Res = await s3.send(new GetObjectCommand({ Bucket: WASABI_BUCKET, Key: key }));
+        const s3Res = await s3.send(new GetObjectCommand({ Bucket: S3_BUCKET, Key: key }));
 
         // Clean filename from the S3 key
         const rawFilename = key.split('/').pop() || 'download';
@@ -1148,7 +1148,7 @@ const startHttp = () => {
   if (hasStartedHttpServer || server.listening) return;
   hasStartedHttpServer = true;
   server.listen(_port, () =>
-    console.log(`✅  Backend  →  http://localhost:${_port}\n✅  Bucket   →  ${WASABI_BUCKET} @ ${S3_ENDPOINT}`)
+    console.log(`✅  Backend  →  http://localhost:${_port}\n✅  Bucket   →  ${S3_BUCKET} @ ${S3_ENDPOINT}`)
   );
 };
 server.on('error', err => {
