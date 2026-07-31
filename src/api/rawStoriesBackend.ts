@@ -1,5 +1,14 @@
-const RAWSTORIES_API_BASE = import.meta.env.VITE_RAWSTORIES_API_BASE
-  || (import.meta.env.PROD ? '/_/backend' : 'http://localhost:8787');
+const getApiBase = () => {
+  const envVal = import.meta.env.VITE_RAWSTORIES_API_BASE;
+  const isProdHost = typeof window !== 'undefined' && window.location && !window.location.hostname.includes('localhost');
+  
+  if (isProdHost) {
+    return '/_/backend';
+  }
+  return envVal || 'http://localhost:8787';
+};
+
+const RAWSTORIES_API_BASE = getApiBase();
 
 export const rawStoriesApiUrl = (path: string) => {
   if (path.startsWith('http://') || path.startsWith('https://')) {
