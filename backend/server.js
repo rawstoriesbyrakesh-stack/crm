@@ -35,28 +35,39 @@ const ADMIN_EMAIL        = process.env.RAWSTORIES_EMAIL;
 const ADMIN_PASSWORD     = process.env.RAWSTORIES_PASSWORD;
 const SESSION_TOKEN      = process.env.RAWSTORIES_TOKEN;
 const MONGO_URI          = process.env.MONGO_URI;
-const WASABI_ACCESS_KEY  = process.env.WASABI_ACCESS_KEY;
-const WASABI_SECRET_KEY  = process.env.WASABI_SECRET_KEY;
-const WASABI_BUCKET      = process.env.WASABI_BUCKET;
-const WASABI_REGION      = process.env.WASABI_REGION;
-const WASABI_ENDPOINT    = process.env.WASABI_ENDPOINT;
+
+// Load generic S3 or fallback to WASABI
+const S3_ACCESS_KEY      = process.env.S3_ACCESS_KEY ?? process.env.WASABI_ACCESS_KEY;
+const S3_SECRET_KEY      = process.env.S3_SECRET_KEY ?? process.env.WASABI_SECRET_KEY;
+const WASABI_BUCKET      = process.env.S3_BUCKET ?? process.env.WASABI_BUCKET;
+const S3_REGION          = process.env.S3_REGION ?? process.env.WASABI_REGION ?? 'auto';
+const S3_ENDPOINT        = process.env.S3_ENDPOINT ?? process.env.WASABI_ENDPOINT;
 const PRESIGNED_EXPIRY   = Number(process.env.PRESIGNED_URL_EXPIRY ?? 3600);
 
 // Validate required vars
-const REQUIRED = ['RAWSTORIES_EMAIL','RAWSTORIES_PASSWORD','RAWSTORIES_TOKEN','MONGO_URI',
-                  'WASABI_ACCESS_KEY','WASABI_SECRET_KEY','WASABI_BUCKET','WASABI_REGION','WASABI_ENDPOINT'];
+const REQUIRED = ['RAWSTORIES_EMAIL','RAWSTORIES_PASSWORD','RAWSTORIES_TOKEN','MONGO_URI'];
 const MISSING = REQUIRED.filter(k => !process.env[k]);
 if (MISSING.length) {
   console.error(`\n❌  Missing env vars: ${MISSING.join(', ')}\n   Set them in backend/.env\n`);
   process.exit(1);
 }
 
-// ─── Wasabi S3 Client ─────────────────────────────────────────────────────────
+if (!S3_ACCESS_KEY || !S3_SECRET_KEY || !WASABI_BUCKET || !S3_ENDPOINT) {
+  console.error(`\n❌  Missing S3 Storage configuration. Please set either generic S3_* variables or WASABI_* variables in backend/.env\n`);
+  process.exit(1);
+}
+
+// Determine if path style is forced (true for local development or Wasabi, false for Cloudflare R2)
+const S3_FORCE_PATH_STYLE = process.env.S3_FORCE_PATH_STYLE !== undefined
+  ? process.env.S3_FORCE_PATH_STYLE === 'true'
+  : (S3_ENDPOINT.includes('wasabisys.com') || S3_ENDPOINT.includes('localhost') || S3_ENDPOINT.includes('127.0.0.1'));
+
+// ─── S3 Storage Client ────────────────────────────────────────────────────────
 const s3 = new S3Client({
-  region: WASABI_REGION,
-  endpoint: WASABI_ENDPOINT,
-  credentials: { accessKeyId: WASABI_ACCESS_KEY, secretAccessKey: WASABI_SECRET_KEY },
-  forcePathStyle: true,
+  region: S3_REGION,
+  endpoint: S3_ENDPOINT,
+  credentials: { accessKeyId: S3_ACCESS_KEY, secretAccessKey: S3_SECRET_KEY },
+  forcePathStyle: S3_FORCE_PATH_STYLE,
 });
 
 const presignGet = (key, expiresIn = PRESIGNED_EXPIRY) =>
@@ -1137,7 +1148,7 @@ const startHttp = () => {
   if (hasStartedHttpServer || server.listening) return;
   hasStartedHttpServer = true;
   server.listen(_port, () =>
-    console.log(`✅  Backend  →  http://localhost:${_port}\n✅  Bucket   →  ${WASABI_BUCKET} @ ${WASABI_ENDPOINT}`)
+    console.log(`✅  Backend  →  http://localhost:${_port}\n✅  Bucket   →  ${WASABI_BUCKET} @ ${S3_ENDPOINT}`)
   );
 };
 server.on('error', err => {
