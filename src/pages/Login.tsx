@@ -142,7 +142,7 @@ function Login() {
               transition={{ delay: 0.2, type: 'spring', stiffness: 200, damping: 20 }}
               className="inline-flex items-center justify-center w-20 h-20 rounded-2xl mb-6 shadow-lg shadow-primary-500/30 transform rotate-3 overflow-hidden bg-white/5"
             >
-              <img src="/images/rawstories-logo.svg" alt="RawStoriesbyrakesh logo" className="w-full h-full object-cover -rotate-3" />
+              <img src="/images/rawstories-logo.png" alt="RawStoriesbyrakesh logo" className="w-full h-full object-contain -rotate-3" />
             </motion.div>
             <motion.h1 
               initial={{ opacity: 0, y: 10 }}

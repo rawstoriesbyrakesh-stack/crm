@@ -66,7 +66,7 @@ export default function Layout({ children }: LayoutProps) {
           <div className="p-8 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center shadow-lg shadow-primary-500/20 overflow-hidden">
-                <img src="/images/rawstories-logo.svg" alt="RawStoriesbyrakesh logo" className="w-full h-full object-cover" />
+                <img src="/images/rawstories-logo.png" alt="RawStoriesbyrakesh logo" className="w-full h-full object-contain" />
               </div>
               <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-slate-400">
                 RawStoriesbyrakesh
@@ -135,7 +135,7 @@ export default function Layout({ children }: LayoutProps) {
         <header className="lg:hidden flex items-center justify-between p-4 bg-slate-900/80 backdrop-blur-lg border-b border-slate-700/50 sticky top-0 z-30">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center overflow-hidden">
-              <img src="/images/rawstories-logo.svg" alt="RawStoriesbyrakesh logo" className="w-full h-full object-cover" />
+              <img src="/images/rawstories-logo.png" alt="RawStoriesbyrakesh logo" className="w-full h-full object-contain" />
             </div>
             <h1 className="text-lg font-bold text-white">RawStoriesbyrakesh</h1>
           </div>

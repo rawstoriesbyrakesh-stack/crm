@@ -3056,18 +3056,18 @@ function Gallery() {
                             className="cursor-pointer flex items-center space-x-4"
                           >
                             <div className="relative">
-                              <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center shadow-lg">
-                                <Folder className="h-6 w-6 text-white" />
+                              <div className="w-12 h-12 bg-white rounded-lg flex items-center justify-center shadow-lg">
+                                <Folder className="h-6 w-6 text-slate-900 fill-slate-900" />
                               </div>
                               <div className="absolute -top-1 -right-1 w-4 h-4 bg-yellow-400 rounded-full flex items-center justify-center">
                                 <span className="text-xs font-bold text-yellow-800">📁</span>
                               </div>
                             </div>
                             <div className="flex-1">
-                              <p className="font-semibold text-[#2D2D2D] group-hover:text-[#00BCEB] transition-colors duration-200 text-lg">
+                              <p className="font-semibold text-white group-hover:text-[#00BCEB] transition-colors duration-200 text-lg">
                                 {folder.name}
                               </p>
-                              <p className="text-sm text-gray-500 flex items-center mt-1">
+                              <p className="text-sm text-gray-400 flex items-center mt-1">
                                 <span className="w-2 h-2 bg-green-400 rounded-full mr-2"></span>
                                 Folder
                               </p>
