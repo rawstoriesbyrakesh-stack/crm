@@ -99,8 +99,11 @@ const setThumbCached = (key, buf) => {
 const presignPut = (key, contentType = 'application/octet-stream', expiresIn = PRESIGNED_EXPIRY) =>
   getSignedUrl(s3, new PutObjectCommand({ Bucket: S3_BUCKET, Key: key, ContentType: contentType, CacheControl: 'public, max-age=31536000, immutable' }), { expiresIn });
 
-const encodeCopySource = (bucket, key) =>
-  `${bucket}/${key.split('/').map(encodeURIComponent).join('/')}`;
+const encodeCopySource = (bucket, key) => {
+  let rawKey = key;
+  try { rawKey = decodeURIComponent(key); } catch {}
+  return `${bucket}/${rawKey.split('/').map(encodeURIComponent).join('/')}`;
+};
 
 // Auto-configure Bucket CORS to allow browser uploads
 const configureBucketCors = async () => {
@@ -754,25 +757,35 @@ const server = http.createServer(async (req, res) => {
     if (pathname === '/default/deleteimage' && req.method === 'POST') {
       if (!isAuthed(req)) return sendError(res, 401, 'Unauthorized');
       const body = await readBody(req);
-      const keys = body?.keys || (body?.key ? [body.key] : []);
+      const rawKeys = body?.keys || (body?.key ? [body.key] : []);
+      const keys = rawKeys.map(k => { try { return decodeURIComponent(k); } catch { return k; } });
       const toDeleteOriginal = [];
 
       for (const key of keys) {
-        if (key.endsWith('/')) {
-          // it's a folder — list everything under it
-          const list = await s3.send(new ListObjectsV2Command({ Bucket: S3_BUCKET, Prefix: key }));
-          const objects = list.Contents || [];
-          for (const obj of objects) {
-            if (!obj.Key) continue;
-            const newObjKey = `trash/${obj.Key}`;
-            await s3.send(new CopyObjectCommand({ Bucket: S3_BUCKET, CopySource: encodeCopySource(S3_BUCKET, obj.Key), Key: newObjKey }));
-            toDeleteOriginal.push({ Key: obj.Key });
+        try {
+          if (key.endsWith('/')) {
+            // it's a folder — list everything under it
+            const list = await s3.send(new ListObjectsV2Command({ Bucket: S3_BUCKET, Prefix: key }));
+            const objects = list.Contents || [];
+            for (const obj of objects) {
+              if (!obj.Key) continue;
+              const newObjKey = `trash/${obj.Key}`;
+              await s3.send(new CopyObjectCommand({ Bucket: S3_BUCKET, CopySource: encodeCopySource(S3_BUCKET, obj.Key), Key: newObjKey }));
+              toDeleteOriginal.push({ Key: obj.Key });
+            }
+            if (mongoose.connection.readyState === 1) {
+              await FolderMeta.findOneAndUpdate({ path: key }, { path: `trash/${key}` }).catch(() => {});
+            }
+          } else {
+            const trashKey = `trash/${key}`;
+            await s3.send(new CopyObjectCommand({ Bucket: S3_BUCKET, CopySource: encodeCopySource(S3_BUCKET, key), Key: trashKey }));
+            toDeleteOriginal.push({ Key: key });
+            if (mongoose.connection.readyState === 1) {
+              await FileMeta.findOneAndUpdate({ key }, { key: trashKey }).catch(() => {});
+            }
           }
-          await FolderMeta.findOneAndUpdate({ path: key }, { path: `trash/${key}` });
-        } else {
-          await s3.send(new CopyObjectCommand({ Bucket: S3_BUCKET, CopySource: encodeCopySource(S3_BUCKET, key), Key: `trash/${key}` }));
-          toDeleteOriginal.push({ Key: key });
-          await FileMeta.findOneAndUpdate({ key }, { key: `trash/${key}` });
+        } catch (itemErr) {
+          console.error(`Error moving item ${key} to trash:`, itemErr.message || itemErr);
         }
       }
 
@@ -782,7 +795,7 @@ const server = http.createServer(async (req, res) => {
           await s3.send(new DeleteObjectsCommand({
             Bucket: S3_BUCKET,
             Delete: { Objects: toDeleteOriginal.slice(i, i + 1000) }
-          }));
+          })).catch(delErr => console.error('DeleteObjectsCommand warning:', delErr.message));
         }
       }
       return sendJson(res, 200, { success: true, deleted: keys, message: 'Moved to trash' });

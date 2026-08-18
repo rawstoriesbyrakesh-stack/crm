@@ -1527,19 +1527,24 @@ function Gallery() {
         throw new Error(result.message || 'Delete operation failed');
       }
 
-      const deletedKeys = result.deleted || [];
+      const rawDeletedKeys = result.deleted || [];
+      const deletedKeys = rawDeletedKeys.map((k: string) => { try { return decodeURIComponent(k); } catch { return k; } });
       const errors: DeleteError[] = result.errors || [];
-      const deletedItems = itemsToDelete.filter((item) => deletedKeys.includes(item.key));
+      const deletedItems = itemsToDelete.filter((item) => {
+        const itemKey = item.key ? (function() { try { return decodeURIComponent(item.key); } catch { return item.key; } })() : '';
+        return deletedKeys.includes(itemKey) || deletedKeys.includes(item.key);
+      });
       const deletedFolders = foldersToDelete.filter((folder) => {
         let prefix = folder.path;
         if (prefix.startsWith('/')) prefix = prefix.slice(1);
         if (!prefix.endsWith('/')) prefix += '/';
-        return deletedKeys.includes(prefix);
+        const normPrefix = (function() { try { return decodeURIComponent(prefix); } catch { return prefix; } })();
+        return deletedKeys.includes(normPrefix) || deletedKeys.includes(prefix);
       });
 
-      setItems((prev) => prev.filter((item) => !deletedItems.some((d) => d.id === item.id)));
-      setFolders((prev) => prev.filter((folder) => !deletedFolders.some((d) => d.path === folder.path)));
-      setSelectedItems((prev) => prev.filter((id) => !deletedItems.some((d) => d.id === id) && !deletedFolders.some((d) => d.path === id)));
+      setItems((prev) => prev.filter((item) => !deletedItems.some((d) => d.id === item.id) && !itemIds.includes(item.id)));
+      setFolders((prev) => prev.filter((folder) => !deletedFolders.some((d) => d.path === folder.path) && !itemIds.includes(folder.path)));
+      setSelectedItems((prev) => prev.filter((id) => !deletedItems.some((d) => d.id === id) && !deletedFolders.some((d) => d.path === id) && !itemIds.includes(id)));
 
       if (errors.length > 0) {
         setDeleteErrors(errors);
