@@ -137,6 +137,9 @@ const PRESIGNED_BATCH_SIZE = 200;
 // Max concurrent uploads (to avoid overwhelming network/S3)
 const MAX_CONCURRENT_UPLOADS = 20;
 
+const PRE_SIGNED_URL_CACHE = new Map<string, { data: any; timestamp: number }>();
+const CACHE_TTL = 120000; // 2 minutes
+
 // -------------------- Main Component --------------------
 function Gallery() {
   const navigate = useNavigate();
@@ -146,6 +149,90 @@ function Gallery() {
   const [items, setItems] = useState<GalleryItem[]>([]);
   const [folders, setFolders] = useState<FolderItem[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const processGalleryData = (data: any) => {
+    const mappedItems: GalleryItem[] = data.files.map((item: any, idx: number) => {
+      const keyParts = item.key.split('/');
+      const rawFilename = keyParts.pop() || 'Untitled.jpg';
+      const title = safeDecode(rawFilename.replace(/\.[^/.]+$/, ''));
+      let eventDate = item.last_modified ? item.last_modified.split('T')[0] : '';
+      const dateMatch = title.match(/(\d{4})(\d{2})(\d{2})/);
+      if (dateMatch) {
+        eventDate = `${dateMatch[1]}-${dateMatch[2]}-${dateMatch[3]}`;
+      }
+      const isVideo = !!item.key.match(/\.(mp4|mov|avi|wmv|mkv)$/i);
+      let shootType = 'Unknown';
+      if (title.includes('IMG')) shootType = 'Portrait';
+      else if (title.includes('Snapchat')) shootType = 'Casual';
+      return {
+        id: item.key,
+        shootType,
+        eventDate,
+        imageUrl: item.presigned_url || item.url || 'https://picsum.photos/400/300',
+        title,
+        filename: rawFilename,
+        uploadDate: item.last_modified ? item.last_modified.split('T')[0] : '',
+        isWatermarked: false,
+        isPinProtected: false,
+        isFavorite: false,
+        key: item.key,
+        isVideo,
+        order: idx,
+      };
+    });
+
+    const mappedFolders: FolderItem[] = data.folders.map((f: any) => ({
+      name: f.name || f.path.replace(/\/$/, '').split('/').pop() || 'Folder',
+      path: f.path,
+    }));
+
+    setItems(mappedItems);
+    setFolders(mappedFolders);
+  };
+
+  const fetchGalleryItems = async () => {
+    let prefix = currentPath;
+    if (prefix && !prefix.endsWith('/')) prefix += '/';
+    if (prefix.startsWith('/')) prefix = prefix.slice(1);
+
+    const cached = PRE_SIGNED_URL_CACHE.get(prefix);
+    if (cached && (Date.now() - cached.timestamp < CACHE_TTL)) {
+      processGalleryData(cached.data);
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
+    setError(null);
+    try {
+      const response = await fetch(
+        rawStoriesApiUrl(`/default/getallimages?prefix=${encodeURIComponent(prefix)}`),
+        {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getRawStoriesToken()}` },
+          mode: 'cors',
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch items: ${response.status} ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      if (!data || !Array.isArray(data.files) || !Array.isArray(data.folders)) {
+        throw new Error('Unexpected API response format');
+      }
+
+      PRE_SIGNED_URL_CACHE.set(prefix, { data, timestamp: Date.now() });
+      processGalleryData(data);
+    } catch (err: any) {
+      console.error('Error loading gallery items:', err);
+      if (!cached) {
+        setError(err.message || 'Failed to load gallery items');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
   const [deleteLoading, setDeleteLoading] = useState<string[]>([]);
   const [isRotating, setIsRotating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -294,115 +381,6 @@ function Gallery() {
     fetchGalleryItems();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentPath]);
-
-  const fetchGalleryItems = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      let prefix = currentPath;
-      if (prefix && !prefix.endsWith('/')) {
-        prefix += '/';
-      }
-      if (prefix.startsWith('/')) {
-        prefix = prefix.slice(1);
-      }
-
-      console.log(`Fetching gallery items with prefix: '${prefix}'`);
-
-      const response = await fetch(
-        rawStoriesApiUrl(`/default/getallimages?prefix=${encodeURIComponent(prefix)}`),
-        {
-          method: 'GET',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getRawStoriesToken()}` },
-          mode: 'cors',
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error(`Failed to fetch items: ${response.status} ${response.statusText}`);
-      }
-
-      const data = await response.json();
-
-      if (!data || !Array.isArray(data.files) || !Array.isArray(data.folders)) {
-        throw new Error('Unexpected API response format');
-      }
-
-      const mappedItems: GalleryItem[] = data.files.map((item: any, idx: number) => {
-        const keyParts = item.key.split('/');
-        const rawFilename = keyParts.pop() || 'Untitled.jpg';
-        const title = safeDecode(rawFilename.replace(/\.[^/.]+$/, ''));
-        let eventDate = item.last_modified ? item.last_modified.split('T')[0] : '';
-
-        const dateMatch = title.match(/(\d{4})(\d{2})(\d{2})/);
-        if (dateMatch) {
-          eventDate = `${dateMatch[1]}-${dateMatch[2]}-${dateMatch[3]}`;
-        }
-
-        const isVideo = !!item.key.match(/\.(mp4|mov|avi|wmv|mkv)$/i);
-
-        let shootType = 'Unknown';
-        if (title.includes('IMG')) shootType = 'Portrait';
-        else if (title.includes('Snapchat')) shootType = 'Casual';
-        return {
-          id: item.key,
-          shootType,
-          eventDate,
-          imageUrl: item.presigned_url || item.url || 'https://picsum.photos/400/300',
-          title,
-          filename: rawFilename,
-          uploadDate: item.last_modified ? item.last_modified.split('T')[0] : '',
-          isWatermarked: false,
-          isPinProtected: false,
-          isFavorite: false,
-          key: item.key,
-          isVideo,
-          order: idx,
-        };
-      });
-
-      const mappedFolders: FolderItem[] = data.folders.map((folder: any) => ({
-        name: safeDecode(folder.name || ''),
-        path: `/${folder.path.replace(/\/$/, '')}`,
-      }));
-
-      // Also fetch favorites folders if we're in root directory
-      let favoritesFolders: FolderItem[] = [];
-      if (!prefix || prefix === '') {
-        try {
-          const favoritesResponse = await fetch(
-            rawStoriesApiUrl('/default/getallimages?prefix=favorites/'),
-            {
-              method: 'GET',
-              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getRawStoriesToken()}` },
-              mode: 'cors',
-            }
-          );
-          
-          if (favoritesResponse.ok) {
-            const favoritesData = await favoritesResponse.json();
-            if (favoritesData && Array.isArray(favoritesData.folders)) {
-              favoritesFolders = favoritesData.folders.map((folder: any) => ({
-                name: `❤️ ${safeDecode(folder.name || '')}`,
-                path: `/${folder.path.replace(/\/$/, '')}`,
-              }));
-            }
-          }
-        } catch (err) {
-          console.log('Could not fetch favorites folders:', err);
-        }
-      }
-
-      setItems(mappedItems);
-      setFolders([...mappedFolders, ...favoritesFolders]);
-    } catch (err: any) {
-      console.error('Error fetching gallery items:', err);
-      setError(`Failed to load gallery items: ${err.message}`);
-      addNotification(`Failed to load gallery items: ${err.message}`, 'error');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   // -------------------- Download helpers --------------------
   // Try to fetch blob and save — if CORS blocks fetch, fallback to <a> download link.
@@ -3000,15 +2978,14 @@ function Gallery() {
               {loading ? (
                 <div className={compactView ?
                   "columns-2 md:columns-3 gap-3" :
-                  "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4"}>
+                  "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4"}>
                   {/* Skeleton Loading Animation */}
-                  {Array.from({ length: 12 }).map((_, index) => (
-                    <div key={index} className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden animate-pulse">
-                      <div className="w-full h-48 bg-gradient-to-r from-gray-200 via-gray-300 to-gray-200 bg-[length:200%_100%] animate-shimmer"></div>
-                      <div className="p-4 space-y-3">
-                        <div className="h-4 bg-gradient-to-r from-gray-200 via-gray-300 to-gray-200 bg-[length:200%_100%] animate-shimmer rounded"></div>
-                        <div className="h-3 bg-gradient-to-r from-gray-200 via-gray-300 to-gray-200 bg-[length:200%_100%] animate-shimmer rounded w-3/4"></div>
-                        <div className="h-3 bg-gradient-to-r from-gray-200 via-gray-300 to-gray-200 bg-[length:200%_100%] animate-shimmer rounded w-1/2"></div>
+                  {Array.from({ length: 10 }).map((_, index) => (
+                    <div key={index} className="glass-dark rounded-2xl border border-white/10 overflow-hidden animate-pulse">
+                      <div className="w-full h-36 bg-slate-800/60"></div>
+                      <div className="p-3 space-y-2">
+                        <div className="h-4 bg-slate-800 rounded w-3/4"></div>
+                        <div className="h-3 bg-slate-800 rounded w-1/2"></div>
                       </div>
                     </div>
                   ))}
@@ -3023,12 +3000,12 @@ function Gallery() {
                         </div>
                         <div className="absolute top-0 left-1/2 transform -translate-x-1/2 w-32 h-32 bg-gradient-to-br from-blue-200 to-purple-200 rounded-full animate-ping opacity-20"></div>
                       </div>
-                      <h3 className="text-xl font-semibold text-gray-700 mb-2">No media found</h3>
-                      <p className="text-gray-500 mb-4">This directory is empty. Start by uploading some images or videos.</p>
+                      <h3 className="text-xl font-semibold text-gray-300 mb-2">No media found</h3>
+                      <p className="text-gray-400 mb-4">This directory is empty. Start by uploading some images or videos.</p>
                       <div className="flex flex-col sm:flex-row gap-3 justify-center items-center">
                         <button
                           onClick={() => setUploadModal(true)}
-                          className="flex items-center px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-lg font-medium hover:from-blue-600 hover:to-purple-700 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
+                          className="flex items-center px-6 py-3 bg-gradient-to-r from-[#00BCEB] to-blue-600 text-white rounded-xl font-medium hover:from-[#00A5CF] hover:to-blue-700 transition-all duration-200 shadow-lg shadow-[#00BCEB]/20"
                         >
                           <Upload className="h-5 w-5 mr-2" />
                           Upload Files
@@ -3042,7 +3019,7 @@ function Gallery() {
                         viewMode === 'grid'
                           ? compactView
                             ? 'columns-2 md:columns-3 gap-3'
-                            : 'grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4'
+                            : 'grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4'
                           : 'space-y-4'
                       }`}
                     >

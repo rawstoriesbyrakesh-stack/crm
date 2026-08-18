@@ -148,7 +148,7 @@ export default function Layout({ children }: LayoutProps) {
         </header>
 
         {/* Scrollable Content */}
-        <main className="flex-1 overflow-x-hidden overflow-y-auto relative scroll-smooth">
+        <main className="flex-1 overflow-x-hidden overflow-y-auto relative scroll-smooth pb-20 lg:pb-0">
           {/* Subtle global background effects */}
           <div className="absolute top-0 right-0 w-[800px] h-[800px] bg-primary-600/5 rounded-full blur-[120px] pointer-events-none" />
           <div className="absolute bottom-0 left-0 w-[600px] h-[600px] bg-secondary-600/5 rounded-full blur-[100px] pointer-events-none" />
@@ -157,6 +157,29 @@ export default function Layout({ children }: LayoutProps) {
             {children}
           </div>
         </main>
+
+        {/* Mobile Bottom Navigation Bar */}
+        <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-slate-950/95 backdrop-blur-xl border-t border-slate-800/80 px-2 py-2 flex items-center justify-around shadow-2xl">
+          {navItems.slice(0, 5).map((item) => {
+            const isActive = location.pathname.startsWith(item.path);
+            const Icon = item.icon;
+            return (
+              <button
+                key={item.path}
+                onClick={() => {
+                  navigate(item.path);
+                  setIsSidebarOpen(false);
+                }}
+                className={`flex flex-col items-center gap-1 py-1.5 px-3 rounded-xl transition-all duration-200 ${
+                  isActive ? 'text-[#00BCEB] font-semibold bg-[#00BCEB]/10' : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <Icon className={`w-5 h-5 ${isActive ? 'scale-110 text-[#00BCEB]' : ''}`} />
+                <span className="text-[10px] tracking-tight">{item.name}</span>
+              </button>
+            );
+          })}
+        </nav>
       </div>
     </div>
   );
