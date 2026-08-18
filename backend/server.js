@@ -805,27 +805,36 @@ const server = http.createServer(async (req, res) => {
     if (pathname === '/default/restoreimage' && req.method === 'POST') {
       if (!isAuthed(req)) return sendError(res, 401, 'Unauthorized');
       const body = await readBody(req);
-      const keys = body?.keys || (body?.key ? [body.key] : []);
+      const rawKeys = body?.keys || (body?.key ? [body.key] : []);
+      const keys = rawKeys.map(k => { try { return decodeURIComponent(k); } catch { return k; } });
       const toDeleteTrash = [];
 
       for (const key of keys) {
-        const trashKey = key.startsWith('trash/') ? key : `trash/${key}`;
-        const originalKey = trashKey.replace(/^trash\//, '');
-        
-        if (trashKey.endsWith('/')) {
-          const list = await s3.send(new ListObjectsV2Command({ Bucket: S3_BUCKET, Prefix: trashKey }));
-          const objects = list.Contents || [];
-          for (const obj of objects) {
-            if (!obj.Key) continue;
-            const newObjKey = obj.Key.replace(/^trash\//, '');
-            await s3.send(new CopyObjectCommand({ Bucket: S3_BUCKET, CopySource: encodeCopySource(S3_BUCKET, obj.Key), Key: newObjKey }));
-            toDeleteTrash.push({ Key: obj.Key });
+        try {
+          const trashKey = key.startsWith('trash/') ? key : `trash/${key}`;
+          const originalKey = trashKey.replace(/^trash\//, '');
+          
+          if (trashKey.endsWith('/')) {
+            const list = await s3.send(new ListObjectsV2Command({ Bucket: S3_BUCKET, Prefix: trashKey }));
+            const objects = list.Contents || [];
+            for (const obj of objects) {
+              if (!obj.Key) continue;
+              const newObjKey = obj.Key.replace(/^trash\//, '');
+              await s3.send(new CopyObjectCommand({ Bucket: S3_BUCKET, CopySource: encodeCopySource(S3_BUCKET, obj.Key), Key: newObjKey }));
+              toDeleteTrash.push({ Key: obj.Key });
+            }
+            if (mongoose.connection.readyState === 1) {
+              await FolderMeta.findOneAndUpdate({ path: trashKey }, { path: originalKey }).catch(() => {});
+            }
+          } else {
+            await s3.send(new CopyObjectCommand({ Bucket: S3_BUCKET, CopySource: encodeCopySource(S3_BUCKET, trashKey), Key: originalKey }));
+            toDeleteTrash.push({ Key: trashKey });
+            if (mongoose.connection.readyState === 1) {
+              await FileMeta.findOneAndUpdate({ key: trashKey }, { key: originalKey }).catch(() => {});
+            }
           }
-          await FolderMeta.findOneAndUpdate({ path: trashKey }, { path: originalKey });
-        } else {
-          await s3.send(new CopyObjectCommand({ Bucket: S3_BUCKET, CopySource: encodeCopySource(S3_BUCKET, trashKey), Key: originalKey }));
-          toDeleteTrash.push({ Key: trashKey });
-          await FileMeta.findOneAndUpdate({ key: trashKey }, { key: originalKey });
+        } catch (itemErr) {
+          console.error(`Error restoring item ${key}:`, itemErr.message || itemErr);
         }
       }
 
@@ -834,7 +843,7 @@ const server = http.createServer(async (req, res) => {
           await s3.send(new DeleteObjectsCommand({
             Bucket: S3_BUCKET,
             Delete: { Objects: toDeleteTrash.slice(i, i + 1000) }
-          }));
+          })).catch(delErr => console.error('DeleteObjectsCommand warning on restore:', delErr.message));
         }
       }
       return sendJson(res, 200, { success: true, restored: keys, message: 'Restored successfully' });
@@ -843,22 +852,26 @@ const server = http.createServer(async (req, res) => {
     // ── File/Folder: empty trash (hard delete) ─────────────────────────────
     if (pathname === '/default/emptytrash' && req.method === 'POST') {
       if (!isAuthed(req)) return sendError(res, 401, 'Unauthorized');
-      const list = await s3.send(new ListObjectsV2Command({ Bucket: S3_BUCKET, Prefix: 'trash/' }));
-      const objects = list.Contents || [];
-      const toDelete = objects.map(o => ({ Key: o.Key }));
-      
-      if (toDelete.length > 0) {
-        for (let i = 0; i < toDelete.length; i += 1000) {
-          await s3.send(new DeleteObjectsCommand({
-            Bucket: S3_BUCKET,
-            Delete: { Objects: toDelete.slice(i, i + 1000) }
-          }));
+      try {
+        const list = await s3.send(new ListObjectsV2Command({ Bucket: S3_BUCKET, Prefix: 'trash/' }));
+        const objects = list.Contents || [];
+        const toDelete = objects.map(o => ({ Key: o.Key }));
+        
+        if (toDelete.length > 0) {
+          for (let i = 0; i < toDelete.length; i += 1000) {
+            await s3.send(new DeleteObjectsCommand({
+              Bucket: S3_BUCKET,
+              Delete: { Objects: toDelete.slice(i, i + 1000) }
+            })).catch(delErr => console.error('DeleteObjectsCommand warning on emptytrash:', delErr.message));
+          }
         }
+        if (mongoose.connection.readyState === 1) {
+          await FileMeta.deleteMany({ key: /^trash\// }).catch(() => {});
+          await FolderMeta.deleteMany({ path: /^trash\// }).catch(() => {});
+        }
+      } catch (err) {
+        console.error('emptytrash error:', err.message || err);
       }
-      // Clean up metadata
-      await FileMeta.deleteMany({ key: /^trash\// });
-      await FolderMeta.deleteMany({ path: /^trash\// });
-      
       return sendJson(res, 200, { success: true, message: 'Trash emptied' });
     }
 
