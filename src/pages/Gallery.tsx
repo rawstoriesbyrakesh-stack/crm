@@ -1,5 +1,6 @@
 import React, { useState, useEffect, Component, ErrorInfo, useRef, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 // Sidebar and Header removed per request - gallery management UI is self-contained
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
@@ -3032,39 +3033,41 @@ function Gallery() {
                           : 'space-y-4'
                       }`}
                     >
-                      {/* Folders */}
-                      {folders.map((folder) => (
-                        <div
+                      {folders.map((folder, index) => (
+                        <motion.div
                           key={folder.path}
-                          className={`group relative p-6 glass-dark rounded-2xl border border-white/10 hover:border-teal-400/40 hover:shadow-[0_0_30px_rgba(45,212,191,0.15)] hover:-translate-y-1 transition-all duration-300 ease-out overflow-hidden ${
+                          initial={{ opacity: 0, y: 15 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ duration: 0.4, delay: index * 0.03, ease: [0.16, 1, 0.3, 1] }}
+                          whileHover={{ y: -5, scale: 1.02 }}
+                          onClick={() => handleFolderClick(folder.path)}
+                          className={`group relative p-6 glass-dark rounded-2xl border border-white/10 hover:border-teal-400/40 shadow-lg hover:shadow-[0_12px_30px_rgba(45,212,191,0.15)] transition-all duration-300 ease-out overflow-hidden cursor-pointer ${
                             selectedItems.includes(folder.path) 
                               ? 'ring-2 ring-teal-500 ring-offset-2 ring-offset-[#0f172a]' 
                               : ''
-                          } ${compactView ? '' : ''}`}
+                          }`}
                           onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
                           onDrop={(e) => handleDropOnFolder(e, folder.path)}
                         >
-                          <div className="absolute top-0 right-0 w-20 h-20 bg-gradient-to-br from-blue-100 to-purple-100 rounded-full -translate-y-10 translate-x-10 opacity-50"></div>
+                          <div className="absolute top-0 right-0 w-20 h-20 bg-gradient-to-br from-blue-100 to-purple-100 rounded-full -translate-y-10 translate-x-10 opacity-30 pointer-events-none"></div>
                           <input
                             type="checkbox"
                             checked={selectedItems.includes(folder.path)}
                             onChange={(e) => handleSelectItem(folder.path, e.target.checked)}
+                            onClick={(e) => e.stopPropagation()}
                             className="absolute top-3 right-3 h-5 w-5 text-[#00BCEB] focus:ring-[#00BCEB] border-2 border-white rounded bg-white shadow-lg z-10 cursor-pointer"
                           />
-                          <div
-                            onClick={() => handleFolderClick(folder.path)}
-                            className="cursor-pointer flex items-center space-x-4"
-                          >
+                          <div className="flex items-center space-x-4">
                             <div className="relative">
-                              <div className="w-12 h-12 bg-white rounded-lg flex items-center justify-center shadow-lg">
+                              <div className="w-12 h-12 bg-white rounded-lg flex items-center justify-center shadow-lg transition-transform duration-300 group-hover:scale-110 group-hover:rotate-3 group-hover:shadow-[0_0_15px_rgba(255,255,255,0.4)]">
                                 <Folder className="h-6 w-6 text-slate-900 fill-slate-900" />
                               </div>
                               <div className="absolute -top-1 -right-1 w-4 h-4 bg-yellow-400 rounded-full flex items-center justify-center">
                                 <span className="text-xs font-bold text-yellow-800">📁</span>
                               </div>
                             </div>
-                            <div className="flex-1">
-                              <p className="font-semibold text-white group-hover:text-[#00BCEB] transition-colors duration-200 text-lg">
+                            <div className="flex-1 min-w-0">
+                              <p className="font-semibold text-white group-hover:text-teal-300 transition-colors duration-200 text-lg truncate">
                                 {folder.name}
                               </p>
                               <p className="text-sm text-gray-400 flex items-center mt-1">
@@ -3073,7 +3076,7 @@ function Gallery() {
                               </p>
                             </div>
                           </div>
-                          <div className="flex items-center space-x-2 mt-2 z-20">
+                          <div className="flex items-center space-x-2 mt-4 z-20 relative">
                             {deleteLoading.includes(folder.path) ? (
                               <Loader2 className="w-4 h-4 text-red-500 animate-spin" />
                             ) : (
@@ -3084,20 +3087,20 @@ function Gallery() {
                                     const name = folder.path.replace(/\/$/, '').split('/').pop() || '';
                                     setRenameFolderModal({ isOpen: true, oldPath: folder.path, newName: name });
                                   }}
-                                  className="p-1.5 text-gray-400 hover:text-blue-400 transition-colors duration-200 z-20 relative"
+                                  className="p-1.5 text-gray-400 hover:text-blue-400 transition-colors duration-200 z-20 relative bg-white/5 hover:bg-white/10 rounded-lg"
                                 >
                                   <Edit2 className="w-4 h-4" />
                                 </button>
                                 <button
                                   onClick={(e) => { e.stopPropagation(); handleDelete(folder.path); }}
-                                  className="p-1.5 text-gray-400 hover:text-red-500 transition-colors duration-200 z-20 relative"
+                                  className="p-1.5 text-gray-400 hover:text-red-500 transition-colors duration-200 z-20 relative bg-white/5 hover:bg-white/10 rounded-lg"
                                 >
                                   <Trash2 className="w-4 h-4" />
                                 </button>
                               </>
                             )}
                           </div>
-                        </div>
+                        </motion.div>
                       ))}
 
                       {/* Images/Videos */}

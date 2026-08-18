@@ -493,26 +493,35 @@ const server = http.createServer(async (req, res) => {
         const objects = [];
         const seenFolderPrefixes = new Set();
         const seenObjectKeys = new Set();
+        const decodedPrefixes = prefixes.map(p => decodeURIComponent(p));
 
         for (const listResult of results) {
           if (!listResult) continue;
 
           // Folders
           for (const cp of (listResult.CommonPrefixes || [])) {
-            if (cp.Prefix && cp.Prefix !== '_thumbnails/' && !seenFolderPrefixes.has(cp.Prefix)) {
-              seenFolderPrefixes.add(cp.Prefix);
-              folderPrefixes.push(cp);
+            if (cp.Prefix && cp.Prefix !== '_thumbnails/') {
+              const decodedPrefix = decodeURIComponent(cp.Prefix);
+              if (!seenFolderPrefixes.has(decodedPrefix)) {
+                seenFolderPrefixes.add(decodedPrefix);
+                cp.Prefix = decodedPrefix;
+                folderPrefixes.push(cp);
+              }
             }
           }
 
           // Files
           for (const o of (listResult.Contents || [])) {
-            if (o.Key && !seenObjectKeys.has(o.Key)) {
-              const isFolderPlaceholder = o.Key.endsWith('/') && (o.Size === 0 || !o.Size);
-              const isExactPrefix = prefixes.includes(o.Key);
-              if (!isExactPrefix && !isFolderPlaceholder && /\.(jpg|jpeg|png|gif|webp|bmp|svg|tiff|mp4|mov|avi|mkv|webm|cr2|nef|arw|dng)$/i.test(o.Key)) {
-                seenObjectKeys.add(o.Key);
-                objects.push(o);
+            if (o.Key) {
+              const decodedKey = decodeURIComponent(o.Key);
+              if (!seenObjectKeys.has(decodedKey)) {
+                const isFolderPlaceholder = decodedKey.endsWith('/') && (o.Size === 0 || !o.Size);
+                const isExactPrefix = decodedPrefixes.includes(decodedKey);
+                if (!isExactPrefix && !isFolderPlaceholder && /\.(jpg|jpeg|png|gif|webp|bmp|svg|tiff|mp4|mov|avi|mkv|webm|cr2|nef|arw|dng)$/i.test(decodedKey)) {
+                  seenObjectKeys.add(decodedKey);
+                  o.Key = decodedKey;
+                  objects.push(o);
+                }
               }
             }
           }
