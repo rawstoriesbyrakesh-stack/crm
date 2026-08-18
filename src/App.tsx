@@ -66,7 +66,7 @@ function App() {
             element={isAuthenticated ? <Layout><Trash /></Layout> : <Navigate to="/login" replace />}
           />
           <Route
-            path="/gallery/upload/:projectId"
+            path="/gallery-upload/:projectId"
             element={isAuthenticated ? <Layout><GalleryUpload /></Layout> : <Navigate to="/login" replace />}
           />
           <Route path="/signup" element={<Navigate to="/login" replace />} />
