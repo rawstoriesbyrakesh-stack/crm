@@ -44,17 +44,19 @@ export default function Watermarks() {
   // Text watermark state
   const [wmType, setWmType] = useState<'image' | 'text'>('image');
   const [newText, setNewText] = useState('STUDIO LOGO');
-  const [newFontFamily, setNewFontFamily] = useState('sans-serif');
+  const [newFontFamily, setNewFontFamily] = useState('Outfit');
   const [newFontColor, setNewFontColor] = useState('#ffffff');
+  const [newFontWeight, setNewFontWeight] = useState('bold');
+  const [newFontStyle, setNewFontStyle] = useState('normal');
 
   useEffect(() => {
     if (wmType === 'text') {
-      const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="400" height="150"><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="${newFontColor}" font-family="${newFontFamily}" font-size="28" font-weight="bold">${newText}</text></svg>`;
+      const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="450" height="150"><style>@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;700&amp;family=Playfair+Display:ital,wght@0,400;0,700;1,400&amp;family=Cinzel:wght@700&amp;family=Dancing+Script:wght@700&amp;display=swap');</style><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="${newFontColor}" font-family="${newFontFamily}, sans-serif" font-size="28" font-weight="${newFontWeight}" font-style="${newFontStyle}">${newText}</text></svg>`;
       const base64Svg = btoa(unescape(encodeURIComponent(svg)));
       setNewImage(`data:image/svg+xml;base64,${base64Svg}`);
       setNewImageName(newText || 'Text Watermark');
     }
-  }, [wmType, newText, newFontFamily, newFontColor]);
+  }, [wmType, newText, newFontFamily, newFontColor, newFontWeight, newFontStyle]);
 
   useEffect(() => {
     loadPresets();
@@ -411,21 +413,48 @@ export default function Watermarks() {
                       className="w-full bg-slate-800/50 border border-slate-700 text-white rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent placeholder-slate-600"
                     />
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-slate-300 mb-1.5">Font Family</label>
                       <select
                         value={newFontFamily}
                         onChange={(e) => setNewFontFamily(e.target.value)}
-                        className="w-full bg-slate-800/55 border border-slate-700 text-white rounded-xl px-3 py-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary-500"
+                        className="w-full bg-slate-800/55 border border-slate-700 text-white rounded-xl px-3 py-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-[#00BCEB]"
                       >
-                        <option value="sans-serif">Sans Serif</option>
-                        <option value="serif">Serif</option>
-                        <option value="monospace">Monospace</option>
-                        <option value="cursive">Cursive</option>
-                        <option value="Georgia">Georgia</option>
-                        <option value="Impact">Impact</option>
+                        <option value="Outfit">Outfit (Modern Luxury)</option>
+                        <option value="Playfair Display">Playfair (High-End Serif)</option>
+                        <option value="Cinzel">Cinzel (Cinematic)</option>
+                        <option value="Dancing Script">Dancing Script (Signature)</option>
+                        <option value="Inter">Inter (Clean Minimal)</option>
+                        <option value="Montserrat">Montserrat (Studio Bold)</option>
+                        <option value="Georgia">Georgia (Classic Editorial)</option>
+                        <option value="Impact">Impact (Bold Headline)</option>
+                        <option value="monospace">Monospace (Tech)</option>
+                        <option value="cursive">Cursive (Handwritten)</option>
                       </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-300 mb-1.5">Weight & Style</label>
+                      <div className="flex gap-2">
+                        <select
+                          value={newFontWeight}
+                          onChange={(e) => setNewFontWeight(e.target.value)}
+                          className="w-1/2 bg-slate-800/55 border border-slate-700 text-white rounded-xl px-2 py-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-[#00BCEB]"
+                        >
+                          <option value="normal">Normal</option>
+                          <option value="bold">Bold</option>
+                          <option value="300">Light</option>
+                          <option value="900">Black</option>
+                        </select>
+                        <select
+                          value={newFontStyle}
+                          onChange={(e) => setNewFontStyle(e.target.value)}
+                          className="w-1/2 bg-slate-800/55 border border-slate-700 text-white rounded-xl px-2 py-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-[#00BCEB]"
+                        >
+                          <option value="normal">Regular</option>
+                          <option value="italic">Italic</option>
+                        </select>
+                      </div>
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-slate-300 mb-1.5">Font Color</label>
@@ -442,7 +471,7 @@ export default function Watermarks() {
                           onChange={(e) => setNewFontColor(e.target.value)}
                           placeholder="#ffffff"
                           maxLength={7}
-                          className="w-full bg-slate-800/55 border border-slate-700 text-white rounded-xl px-2 py-2.5 text-xs font-mono text-center focus:outline-none focus:ring-2 focus:ring-primary-500"
+                          className="w-full bg-slate-800/55 border border-slate-700 text-white rounded-xl px-2 py-2.5 text-xs font-mono text-center focus:outline-none focus:ring-2 focus:ring-[#00BCEB]"
                         />
                       </div>
                     </div>
