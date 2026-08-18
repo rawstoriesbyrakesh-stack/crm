@@ -127,7 +127,7 @@ export default function Trash() {
           <button
             onClick={handleRestore}
             disabled={selectedItems.length === 0 || actionLoading}
-            className="flex items-center gap-2 px-4 py-2 bg-slate-800 text-white rounded-lg disabled:opacity-50 hover:bg-slate-700 transition-colors"
+            className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white font-semibold rounded-xl disabled:opacity-50 transition-all shadow-lg shadow-emerald-500/20"
           >
             <RefreshCcw className="w-4 h-4" />
             Restore Selected ({selectedItems.length})
@@ -135,7 +135,7 @@ export default function Trash() {
           <button
             onClick={handleEmptyTrash}
             disabled={items.length === 0 || actionLoading}
-            className="flex items-center gap-2 px-4 py-2 bg-red-500/10 text-red-500 rounded-lg disabled:opacity-50 hover:bg-red-500/20 transition-colors border border-red-500/20"
+            className="flex items-center gap-2 px-5 py-2.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-xl disabled:opacity-50 transition-all border border-red-500/30"
           >
             <Trash2 className="w-4 h-4" />
             Empty Trash
@@ -144,9 +144,9 @@ export default function Trash() {
       </div>
 
       {items.length === 0 ? (
-        <div className="flex flex-col items-center justify-center flex-1 bg-slate-800/20 rounded-2xl border border-slate-700/50">
+        <div className="flex flex-col items-center justify-center flex-1 bg-slate-800/20 rounded-3xl border border-slate-700/50">
           <Trash2 className="w-16 h-16 text-slate-600 mb-4" />
-          <h2 className="text-xl font-medium text-slate-300">Trash is empty</h2>
+          <h2 className="text-xl font-bold text-slate-300">Trash is empty</h2>
         </div>
       ) : (
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-4 overflow-y-auto">
@@ -154,8 +154,8 @@ export default function Trash() {
             <div
               key={item.key}
               onClick={() => toggleSelect(item.key)}
-              className={`relative aspect-square rounded-xl overflow-hidden cursor-pointer border-2 transition-all ${
-                selectedItems.includes(item.key) ? 'border-primary-500 scale-95' : 'border-transparent hover:border-slate-700'
+              className={`relative aspect-square rounded-2xl overflow-hidden cursor-pointer border-2 transition-all ${
+                selectedItems.includes(item.key) ? 'border-[#00BCEB] scale-95 shadow-[0_0_20px_rgba(0,188,235,0.4)]' : 'border-slate-800 hover:border-slate-700'
               }`}
             >
               <div className="absolute inset-0 bg-slate-800 flex items-center justify-center flex-col p-4 text-center">

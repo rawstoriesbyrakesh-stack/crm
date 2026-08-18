@@ -139,7 +139,7 @@ function Dashboard() {
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               onClick={() => navigate('/gallery')}
-              className="px-6 py-2.5 bg-gradient-to-r from-primary-600 to-primary-500 hover:from-primary-500 hover:to-primary-400 text-white font-medium rounded-xl shadow-lg shadow-primary-500/25 transition-all flex items-center gap-2"
+              className="px-6 py-2.5 bg-gradient-to-r from-[#00BCEB] to-blue-600 hover:from-[#00A5CF] hover:to-blue-700 text-white font-semibold rounded-xl shadow-lg shadow-[#00BCEB]/25 transition-all flex items-center gap-2"
             >
               Open Gallery <ArrowRight className="w-4 h-4" />
             </motion.button>

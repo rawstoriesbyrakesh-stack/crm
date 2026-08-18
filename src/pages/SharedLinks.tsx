@@ -42,6 +42,7 @@ export default function SharedLinks() {
   const [links, setLinks] = useState<ShareLink[]>([]);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'pin' | 'revoked'>('all');
   const [isLoading, setIsLoading] = useState(true);
   const [selectedFavoritesLink, setSelectedFavoritesLink] = useState<ShareLink | null>(null);
   const [selectedQrLink, setSelectedQrLink] = useState<ShareLink | null>(null);
@@ -143,11 +144,17 @@ export default function SharedLinks() {
     }
   };
 
-  const filteredLinks = links.filter(link => 
-    link.shareId.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    (link.folderPrefix || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-    link.items.some(item => item.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
+  const filteredLinks = links.filter((link) => {
+    const matchesSearch = link.items.some((item) => item.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      link.shareId.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (link.folderPrefix || '').toLowerCase().includes(searchTerm.toLowerCase());
+    
+    if (!matchesSearch) return false;
+    if (statusFilter === 'active') return link.isActive;
+    if (statusFilter === 'pin') return !!link.sharePin;
+    if (statusFilter === 'revoked') return !link.isActive;
+    return true;
+  });
 
   const activeLinks = links.filter(link => link.isActive).length;
   const protectedLinks = links.filter(link => Boolean(link.sharePin)).length;
@@ -224,6 +231,28 @@ export default function SharedLinks() {
           <DownloadCloud className="w-5 h-5 text-primary-400" />
           Export CSV
         </motion.button>
+      </div>
+
+      {/* Status Filter Tabs */}
+      <div className="flex flex-wrap gap-2 mb-6">
+        {[
+          { id: 'all', label: 'All Links', count: links.length },
+          { id: 'active', label: 'Active', count: activeLinks },
+          { id: 'pin', label: 'PIN Protected', count: protectedLinks },
+          { id: 'revoked', label: 'Revoked', count: links.length - activeLinks },
+        ].map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setStatusFilter(tab.id as any)}
+            className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all border ${
+              statusFilter === tab.id
+                ? 'bg-[#00BCEB] text-slate-950 border-[#00BCEB] shadow-[0_0_15px_rgba(0,188,235,0.3)]'
+                : 'bg-slate-800/40 text-slate-400 border-slate-700/50 hover:bg-slate-800 hover:text-white'
+            }`}
+          >
+            {tab.label} ({tab.count})
+          </button>
+        ))}
       </div>
 
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 mb-8">
