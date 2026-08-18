@@ -193,7 +193,10 @@ let hasStartedHttpServer = false;
 const ensureMongoConnected = async () => {
   if (mongoose.connection.readyState === 1) return;
   if (!mongoConnectionPromise) {
-    mongoConnectionPromise = mongoose.connect(MONGO_URI);
+    mongoConnectionPromise = mongoose.connect(MONGO_URI).catch(err => {
+      mongoConnectionPromise = null;
+      throw err;
+    });
   }
   await mongoConnectionPromise;
 };
@@ -501,12 +504,15 @@ const server = http.createServer(async (req, res) => {
           })
         ));
 
-        // Merge CommonPrefixes and Contents from all list results
+        const safeDecode = str => {
+          try { return decodeURIComponent(str); } catch { return str; }
+        };
+
         const folderPrefixes = [];
         const objects = [];
         const seenFolderPrefixes = new Set();
         const seenObjectKeys = new Set();
-        const decodedPrefixes = prefixes.map(p => decodeURIComponent(p));
+        const decodedPrefixes = prefixes.map(p => safeDecode(p));
 
         for (const listResult of results) {
           if (!listResult) continue;
@@ -514,7 +520,7 @@ const server = http.createServer(async (req, res) => {
           // Folders
           for (const cp of (listResult.CommonPrefixes || [])) {
             if (cp.Prefix && cp.Prefix !== '_thumbnails/') {
-              const decodedPrefix = decodeURIComponent(cp.Prefix);
+              const decodedPrefix = safeDecode(cp.Prefix);
               if (!seenFolderPrefixes.has(decodedPrefix)) {
                 seenFolderPrefixes.add(decodedPrefix);
                 cp.Prefix = decodedPrefix;
@@ -526,7 +532,7 @@ const server = http.createServer(async (req, res) => {
           // Files
           for (const o of (listResult.Contents || [])) {
             if (o.Key) {
-              const decodedKey = decodeURIComponent(o.Key);
+              const decodedKey = safeDecode(o.Key);
               if (!seenObjectKeys.has(decodedKey)) {
                 const isFolderPlaceholder = decodedKey.endsWith('/') && (o.Size === 0 || !o.Size);
                 const isExactPrefix = decodedPrefixes.includes(decodedKey);
@@ -543,12 +549,15 @@ const server = http.createServer(async (req, res) => {
         // Folders
         const folders = (await Promise.allSettled(folderPrefixes.map(async cp => {
           const folderPrefix = cp.Prefix || '';
-          const meta = await FolderMeta.findOne({ path: folderPrefix }).lean().catch(() => null);
+          let meta = null;
+          if (mongoose.connection.readyState === 1) {
+            meta = await FolderMeta.findOne({ path: folderPrefix }).lean().catch(() => null);
+          }
           let name = meta?.name;
           if (!name) {
             const segments = folderPrefix.split('/').filter(Boolean);
             const lastSegment = segments[segments.length - 1] || '';
-            name = decodeURIComponent(lastSegment);
+            name = safeDecode(lastSegment);
           }
           return { name, path: folderPrefix, description: meta?.description || '', client: meta?.client || '', tags: meta?.tags || [] };
         }))).flatMap(result => (result.status === 'fulfilled' ? [result.value] : []));
@@ -556,10 +565,11 @@ const server = http.createServer(async (req, res) => {
         // Files
         const files = (await Promise.allSettled(objects.map(async o => {
           const key = o.Key || '';
-          const [meta, signedUrl] = await Promise.all([
-            FileMeta.findOne({ key }).lean().catch(() => null),
-            presignGet(key).catch(() => ''),
-          ]);
+          let meta = null;
+          if (mongoose.connection.readyState === 1) {
+            meta = await FileMeta.findOne({ key }).lean().catch(() => null);
+          }
+          const signedUrl = await presignGet(key).catch(() => '');
           return {
             key,
             filename: path.basename(key),
