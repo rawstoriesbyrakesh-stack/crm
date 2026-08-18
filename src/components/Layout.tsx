@@ -65,10 +65,10 @@ export default function Layout({ children }: LayoutProps) {
           {/* Logo Area */}
           <div className="p-8 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center shadow-lg shadow-primary-500/20 overflow-hidden">
-                <img src="/images/rawstories-logo.png" alt="RawStoriesbyrakesh logo" className="w-full h-full object-contain" />
+              <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center shadow-lg shadow-cyan-500/10 overflow-hidden">
+                <img src="/rawstories-logo.png" alt="RawStoriesbyrakesh logo" className="w-full h-full object-contain" style={{ filter: 'invert(1) brightness(1.2)' }} />
               </div>
-              <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-slate-400">
+              <h1 className="text-lg font-bold bg-clip-text text-transparent bg-gradient-to-r from-white via-slate-200 to-cyan-400 tracking-tight">
                 RawStoriesbyrakesh
               </h1>
             </div>
@@ -95,20 +95,20 @@ export default function Layout({ children }: LayoutProps) {
                   }}
                   className={`w-full flex items-center gap-4 px-4 py-3.5 rounded-2xl transition-all duration-300 group relative overflow-hidden ${
                     isActive 
-                      ? 'bg-primary-500/10 text-primary-400 font-medium border border-primary-500/20 shadow-[0_0_20px_rgba(var(--color-primary-500),0.1)]' 
-                      : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200 border border-transparent'
+                      ? 'bg-[#00BCEB]/10 text-[#00BCEB] font-semibold border border-[#00BCEB]/30 shadow-[0_0_25px_rgba(0,188,235,0.15)]' 
+                      : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-100 border border-transparent'
                   }`}
                 >
                   {isActive && (
                     <motion.div 
                       layoutId="activeTab"
-                      className="absolute inset-0 bg-gradient-to-r from-primary-500/10 to-transparent opacity-50"
+                      className="absolute left-0 top-1/2 -translate-y-1/2 w-1.5 h-6 bg-[#00BCEB] rounded-r-full shadow-[0_0_12px_#00BCEB]"
                       initial={false}
                       transition={{ type: 'spring', stiffness: 300, damping: 30 }}
                     />
                   )}
-                  <div className="relative z-10 flex items-center gap-4">
-                    <Icon className={`w-5 h-5 transition-transform duration-300 ${isActive ? 'scale-110' : 'group-hover:scale-110'}`} />
+                  <div className="relative z-10 flex items-center gap-4 pl-1">
+                    <Icon className={`w-5 h-5 transition-transform duration-300 ${isActive ? 'scale-110 text-[#00BCEB]' : 'group-hover:scale-110 group-hover:text-white'}`} />
                     <span className="text-[15px]">{item.name}</span>
                   </div>
                 </button>
@@ -134,8 +134,8 @@ export default function Layout({ children }: LayoutProps) {
         {/* Mobile Header */}
         <header className="lg:hidden flex items-center justify-between p-4 bg-slate-900/80 backdrop-blur-lg border-b border-slate-700/50 sticky top-0 z-30">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center overflow-hidden">
-              <img src="/images/rawstories-logo.png" alt="RawStoriesbyrakesh logo" className="w-full h-full object-contain" />
+            <div className="w-8 h-8 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center overflow-hidden">
+              <img src="/rawstories-logo.png" alt="RawStoriesbyrakesh logo" className="w-full h-full object-contain" style={{ filter: 'invert(1) brightness(1.2)' }} />
             </div>
             <h1 className="text-lg font-bold text-white">RawStoriesbyrakesh</h1>
           </div>

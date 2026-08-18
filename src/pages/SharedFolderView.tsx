@@ -872,7 +872,7 @@ export default function SharedFolderView() {
               <button 
                 onClick={submitFavorites} 
                 disabled={isSubmittingFavs}
-                className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-lg text-sm font-medium transition-all shadow-md shrink-0"
+                className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 disabled:opacity-50 text-white rounded-xl text-sm font-semibold transition-all shadow-lg shadow-emerald-500/20 shrink-0"
               >
                 {isSubmittingFavs ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -886,7 +886,7 @@ export default function SharedFolderView() {
               <button 
                 onClick={handleDownloadFavoritesZip}
                 disabled={downloadingZip}
-                className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white rounded-lg text-sm font-medium transition-all shadow-md shrink-0"
+                className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-500 hover:from-purple-500 hover:to-indigo-400 disabled:opacity-50 text-white rounded-xl text-sm font-semibold transition-all shadow-lg shadow-purple-500/20 shrink-0"
                 title="Download Favorites as ZIP archive"
               >
                 {downloadingZip ? (

@@ -230,56 +230,68 @@ export default function SharedLinks() {
         <motion.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
-          className="glass-dark rounded-3xl p-5 border border-slate-700/40"
+          className="glass-dark rounded-3xl p-5 border border-slate-700/50 relative overflow-hidden group hover:border-[#00BCEB]/40 transition-all duration-300 shadow-xl"
         >
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-xs uppercase tracking-[0.2em] text-slate-500">Total Links</span>
-            <LinkIcon className="w-4 h-4 text-primary-400" />
+          <div className="absolute top-0 right-0 w-24 h-24 bg-[#00BCEB]/10 rounded-full blur-xl pointer-events-none group-hover:scale-150 transition-transform" />
+          <div className="flex items-center justify-between mb-3 relative z-10">
+            <span className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Total Links</span>
+            <div className="w-8 h-8 rounded-xl bg-[#00BCEB]/10 border border-[#00BCEB]/20 flex items-center justify-center">
+              <LinkIcon className="w-4 h-4 text-[#00BCEB]" />
+            </div>
           </div>
-          <p className="text-3xl font-bold text-white">{links.length}</p>
-          <p className="text-sm text-slate-400 mt-1">Share pages created so far</p>
+          <p className="text-3xl font-bold text-white relative z-10">{links.length}</p>
+          <p className="text-sm text-slate-400 mt-1 relative z-10">Share pages created so far</p>
         </motion.div>
 
         <motion.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.05 }}
-          className="glass-dark rounded-3xl p-5 border border-slate-700/40"
+          className="glass-dark rounded-3xl p-5 border border-slate-700/50 relative overflow-hidden group hover:border-emerald-500/40 transition-all duration-300 shadow-xl"
         >
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-xs uppercase tracking-[0.2em] text-slate-500">Active</span>
-            <Check className="w-4 h-4 text-emerald-400" />
+          <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/10 rounded-full blur-xl pointer-events-none group-hover:scale-150 transition-transform" />
+          <div className="flex items-center justify-between mb-3 relative z-10">
+            <span className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Active</span>
+            <div className="w-8 h-8 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
+              <Check className="w-4 h-4 text-emerald-400" />
+            </div>
           </div>
-          <p className="text-3xl font-bold text-white">{activeLinks}</p>
-          <p className="text-sm text-slate-400 mt-1">Currently available to clients</p>
+          <p className="text-3xl font-bold text-white relative z-10">{activeLinks}</p>
+          <p className="text-sm text-slate-400 mt-1 relative z-10">Currently available to clients</p>
         </motion.div>
 
         <motion.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
-          className="glass-dark rounded-3xl p-5 border border-slate-700/40"
+          className="glass-dark rounded-3xl p-5 border border-slate-700/50 relative overflow-hidden group hover:border-amber-500/40 transition-all duration-300 shadow-xl"
         >
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-xs uppercase tracking-[0.2em] text-slate-500">PIN Protected</span>
-            <Lock className="w-4 h-4 text-amber-400" />
+          <div className="absolute top-0 right-0 w-24 h-24 bg-amber-500/10 rounded-full blur-xl pointer-events-none group-hover:scale-150 transition-transform" />
+          <div className="flex items-center justify-between mb-3 relative z-10">
+            <span className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">PIN Protected</span>
+            <div className="w-8 h-8 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center">
+              <Lock className="w-4 h-4 text-amber-400" />
+            </div>
           </div>
-          <p className="text-3xl font-bold text-white">{protectedLinks}</p>
-          <p className="text-sm text-slate-400 mt-1">Links that require a code</p>
+          <p className="text-3xl font-bold text-white relative z-10">{protectedLinks}</p>
+          <p className="text-sm text-slate-400 mt-1 relative z-10">Links that require a code</p>
         </motion.div>
 
         <motion.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.15 }}
-          className="glass-dark rounded-3xl p-5 border border-slate-700/40"
+          className="glass-dark rounded-3xl p-5 border border-slate-700/50 relative overflow-hidden group hover:border-purple-500/40 transition-all duration-300 shadow-xl"
         >
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-xs uppercase tracking-[0.2em] text-slate-500">Views / Downloads</span>
-            <BarChart2 className="w-4 h-4 text-primary-400" />
+          <div className="absolute top-0 right-0 w-24 h-24 bg-purple-500/10 rounded-full blur-xl pointer-events-none group-hover:scale-150 transition-transform" />
+          <div className="flex items-center justify-between mb-3 relative z-10">
+            <span className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Views / Downloads</span>
+            <div className="w-8 h-8 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center">
+              <BarChart2 className="w-4 h-4 text-purple-400" />
+            </div>
           </div>
-          <p className="text-3xl font-bold text-white">{totalViews}</p>
-          <p className="text-sm text-slate-400 mt-1">{totalDownloads} downloads recorded</p>
+          <p className="text-3xl font-bold text-white relative z-10">{totalViews}</p>
+          <p className="text-sm text-slate-400 mt-1 relative z-10">{totalDownloads} downloads recorded</p>
         </motion.div>
       </div>
 
