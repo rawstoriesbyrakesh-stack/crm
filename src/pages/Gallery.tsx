@@ -2976,16 +2976,14 @@ function Gallery() {
                 </div>
               )}
               {loading ? (
-                <div className={compactView ?
-                  "columns-2 md:columns-3 gap-3" :
-                  "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4"}>
-                  {/* Skeleton Loading Animation */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
+                  {/* Subtle Dark Glassmorphic Skeleton Cards */}
                   {Array.from({ length: 10 }).map((_, index) => (
-                    <div key={index} className="glass-dark rounded-2xl border border-white/10 overflow-hidden animate-pulse">
-                      <div className="w-full h-36 bg-slate-800/60"></div>
-                      <div className="p-3 space-y-2">
-                        <div className="h-4 bg-slate-800 rounded w-3/4"></div>
-                        <div className="h-3 bg-slate-800 rounded w-1/2"></div>
+                    <div key={index} className="bg-slate-900/60 border border-slate-800/60 rounded-2xl p-4 overflow-hidden animate-pulse flex items-center space-x-3">
+                      <div className="w-10 h-10 bg-slate-800/80 rounded-xl flex-shrink-0"></div>
+                      <div className="flex-1 space-y-2">
+                        <div className="h-4 bg-slate-800/80 rounded w-3/4"></div>
+                        <div className="h-3 bg-slate-800/50 rounded w-1/2"></div>
                       </div>
                     </div>
                   ))}
