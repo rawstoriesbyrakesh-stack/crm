@@ -269,7 +269,10 @@ const server = http.createServer(async (req, res) => {
   if (!checkRateLimit(req, res)) return;
 
   const url      = new URL(req.url || '/', `http://${req.headers.host}`);
-  const pathname = url.pathname;
+  let pathname   = url.pathname;
+  if (pathname.startsWith('/_/backend')) {
+    pathname = pathname.slice('/_/backend'.length);
+  }
 
   try {
     // Ensure MongoDB is connected (non-fatal if it fails, but attempts to connect)
