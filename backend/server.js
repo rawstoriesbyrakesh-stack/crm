@@ -230,6 +230,16 @@ const readBody = async req => {
   try { return JSON.parse(raw); } catch { return raw; }
 };
 
+const getFrontendBaseUrl = req => {
+  const hOrigin = req.headers.origin;
+  if (hOrigin && hOrigin.startsWith('http')) return hOrigin;
+  const hRef = req.headers.referer;
+  if (hRef && hRef.startsWith('http')) {
+    try { return new URL(hRef).origin; } catch {}
+  }
+  return process.env.FRONTEND_URL || 'https://rawstoriesbyrakesh.vercel.app';
+};
+
 const isAuthed = req => {
   const h = req.headers.authorization || '';
   return h.split(' ')[1] === SESSION_TOKEN;
@@ -958,7 +968,8 @@ const server = http.createServer(async (req, res) => {
 
       await Share.create({ shareId, folderPrefix, items, sharePin, allowDownload, expiresAt, isActive: true });
 
-      const shareUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/shared-folder-view/${encodeURIComponent(folderPrefix || shareId)}?sid=${shareId}`;
+      const baseUrl = getFrontendBaseUrl(req);
+      const shareUrl = `${baseUrl}/shared-folder-view/${encodeURIComponent(folderPrefix || shareId)}?sid=${shareId}`;
       return sendJson(res, 200, {
         success: true, message: 'Share link created', shareUrl, shareLink: shareUrl, shareId,
         sharePin: sharePin ? '••••' : null, allowDownload, expiresAt,
@@ -1065,9 +1076,10 @@ const server = http.createServer(async (req, res) => {
           }
         );
 
+        const baseUrl = getFrontendBaseUrl(req);
         return sendJson(res, 200, { success: true, message: 'PIN verified',
           folderPrefix: share.folderPrefix,
-          shareUrl: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/shared-folder-view/${encodeURIComponent(share.folderPrefix || shareId)}?sid=${shareId}`,
+          shareUrl: `${baseUrl}/shared-folder-view/${encodeURIComponent(share.folderPrefix || shareId)}?sid=${shareId}`,
           shareLink: {
             shareId, isActive: share.isActive, isPinProtected: !!share.sharePin,
             createdAt: share.createdAt, expiresAt: share.expiresAt,
