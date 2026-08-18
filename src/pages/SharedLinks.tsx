@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { QRCodeCanvas } from 'qrcode.react';
 import { 
   Link as LinkIcon, 
   Copy, 
@@ -15,7 +16,8 @@ import {
   Code,
   Heart,
   MessageSquare,
-  X
+  X,
+  QrCode
 } from 'lucide-react';
 import { rawStoriesApiUrl, getRawStoriesToken } from '../api/rawStoriesBackend';
 
@@ -42,6 +44,7 @@ export default function SharedLinks() {
   const [searchTerm, setSearchTerm] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [selectedFavoritesLink, setSelectedFavoritesLink] = useState<ShareLink | null>(null);
+  const [selectedQrLink, setSelectedQrLink] = useState<ShareLink | null>(null);
 
   useEffect(() => {
     loadLinks();
@@ -359,6 +362,13 @@ export default function SharedLinks() {
                     </svg>
                   </a>
                   <button
+                    onClick={() => setSelectedQrLink(link)}
+                    className="p-2 rounded-lg bg-slate-800/50 text-slate-400 hover:text-white hover:bg-slate-700 transition-colors"
+                    title="Generate QR Code"
+                  >
+                    <QrCode className="w-4 h-4 text-primary-400" />
+                  </button>
+                  <button
                     onClick={() => copyToClipboard(getEmbedCode(link), link.shareId, 'embed')}
                     className="p-2 rounded-lg bg-slate-800/50 text-slate-400 hover:text-white hover:bg-slate-700 transition-colors"
                     title="Copy Embed Code"
@@ -513,6 +523,47 @@ export default function SharedLinks() {
                 Close
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* QR Code Modal */}
+      {selectedQrLink && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-8 max-w-sm w-full shadow-2xl flex flex-col items-center text-center">
+            <div className="flex justify-between items-center w-full mb-6 pb-3 border-b border-slate-800">
+              <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                <QrCode className="w-5 h-5 text-primary-400" />
+                Scan QR Code
+              </h3>
+              <button
+                onClick={() => setSelectedQrLink(null)}
+                className="p-1 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-all"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-4 bg-white rounded-2xl shadow-xl mb-4">
+              <QRCodeCanvas
+                value={getShareUrl(selectedQrLink)}
+                size={220}
+                bgColor="#ffffff"
+                fgColor="#090d16"
+                level="H"
+              />
+            </div>
+
+            <p className="text-xs text-slate-400 font-mono mb-4 break-all px-2">
+              {getShareUrl(selectedQrLink)}
+            </p>
+
+            <button
+              onClick={() => setSelectedQrLink(null)}
+              className="w-full py-3 bg-primary-600 hover:bg-primary-500 text-white rounded-xl font-semibold transition-all text-sm shadow-lg shadow-primary-500/20"
+            >
+              Done
+            </button>
           </div>
         </div>
       )}

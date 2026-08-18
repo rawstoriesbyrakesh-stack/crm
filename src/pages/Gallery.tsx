@@ -2818,8 +2818,16 @@ function Gallery() {
                         onChange={(e) => handleFilterChange('pinProtected', e.target.checked)}
                         className="h-4 w-4 text-[#00BCEB] focus:ring-[#00BCEB] border-slate-600 bg-slate-800 rounded"
                       />
-                      <span className="ml-2 text-sm text-slate-300">Pin Protected</span>
+                      <span className="ml-2 text-sm text-slate-300">Protected</span>
                     </label>
+                  </div>
+                  <div className="flex items-end">
+                    <button
+                      onClick={() => setFilters({ month: '', shootType: '', search: '', favorites: false, watermarked: false, pinProtected: false })}
+                      className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-semibold border border-slate-700 transition-all"
+                    >
+                      Clear All Filters
+                    </button>
                   </div>
                 </div>
               )}

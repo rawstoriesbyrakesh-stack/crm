@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import {
   ArrowLeft, Grid3X3, List, Download, Eye, X, Loader2,
@@ -316,6 +317,48 @@ export default function SharedFolderView() {
       notify(setNotifications, err.message || 'Failed to submit favorites', 'error');
     } finally {
       setIsSubmittingFavs(false);
+    }
+  };
+
+  const [downloadingZip, setDownloadingZip] = useState(false);
+
+  const handleDownloadFavoritesZip = async () => {
+    if (favorites.size === 0) {
+      notify(setNotifications, 'Please select at least one favorite photo to export', 'info');
+      return;
+    }
+    setDownloadingZip(true);
+    notify(setNotifications, `Preparing ZIP archive of ${favorites.size} favorite photo(s)...`, 'info');
+    try {
+      const zip = new JSZip();
+      const favItems = items.filter(item => favorites.has(item.id));
+      let count = 0;
+      for (const item of favItems) {
+        try {
+          const downloadUrl = rawStoriesApiUrl(`/default/downloadimage?key=${encodeURIComponent(item.id)}&shareId=${shareId || ''}`);
+          const response = await fetch(downloadUrl);
+          if (response.ok) {
+            const blob = await response.blob();
+            const fileName = item.filename || item.id.split('/').pop() || `photo_${count + 1}.jpg`;
+            zip.file(fileName, blob);
+            count++;
+          }
+        } catch (err) {
+          console.error('Error downloading item for zip:', item.id, err);
+        }
+      }
+      if (count === 0) {
+        throw new Error('Could not fetch image data for zip archive');
+      }
+      const zipBlob = await zip.generateAsync({ type: 'blob' });
+      const zipName = `favorites_${folderPath ? folderPath.replace(/\//g, '_') : 'gallery'}.zip`;
+      saveAs(zipBlob, zipName);
+      notify(setNotifications, `Successfully exported ${count} favorite photo(s)!`, 'success');
+    } catch (err: any) {
+      console.error('Zip download error:', err);
+      notify(setNotifications, `Zip export failed: ${err.message}`, 'error');
+    } finally {
+      setDownloadingZip(false);
     }
   };
 
@@ -837,6 +880,21 @@ export default function SharedFolderView() {
                   <Heart className="h-4 w-4 fill-current" />
                 )}
                 Submit Favorites ({favorites.size})
+              </button>
+            )}
+            {favorites.size > 0 && allowDownload && (
+              <button 
+                onClick={handleDownloadFavoritesZip}
+                disabled={downloadingZip}
+                className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white rounded-lg text-sm font-medium transition-all shadow-md shrink-0"
+                title="Download Favorites as ZIP archive"
+              >
+                {downloadingZip ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Download className="h-4 w-4" />
+                )}
+                <span>Export Favorites ({favorites.size})</span>
               </button>
             )}
             {allowDownload && selected.size > 0 && (
