@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+﻿import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import { rawStoriesApiUrl, getThumbnailUrl } from '../api/rawStoriesBackend';
 
-// ── Photography Splash Loader ─────────────────────────────────────────────────
+// â”€â”€ Photography Splash Loader â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Camera aperture / shutter animation shown for ~2.2s on first load.
 const CameraShutterLoader: React.FC<{ onDone: () => void }> = ({ onDone }) => {
   const [closing, setClosing] = useState(false);
@@ -22,7 +22,7 @@ const CameraShutterLoader: React.FC<{ onDone: () => void }> = ({ onDone }) => {
     return () => { clearTimeout(t1); clearTimeout(t2); };
   }, [onDone]);
 
-  // 6 aperture blades — each rotated 60deg apart
+  // 6 aperture blades â€” each rotated 60deg apart
   const blades = Array.from({ length: 6 }, (_, i) => i);
 
   return (
@@ -162,7 +162,7 @@ function notify(setFn: React.Dispatch<React.SetStateAction<{id:string;msg:string
   setTimeout(() => setFn(p => p.filter(n => n.id !== id)), 4500);
 }
 
-// ── LazyImage: IntersectionObserver-based image component ──────────────────
+// â”€â”€ LazyImage: IntersectionObserver-based image component â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Only starts loading when the element enters the viewport. This prevents
 // flooding the browser with 12+ simultaneous full-resolution S3 requests.
 interface LazyImageProps {
@@ -209,7 +209,7 @@ const LazyImage: React.FC<LazyImageProps> = ({ src, alt, className, priority = f
 
   return (
     <div ref={containerRef} className="absolute inset-0">
-      {/* Shimmer skeleton — visible until image is done loading */}
+      {/* Shimmer skeleton â€” visible until image is done loading */}
       {!loaded && <div className="absolute inset-0 shimmer-bg" />}
       {shouldLoad && (
         <img
@@ -217,7 +217,7 @@ const LazyImage: React.FC<LazyImageProps> = ({ src, alt, className, priority = f
           alt={alt}
           loading={priority ? 'eager' : 'lazy'}
           decoding="async"
-          // @ts-ignore – fetchpriority is valid HTML but TypeScript types lag behind
+          // @ts-ignore â€“ fetchpriority is valid HTML but TypeScript types lag behind
           fetchpriority={priority ? 'high' : 'low'}
           onLoad={() => { setLoaded(true); onLoaded?.(); }}
           onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; setLoaded(true); }}
@@ -235,7 +235,7 @@ export default function SharedFolderView() {
   const shareId = searchParams.get('sid');
   const navigate = useNavigate();
 
-  // Splash loader — show photography animation on first open
+  // Splash loader â€” show photography animation on first open
   const [splashDone, setSplashDone] = useState(false);
   const handleSplashDone = useCallback(() => setSplashDone(true), []);
 
@@ -425,7 +425,7 @@ export default function SharedFolderView() {
     };
   }, [lightbox, filteredItems]);
 
-  // ── Check access on mount ────────────────────────────────────────────────
+  // â”€â”€ Check access on mount â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   useEffect(() => {
     if (!shareId) { setPhase('gallery'); return; }
     (async () => {
@@ -463,7 +463,7 @@ export default function SharedFolderView() {
     })();
   }, [shareId]);
 
-  // ── Fetch images ─────────────────────────────────────────────────────────
+  // â”€â”€ Fetch images â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const fetchItems = useCallback(async () => {
     setLoading(true); setError('');
     try {
@@ -530,7 +530,7 @@ export default function SharedFolderView() {
 
   useEffect(() => { if (phase === 'gallery') fetchItems(); }, [phase, fetchItems]);
 
-  // ── Verify PIN ───────────────────────────────────────────────────────────
+  // â”€â”€ Verify PIN â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const verifyPin = async () => {
     if (!pin.trim()) { setPinError('Please enter the PIN.'); return; }
     setPinLoading(true); setPinError('');
@@ -559,16 +559,16 @@ export default function SharedFolderView() {
     finally { setPinLoading(false); }
   };
 
-  // ── Download ─────────────────────────────────────────────────────────────
+  // â”€â”€ Download â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // Uses the same-origin /default/download-proxy endpoint which serves the
-  // file with Content-Disposition: attachment — the ONLY reliable way to
+  // file with Content-Disposition: attachment â€” the ONLY reliable way to
   // force a save on ALL browsers (desktop Chrome, iOS Safari, Android).
   //
-  // ⚠️  Key encoding note: S3 keys from the backend may already contain %20
+  // âš ï¸  Key encoding note: S3 keys from the backend may already contain %20
   //     (URL-encoded spaces). We must decode them first before re-encoding so
   //     the server receives a single-encoded key that decodes to the real path.
   const downloadItem = async (item: Item) => {
-    notify(setNotifications, `Preparing download…`, 'info');
+    notify(setNotifications, `Preparing downloadâ€¦`, 'info');
     try {
       // Use the raw key directly. Calling encodeURIComponent on the raw S3 key (item.id)
       // preserves any literal %20 or other characters, which the server will decode back
@@ -586,7 +586,7 @@ export default function SharedFolderView() {
       const safeFilename = (keyParts[keyParts.length - 1] || 'image.jpg')
         .replace(/[\\/:*?"<>|]/g, '_');
 
-      // Same-origin anchor — download attribute is respected on ALL browsers
+      // Same-origin anchor â€” download attribute is respected on ALL browsers
       const a = document.createElement('a');
       a.href = proxyUrl;
       a.download = safeFilename;
@@ -595,7 +595,7 @@ export default function SharedFolderView() {
       a.click();
       setTimeout(() => document.body.removeChild(a), 1000);
 
-      notify(setNotifications, `Downloading ${safeFilename}…`, 'success');
+      notify(setNotifications, `Downloading ${safeFilename}â€¦`, 'success');
     } catch (err) {
       console.error('Download failed:', err);
       notify(setNotifications, 'Download failed. Please try again.', 'error');
@@ -668,7 +668,7 @@ export default function SharedFolderView() {
     }
   };
 
-  // ── Add Comment ──────────────────────────────────────────────────────────
+  // â”€â”€ Add Comment â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const handleAddComment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (lightbox === null || !newComment.trim()) return;
@@ -688,7 +688,7 @@ export default function SharedFolderView() {
     } catch (err: any) { notify(setNotifications, err.message || 'Failed to add comment', 'error'); }
   };
 
-  // ── Lightbox keys ────────────────────────────────────────────────────────
+  // â”€â”€ Lightbox keys â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   useEffect(() => {
     if (lightbox === null) return;
     const h = (e: KeyboardEvent) => {
@@ -706,30 +706,30 @@ export default function SharedFolderView() {
     lightboxGestureRef.current = null;
   }, [lightbox]);
 
-  // ─────────────────────────────────────────────────────────────────────────
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   //  RENDER: Photography splash loader (shown on every page open)
-  // ─────────────────────────────────────────────────────────────────────────
-  // Renders as a fixed overlay — the rest of the page loads underneath.
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // Renders as a fixed overlay â€” the rest of the page loads underneath.
   // After 2.2s the splash fades out and splashDone becomes true.
 
-  // ─────────────────────────────────────────────────────────────────────────
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   //  RENDER: Checking
-  // ─────────────────────────────────────────────────────────────────────────
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   if (phase === 'checking') return (
     <>
       {!splashDone && <CameraShutterLoader onDone={handleSplashDone} />}
       <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center">
         <div className="text-center text-white flex flex-col items-center gap-4">
           <div className="w-14 h-14 border-2 border-stone-700 border-t-amber-500 rounded-full animate-spin" />
-          <p className="text-stone-400 text-sm tracking-widest uppercase">Verifying access…</p>
+          <p className="text-stone-400 text-sm tracking-widest uppercase">Verifying accessâ€¦</p>
         </div>
       </div>
     </>
   );
 
-  // ─────────────────────────────────────────────────────────────────────────
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   //  RENDER: Denied
-  // ─────────────────────────────────────────────────────────────────────────
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   if (phase === 'denied') return (
     <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center p-4">
       <div className="bg-white/5 backdrop-blur-2xl border border-red-500/20 rounded-3xl p-10 max-w-md w-full text-center shadow-2xl shadow-red-950/40">
@@ -743,9 +743,9 @@ export default function SharedFolderView() {
     </div>
   );
 
-  // ─────────────────────────────────────────────────────────────────────────
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   //  RENDER: PIN Entry
-  // ─────────────────────────────────────────────────────────────────────────
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   if (phase === 'pin') return (
     <div className="min-h-screen bg-[#0a0a0a] flex flex-col items-center justify-center p-4 relative overflow-hidden">
       {/* Ambient glow */}
@@ -779,7 +779,7 @@ export default function SharedFolderView() {
             type="text" value={pin} maxLength={8} autoFocus
             onChange={e => { setPin(e.target.value); setPinError(''); }}
             onKeyDown={e => e.key === 'Enter' && verifyPin()}
-            placeholder="• • • •"
+            placeholder="â€¢ â€¢ â€¢ â€¢"
             className="w-full bg-white/8 border border-white/12 text-white placeholder-stone-600 rounded-2xl px-5 py-4 text-center text-3xl tracking-[0.5em] font-mono focus:outline-none focus:border-amber-500/60 focus:ring-2 focus:ring-amber-500/20 transition-all"
           />
           {pinError && (
@@ -793,7 +793,7 @@ export default function SharedFolderView() {
           onClick={verifyPin} disabled={pinLoading || !pin.trim()}
           className="w-full py-4 bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 disabled:from-stone-800 disabled:to-stone-800 disabled:text-stone-600 text-white rounded-2xl font-bold transition-all flex items-center justify-center gap-2 shadow-lg shadow-amber-600/20 text-sm tracking-wide"
         >
-          {pinLoading ? <><div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />Verifying…</> : <>
+          {pinLoading ? <><div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />Verifyingâ€¦</> : <>
             <Check className="h-5 w-5" />Access Gallery
           </>}
         </button>
@@ -814,464 +814,511 @@ export default function SharedFolderView() {
     </div>
   );
 
-  // ─────────────────────────────────────────────────────────────────────────
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   //  RENDER: Gallery
-  // ─────────────────────────────────────────────────────────────────────────
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const defaultTitle = safeDecode(decoded.split('/').filter(Boolean).pop() || 'Shared Gallery')
     .replace(/[_-]+/g, ' ')
     .trim();
   const galleryTitle = branding?.client ? `${branding.client} Gallery` : defaultTitle;
   const brandColor = branding?.brandColor || '#d97706'; // default amber-600
 
+  const IG_ICON = (
+    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z"/>
+    </svg>
+  );
+
+  const favCount = favorites.size;
+  const currentLbItem = lightbox !== null ? filteredItems[lightbox] : null;
+
   return (
-    <div className="min-h-screen" style={{ background: '#0d0d0f' }}>
-      {/* Notifications */}
-      <div className="fixed top-4 right-4 z-50 space-y-2">
+    <div className="min-h-screen text-white" style={{ background: '#080809', fontFamily: "'Inter', sans-serif" }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        .photo-card { transition: transform 0.3s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.3s ease; }
+        .photo-card:hover { transform: scale(1.02); box-shadow: 0 20px 60px rgba(0,0,0,0.6); }
+        .photo-card:hover .card-overlay { opacity: 1; }
+        .photo-card:hover .card-actions { opacity: 1; transform: translateY(0); }
+        .card-overlay { opacity: 0; transition: opacity 0.25s ease; }
+        .card-actions { opacity: 0; transform: translateY(8px); transition: opacity 0.25s ease, transform 0.25s ease; }
+        .fav-active { animation: heartPop 0.35s cubic-bezier(0.34,1.56,0.64,1) forwards; }
+        @keyframes heartPop { 0%{transform:scale(1)} 50%{transform:scale(1.4)} 100%{transform:scale(1.1)} }
+        .lb-img-enter { animation: lbEnter 0.3s ease forwards; }
+        @keyframes lbEnter { from { opacity:0; transform:scale(0.96); } to { opacity:1; transform:scale(1); } }
+        .toast-in { animation: toastSlide 0.35s ease forwards; }
+        @keyframes toastSlide { from { opacity:0; transform:translateX(20px); } to { opacity:1; transform:translateX(0); } }
+        .shimmer-dark { background: linear-gradient(90deg, #111113 25%, #1a1a1c 50%, #111113 75%); background-size: 200% 100%; animation: shimmerDark 1.5s infinite; }
+        @keyframes shimmerDark { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+        ::-webkit-scrollbar { width: 4px; } ::-webkit-scrollbar-track { background: transparent; } ::-webkit-scrollbar-thumb { background: #2a2a2e; border-radius: 4px; }
+      `}</style>
+
+      {/* â”€â”€ Toast notifications â”€â”€ */}
+      <div className="fixed top-5 right-5 z-[100] flex flex-col gap-2 pointer-events-none">
         {notifications.map(n => (
-          <div key={n.id} className={`px-4 py-3 rounded-2xl shadow-2xl text-white text-sm flex items-center gap-3 max-w-xs backdrop-blur-xl border ${
-            n.type==='success' ? 'bg-emerald-950/80 border-emerald-500/30 shadow-emerald-900/40'
-            : n.type==='error' ? 'bg-red-950/80 border-red-500/30 shadow-red-900/40'
-            : 'bg-stone-900/80 border-white/10'}`}>
-            <span className="flex-1">{n.msg}</span>
-            <button onClick={() => setNotifications(p=>p.filter(x=>x.id!==n.id))} className="text-white/50 hover:text-white transition-colors"><X className="h-4 w-4"/></button>
+          <div key={n.id} className={`toast-in pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-medium shadow-2xl backdrop-blur-xl border max-w-[300px] ${
+            n.type === 'success' ? 'bg-emerald-900/80 border-emerald-500/25 text-emerald-100'
+            : n.type === 'error' ? 'bg-red-900/80 border-red-500/25 text-red-100'
+            : 'bg-zinc-900/80 border-white/10 text-white'}`}>
+            <span className="flex-1 leading-snug">{n.msg}</span>
+            <button onClick={() => setNotifications(p => p.filter(x => x.id !== n.id))} className="text-white/40 hover:text-white/80 transition-colors shrink-0">
+              <X className="h-3.5 w-3.5" />
+            </button>
           </div>
         ))}
       </div>
 
-      {/* ── Header ── */}
-      <header className="sticky top-0 z-40 backdrop-blur-2xl border-b" style={{ background: 'rgba(13,13,15,0.85)', borderBottomColor: `${brandColor}25` }}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3.5 flex items-center justify-between gap-3">
-          {/* Left: Logo + Title */}
+      {/* â”€â”€ Sticky Navigation Bar â”€â”€ */}
+      <header className="fixed top-0 left-0 right-0 z-40" style={{ backdropFilter: 'blur(24px) saturate(180%)', background: 'rgba(8,8,9,0.75)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+        <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-4">
+          {/* Brand */}
           <div className="flex items-center gap-3 min-w-0">
-            <div className="flex items-center gap-2 min-w-0">
-              {branding?.logoUrl ? (
-                <img src={branding.logoUrl} alt="Client Logo" className="h-8 object-contain flex-shrink-0" />
-              ) : (
-                <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0" style={{ background: `${brandColor}18`, border: `1px solid ${brandColor}30` }}>
-                  <Camera className="h-4 w-4" style={{ color: brandColor }} />
-                </div>
-              )}
-              <div className="min-w-0">
-                <h1 className="text-white font-bold text-base sm:text-lg truncate capitalize leading-tight">{galleryTitle}</h1>
-                <p className="text-stone-600 text-[10px] hidden sm:block">{items.length} photos</p>
-              </div>
-            </div>
+            <img src="/rawstories-logo.png" alt="Raw Stories by Rakesh" className="h-7 object-contain shrink-0"
+              style={{ filter: 'invert(1) brightness(0.9)' }} />
+            <div className="h-5 w-px bg-white/10" />
+            <p className="text-white/70 font-medium text-sm capitalize truncate max-w-[160px] sm:max-w-none">{galleryTitle}</p>
           </div>
 
-          {/* Right: Actions */}
+          {/* Actions */}
           <div className="flex items-center gap-2 shrink-0">
-            {/* Instagram */}
-            <a
-              href="https://www.instagram.com/rawstoriesbyrakesh?igsh=MXg4NTJjeDBybmxndQ=="
-              target="_blank" rel="noopener noreferrer"
-              className="flex items-center gap-1.5 px-3 py-2 text-white rounded-xl text-xs font-semibold transition-all hover:scale-105 hover:shadow-lg"
-              style={{ background: 'linear-gradient(135deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%)' }}
-            >
-              <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z"/></svg>
-              <span className="hidden sm:inline">Instagram</span>
-            </a>
-            {/* WhatsApp */}
-            <a href="https://wa.me/917997743743" target="_blank" rel="noopener noreferrer"
-              className="flex items-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-semibold transition-all hover:scale-105">
-              <MessageCircle className="h-3.5 w-3.5 fill-current" />
-              <span className="hidden sm:inline">WhatsApp</span>
-            </a>
-
-            {/* Submit Favorites */}
-            {favorites.size > 0 && (
-              <button onClick={submitFavorites} disabled={isSubmittingFavs}
-                className="flex items-center gap-1.5 px-3 py-2 bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-emerald-500/20">
-                {isSubmittingFavs ? <div className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" /> : <Heart className="h-3.5 w-3.5 fill-current" />}
-                <span>Favorites ({favorites.size})</span>
-              </button>
-            )}
-            {/* Export ZIP */}
-            {favorites.size > 0 && allowDownload && (
-              <button onClick={handleDownloadFavoritesZip} disabled={downloadingZip}
-                className="flex items-center gap-1.5 px-3 py-2 bg-purple-600/80 hover:bg-purple-500 disabled:opacity-50 text-white rounded-xl text-xs font-semibold transition-all">
-                {downloadingZip ? <div className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" /> : <Download className="h-3.5 w-3.5" />}
-                <span className="hidden sm:inline">Export ({favorites.size})</span>
-              </button>
-            )}
-            {/* Download selected */}
-            {allowDownload && selected.size > 0 && (
-              <button onClick={downloadSelected} className="flex items-center gap-1.5 px-3 py-2 text-white rounded-xl text-xs font-semibold transition-all" style={{ backgroundColor: brandColor }}>
-                <Download className="h-3.5 w-3.5" />{selected.size} selected
-              </button>
-            )}
-
-            {/* View Controls */}
-            <div className="flex items-center bg-white/6 border border-white/8 rounded-xl p-1 gap-1">
-              <button
-                onClick={() => setShowFavoritesOnly(!showFavoritesOnly)}
-                className={`px-2 py-1.5 rounded-lg transition-all flex items-center gap-1 text-xs font-semibold ${
-                  showFavoritesOnly ? 'bg-red-600 text-white' : 'text-stone-400 hover:text-white'}`}
-              >
+            {/* Favorites filter toggle */}
+            {favCount > 0 && (
+              <button onClick={() => setShowFavoritesOnly(!showFavoritesOnly)}
+                className={`hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all border ${
+                  showFavoritesOnly ? 'bg-rose-500/20 border-rose-500/40 text-rose-300' : 'bg-white/5 border-white/10 text-white/60 hover:text-white'}`}>
                 <Heart className={`h-3.5 w-3.5 ${showFavoritesOnly ? 'fill-current' : ''}`} />
-                <span className="hidden sm:inline">Favs</span>
+                {showFavoritesOnly ? 'All Photos' : `Favorites (${favCount})`}
               </button>
-              <button onClick={() => setViewMode('grid')}
-                className={`p-1.5 rounded-lg transition-all ${
-                  viewMode==='grid' ? 'text-white' : 'text-stone-500 hover:text-white'}`}
-                style={viewMode==='grid' ? { backgroundColor: brandColor } : {}}>
+            )}
+
+            {/* View toggle */}
+            <div className="flex items-center gap-0.5 bg-white/5 border border-white/8 rounded-xl p-1">
+              <button onClick={() => setViewMode('grid')} title="Grid view"
+                className={`p-1.5 rounded-lg transition-all ${viewMode === 'grid' ? 'bg-white/15 text-white' : 'text-white/40 hover:text-white/70'}`}>
                 <Grid3X3 className="h-3.5 w-3.5" />
               </button>
-              <button onClick={() => setViewMode('list')}
-                className={`p-1.5 rounded-lg transition-all ${
-                  viewMode==='list' ? 'text-white' : 'text-stone-500 hover:text-white'}`}
-                style={viewMode==='list' ? { backgroundColor: brandColor } : {}}>
+              <button onClick={() => setViewMode('list')} title="List view"
+                className={`p-1.5 rounded-lg transition-all ${viewMode === 'list' ? 'bg-white/15 text-white' : 'text-white/40 hover:text-white/70'}`}>
                 <List className="h-3.5 w-3.5" />
               </button>
             </div>
+
+            {/* Social */}
+            <a href="https://www.instagram.com/rawstoriesbyrakesh?igsh=MXg4NTJjeDBybmxndQ==" target="_blank" rel="noopener noreferrer"
+              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-white transition-all hover:brightness-110"
+              style={{ background: 'linear-gradient(135deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888)' }}>
+              {IG_ICON}<span>Follow</span>
+            </a>
+            <a href="https://wa.me/917997743743" target="_blank" rel="noopener noreferrer"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-[#25D366]/90 hover:bg-[#25D366] text-white transition-all">
+              <MessageCircle className="h-3.5 w-3.5 fill-current" /><span className="hidden sm:inline">WhatsApp</span>
+            </a>
           </div>
         </div>
       </header>
 
-      {/* Body */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
+      {/* â”€â”€ Hero Section â”€â”€ */}
+      <div className="pt-14">
+        <div className="relative overflow-hidden" style={{ height: 200 }}>
+          {/* Blurred first photo as background */}
+          {items[0] && !items[0].isVideo && (
+            <img src={getThumbnailUrl(items[0].id, 400)} alt=""
+              className="absolute inset-0 w-full h-full object-cover scale-110"
+              style={{ filter: 'blur(40px) brightness(0.25) saturate(0.8)' }} />
+          )}
+          <div className="absolute inset-0" style={{ background: 'linear-gradient(to bottom, rgba(8,8,9,0.2) 0%, rgba(8,8,9,0.7) 60%, rgba(8,8,9,1) 100%)' }} />
+          {/* Ambient glow */}
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-32 rounded-full blur-[80px] opacity-30 pointer-events-none"
+            style={{ background: brandColor }} />
+
+          <div className="relative z-10 h-full flex flex-col justify-end px-6 sm:px-10 pb-6 max-w-screen-2xl mx-auto">
+            <div className="flex items-end justify-between gap-4">
+              <div>
+                <p className="text-white/40 text-xs uppercase tracking-[0.2em] mb-2 font-medium">Private Gallery</p>
+                <h1 className="text-3xl sm:text-4xl font-bold text-white capitalize leading-tight" style={{ letterSpacing: '-0.02em' }}>
+                  {galleryTitle}
+                </h1>
+                <p className="text-white/40 text-sm mt-1.5">
+                  {filteredItems.length} {filteredItems.length !== 1 ? 'photos' : 'photo'}
+                  {favCount > 0 && <span className="ml-3 text-rose-400">Â· {favCount} favorited</span>}
+                </p>
+              </div>
+              {/* Powered by badge */}
+              <div className="hidden sm:flex items-center gap-2 shrink-0 mb-1">
+                <span className="text-white/30 text-[10px] uppercase tracking-widest">Powered by</span>
+                <img src="/rawstories-logo.png" alt="" className="h-5 object-contain opacity-50" style={{ filter: 'invert(1)' }} />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* â”€â”€ Main Gallery â”€â”€ */}
+      <main className="max-w-screen-2xl mx-auto px-3 sm:px-6 pb-40">
         {loading ? (
-          <div className="flex flex-col items-center justify-center py-32 gap-4">
-            <div className="w-12 h-12 border-2 border-stone-800 border-t-amber-500 rounded-full animate-spin" />
-            <p className="text-stone-500 text-sm tracking-widest uppercase">Loading gallery…</p>
+          /* Skeleton grid */
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2 sm:gap-3">
+            {Array.from({ length: 18 }).map((_, i) => (
+              <div key={i} className="aspect-square rounded-2xl shimmer-dark" />
+            ))}
           </div>
         ) : error ? (
-          <div className="flex flex-col items-center justify-center py-32 gap-3">
+          <div className="flex flex-col items-center justify-center py-32 gap-4">
             <div className="w-16 h-16 bg-red-500/10 border border-red-500/20 rounded-2xl flex items-center justify-center">
               <AlertCircle className="h-8 w-8 text-red-400" />
             </div>
-            <p className="text-red-400 text-sm">{error}</p>
+            <p className="text-red-400/80 text-sm">{error}</p>
           </div>
-        ) : items.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-32 gap-3">
-            <div className="w-20 h-20 bg-stone-900 border border-stone-800 rounded-3xl flex items-center justify-center">
-              <Image className="h-10 w-10 text-stone-600" />
+        ) : filteredItems.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-32 gap-4">
+            <div className="w-20 h-20 bg-white/5 border border-white/10 rounded-3xl flex items-center justify-center">
+              <Image className="h-10 w-10 text-white/20" />
             </div>
-            <h3 className="text-lg font-bold text-stone-400">Gallery is empty</h3>
-            <p className="text-sm text-stone-600">No photos have been added yet.</p>
+            <div className="text-center">
+              <h3 className="text-lg font-semibold text-white/60 mb-1">No photos here</h3>
+              <p className="text-sm text-white/30">{showFavoritesOnly ? 'You haven\'t favorited any photos yet.' : 'This gallery appears to be empty.'}</p>
+            </div>
+            {showFavoritesOnly && (
+              <button onClick={() => setShowFavoritesOnly(false)} className="px-5 py-2.5 bg-white/8 hover:bg-white/12 border border-white/10 rounded-xl text-sm font-medium text-white/70 transition-all">
+                Show all photos
+              </button>
+            )}
           </div>
-        ) : (
+        ) : viewMode === 'grid' ? (
+          /* â”€â”€ Photo Grid â”€â”€ */
           <>
-            {/* Stats bar */}
-            <div className="flex items-center justify-between mb-5">
-              <p className="text-stone-500 text-sm">
-                <span className="text-white font-semibold">{filteredItems.length}</span> {filteredItems.length !== items.length ? `of ${items.length} ` : ''}photo{filteredItems.length !== 1 ? 's' : ''}
-                {showFavoritesOnly && <span className="ml-2 text-red-400">· Favorites only</span>}
-              </p>
-              {selected.size > 0 && (
-                <button onClick={() => setSelected(new Set())} className="text-xs text-stone-500 hover:text-white transition-colors border border-stone-700 px-3 py-1.5 rounded-lg">
-                  Clear {selected.size} selected
-                </button>
-              )}
-            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2 sm:gap-3">
+              {currentItems.map((item, idx) => {
+                const isSelected = selected.has(item.id);
+                const isFav = favorites.has(item.id);
+                const globalIdx = indexOfFirstItem + idx;
+                return (
+                  <div key={item.id} className={`photo-card group relative rounded-2xl overflow-hidden cursor-pointer ${
+                    isSelected ? 'ring-2 ring-amber-400 ring-offset-2 ring-offset-[#080809]' : ''
+                  } ${isFav ? 'ring-2 ring-rose-400/60 ring-offset-1 ring-offset-[#080809]' : ''}`}
+                    style={{ background: '#111113' }}>
 
-            {/* Grid */}
-            {viewMode === 'grid' ? (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
-                {currentItems.map((item, idx) => {
-                  const isSelected = selected.has(item.id);
-                  const isFavorite = favorites.has(item.id);
-                  return (
-                    <div
-                      key={item.id}
-                      className={`group relative rounded-2xl overflow-hidden cursor-pointer border-2 transition-all duration-200 ${
-                        isSelected
-                          ? 'border-amber-500 shadow-[0_0_20px_rgba(217,119,6,0.3)] scale-[0.98]'
-                          : isFavorite
-                          ? 'border-red-500/40 shadow-[0_0_12px_rgba(239,68,68,0.15)]'
-                          : 'border-white/5 hover:border-white/15'
-                      }`}
-                      style={{ background: '#161618' }}
-                    >
-                      {/* Checkbox */}
-                      <button onClick={e => { e.stopPropagation(); toggleSelect(item.id); }}
-                        className={`absolute top-2 left-2 z-10 w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all ${
-                          isSelected ? 'bg-amber-500 border-amber-500' : 'bg-black/60 border-white/30 opacity-0 group-hover:opacity-100'}`}>
-                        {isSelected && <Check className="h-3.5 w-3.5 text-white" />}
-                      </button>
-                      {/* Heart (Favorite) */}
-                      <button onClick={e => { e.stopPropagation(); toggleFavorite(item.id); }}
-                        className={`absolute top-2 right-2 z-10 w-7 h-7 rounded-lg flex items-center justify-center transition-all ${
-                          isFavorite ? 'bg-red-500/90 text-white scale-110' : 'bg-black/60 text-white/50 opacity-0 group-hover:opacity-100 hover:text-white'}`}>
-                        <Heart className={`h-3.5 w-3.5 ${isFavorite ? 'fill-current' : ''}`} />
-                      </button>
-                      {/* Thumbnail */}
-                      <div className="aspect-square relative overflow-hidden" onClick={() => setLightbox(indexOfFirstItem + idx)}>
-                        {item.isVideo ? (
-                          <div className="absolute inset-0 bg-stone-900 flex items-center justify-center">
-                            <div className="w-12 h-12 rounded-full bg-white/10 backdrop-blur flex items-center justify-center">
-                              <Play className="h-5 w-5 text-white ml-0.5" />
-                            </div>
+                    {/* Aspect ratio box */}
+                    <div className="aspect-square relative">
+                      {item.isVideo ? (
+                        <div className="absolute inset-0 flex items-center justify-center" style={{ background: '#111113' }}>
+                          <div className="w-14 h-14 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center border border-white/15">
+                            <Play className="h-6 w-6 text-white ml-1" />
                           </div>
-                        ) : (
-                          <LazyImage
-                            src={getThumbnailUrl(item.id, 400)}
-                            alt={item.title}
-                            priority={idx < 4}
-                            onLoaded={() => handleImageLoad(item.id)}
-                            className="w-full h-full object-cover group-hover:scale-[1.06] transition-transform duration-500"
-                          />
-                        )}
-                        {/* Hover overlay */}
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/0 to-black/0 opacity-0 group-hover:opacity-100 transition-all flex items-end justify-center gap-2 pb-3 z-10">
-                          <button className="p-2 bg-white/15 backdrop-blur-md rounded-full text-white hover:bg-white/25 transition-all" onClick={e => { e.stopPropagation(); setLightbox(indexOfFirstItem + idx); }}>
-                            <ZoomIn className="h-3.5 w-3.5" />
-                          </button>
-                          {allowDownload && (
-                            <button className="p-2 bg-white/15 backdrop-blur-md rounded-full text-white hover:bg-white/25 transition-all" onClick={e => { e.stopPropagation(); downloadItem(item); }}>
-                              <Download className="h-3.5 w-3.5" />
-                            </button>
-                          )}
                         </div>
-                      </div>
-                      {/* Title */}
-                      <div className="px-2.5 py-2">
-                        <p className="text-[11px] text-stone-500 truncate">{item.title}</p>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            ) : (
-              /* List view */
-              <div className="space-y-2">
-                {currentItems.map((item, idx) => {
-                  const isSelected = selected.has(item.id);
-                  const isFav = favorites.has(item.id);
-                  return (
-                    <div key={item.id} className={`flex items-center gap-3 p-3 rounded-2xl border transition-all ${
-                      isSelected
-                        ? 'bg-amber-500/8 border-amber-500/30'
-                        : 'border-white/5 hover:border-white/10 hover:bg-white/4'
-                    }`} style={{ background: isSelected ? undefined : '#161618' }}>
-                      <input type="checkbox" checked={isSelected} onChange={() => toggleSelect(item.id)} className="accent-amber-500 w-4 h-4 flex-shrink-0 rounded" />
-                      <div className="w-11 h-11 rounded-xl overflow-hidden flex-shrink-0 cursor-pointer relative border border-white/8" onClick={() => setLightbox(indexOfFirstItem + idx)}>
-                        {item.isVideo
-                          ? <div className="w-full h-full bg-stone-900 flex items-center justify-center"><Play className="h-4 w-4 text-white/60"/></div>
-                          : <LazyImage src={getThumbnailUrl(item.id, 200)} alt={item.title} priority={idx < 8} onLoaded={() => handleImageLoad(item.id)} className="w-full h-full object-cover" />}
-                      </div>
-                      <span className="flex-1 text-stone-300 text-sm truncate">{item.title}</span>
-                      <div className="flex items-center gap-1.5">
-                        <button onClick={e => { e.stopPropagation(); toggleFavorite(item.id); }}
-                          className={`p-2 rounded-xl transition-all ${
-                            isFav ? 'bg-red-500/20 text-red-400' : 'text-stone-500 hover:text-white hover:bg-white/8'}`}>
-                          <Heart className={`h-4 w-4 ${isFav ? 'fill-current' : ''}`} />
+                      ) : (
+                        <LazyImage src={getThumbnailUrl(item.id, 400)} alt={item.title} priority={idx < 6}
+                          onLoaded={() => handleImageLoad(item.id)} className="w-full h-full object-cover" />
+                      )}
+
+                      {/* Gradient overlay */}
+                      <div className="card-overlay absolute inset-0 pointer-events-none"
+                        style={{ background: 'linear-gradient(180deg, rgba(0,0,0,0.5) 0%, transparent 35%, transparent 55%, rgba(0,0,0,0.7) 100%)' }} />
+
+                      {/* Top controls: checkbox + fav */}
+                      <div className="card-actions absolute top-2.5 left-2.5 right-2.5 flex items-start justify-between z-10">
+                        <button onClick={e => { e.stopPropagation(); toggleSelect(item.id); }}
+                          className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all shadow-lg ${
+                            isSelected ? 'bg-amber-500 border-amber-500' : 'bg-black/50 backdrop-blur border-white/40 hover:border-white'}`}>
+                          {isSelected && <Check className="h-3.5 w-3.5 text-white" />}
                         </button>
-                        <button onClick={() => setLightbox(indexOfFirstItem + idx)} className="p-2 text-stone-500 hover:text-white rounded-xl hover:bg-white/8 transition-all">
-                          <Eye className="h-4 w-4" />
+                        <button onClick={e => { e.stopPropagation(); toggleFavorite(item.id); }}
+                          className={`w-7 h-7 rounded-xl flex items-center justify-center transition-all shadow-lg ${
+                            isFav ? 'bg-rose-500 text-white' : 'bg-black/50 backdrop-blur border border-white/20 text-white/70 hover:text-white hover:border-white/40'}`}>
+                          <Heart className={`h-3.5 w-3.5 ${isFav ? 'fill-current fav-active' : ''}`} />
+                        </button>
+                      </div>
+
+                      {/* Bottom action row */}
+                      <div className="card-actions absolute bottom-2.5 left-2.5 right-2.5 flex items-center justify-center gap-2 z-10">
+                        <button onClick={e => { e.stopPropagation(); setLightbox(globalIdx); }}
+                          className="flex-1 flex items-center justify-center gap-1.5 py-1.5 bg-black/60 backdrop-blur-md rounded-xl border border-white/10 text-white text-xs font-medium hover:bg-white/20 transition-all">
+                          <ZoomIn className="h-3.5 w-3.5" /> View
                         </button>
                         {allowDownload && (
-                          <button onClick={() => downloadItem(item)} className="p-2 text-stone-500 hover:text-white rounded-xl hover:bg-white/8 transition-all">
-                            <Download className="h-4 w-4" />
+                          <button onClick={e => { e.stopPropagation(); downloadItem(item); }}
+                            className="w-8 h-8 flex items-center justify-center bg-black/60 backdrop-blur-md rounded-xl border border-white/10 text-white hover:bg-white/20 transition-all">
+                            <Download className="h-3.5 w-3.5" />
                           </button>
                         )}
                       </div>
                     </div>
-                  );
-                })}
-              </div>
-            )}
 
-            {/* Pagination Controls */}
+                    {/* Click to open lightbox */}
+                    <div className="absolute inset-0 z-0" onClick={() => setLightbox(globalIdx)} />
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Pagination */}
             {totalPages > 1 && (
-              <div className="mt-10 flex items-center justify-center gap-3 pt-6 border-t border-white/5">
-                <button
-                  onClick={() => currentPage > 1 && paginate(currentPage - 1)}
-                  disabled={currentPage === 1}
-                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl border border-white/8 text-sm transition-all disabled:opacity-30 disabled:cursor-not-allowed text-white hover:bg-white/8"
-                  style={{ background: '#161618' }}
-                >
-                  <ChevronLeft className="h-4 w-4" /> Previous
+              <div className="mt-8 flex items-center justify-center gap-2">
+                <button onClick={() => currentPage > 1 && paginate(currentPage - 1)} disabled={currentPage === 1}
+                  className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-medium disabled:opacity-30 text-white/60 hover:text-white hover:bg-white/8 border border-white/8 transition-all">
+                  <ChevronLeft className="h-4 w-4" /> Prev
                 </button>
-
-                <div className="flex items-center gap-1.5">
-                  {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
-                    const page = totalPages <= 7 ? i + 1 : i === 0 ? 1 : i === 6 ? totalPages : currentPage - 3 + i;
-                    if (page < 1 || page > totalPages) return null;
-                    return (
-                      <button
-                        key={page}
-                        onClick={() => paginate(page)}
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).filter(p => Math.abs(p - currentPage) <= 2 || p === 1 || p === totalPages).map((page, i, arr) => (
+                    <React.Fragment key={page}>
+                      {i > 0 && arr[i-1] !== page - 1 && <span className="text-white/20 px-1">â€¦</span>}
+                      <button onClick={() => paginate(page)}
                         className={`w-9 h-9 rounded-xl text-sm font-semibold transition-all border ${
-                          page === currentPage
-                            ? 'text-white border-transparent'
-                            : 'text-stone-500 border-white/8 hover:text-white hover:border-white/15'
-                        }`}
-                        style={page === currentPage ? { backgroundColor: brandColor, borderColor: brandColor } : { background: '#161618' }}
-                      >
+                          page === currentPage ? 'text-black border-transparent' : 'text-white/50 border-white/8 hover:text-white hover:border-white/20 bg-white/3'}`}
+                        style={page === currentPage ? { backgroundColor: brandColor } : {}}>
                         {page}
                       </button>
-                    );
-                  })}
+                    </React.Fragment>
+                  ))}
                 </div>
-
-                <button
-                  onClick={() => currentPage < totalPages && paginate(currentPage + 1)}
-                  disabled={currentPage === totalPages}
-                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl border border-white/8 text-sm transition-all disabled:opacity-30 disabled:cursor-not-allowed text-white hover:bg-white/8"
-                  style={{ background: '#161618' }}
-                >
+                <button onClick={() => currentPage < totalPages && paginate(currentPage + 1)} disabled={currentPage === totalPages}
+                  className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-medium disabled:opacity-30 text-white/60 hover:text-white hover:bg-white/8 border border-white/8 transition-all">
                   Next <ChevronRight className="h-4 w-4" />
                 </button>
               </div>
             )}
           </>
+        ) : (
+          /* â”€â”€ List View â”€â”€ */
+          <div className="space-y-1.5">
+            {currentItems.map((item, idx) => {
+              const isSel = selected.has(item.id);
+              const isFav = favorites.has(item.id);
+              return (
+                <div key={item.id} onClick={() => setLightbox(indexOfFirstItem + idx)}
+                  className={`group flex items-center gap-4 p-3 rounded-2xl border cursor-pointer transition-all ${
+                    isSel ? 'bg-amber-500/8 border-amber-500/25' : 'border-white/5 hover:bg-white/4 hover:border-white/10'}`}
+                  style={{ background: isSel ? undefined : '#111113' }}>
+                  <div className="w-12 h-12 rounded-xl overflow-hidden border border-white/8 shrink-0">
+                    {item.isVideo ? <div className="w-full h-full bg-stone-900 flex items-center justify-center"><Play className="h-4 w-4 text-white/60" /></div>
+                      : <LazyImage src={getThumbnailUrl(item.id, 100)} alt={item.title} priority={idx < 10} onLoaded={() => handleImageLoad(item.id)} className="w-full h-full object-cover" />}
+                  </div>
+                  <span className="flex-1 text-sm text-white/70 truncate group-hover:text-white transition-colors">{item.title}</span>
+                  <div className="flex items-center gap-1.5 shrink-0" onClick={e => e.stopPropagation()}>
+                    <button onClick={() => toggleFavorite(item.id)}
+                      className={`p-2 rounded-xl transition-all ${isFav ? 'text-rose-400 bg-rose-500/15' : 'text-white/30 hover:text-rose-400 hover:bg-rose-500/10'}`}>
+                      <Heart className={`h-4 w-4 ${isFav ? 'fill-current' : ''}`} />
+                    </button>
+                    <button onClick={e => { e.stopPropagation(); setLightbox(indexOfFirstItem + idx); }}
+                      className="p-2 rounded-xl text-white/30 hover:text-white/80 hover:bg-white/8 transition-all">
+                      <Eye className="h-4 w-4" />
+                    </button>
+                    {allowDownload && (
+                      <button onClick={e => { e.stopPropagation(); downloadItem(item); }}
+                        className="p-2 rounded-xl text-white/30 hover:text-white/80 hover:bg-white/8 transition-all">
+                        <Download className="h-4 w-4" />
+                      </button>
+                    )}
+                    <input type="checkbox" checked={isSel} onChange={() => toggleSelect(item.id)} className="w-4 h-4 accent-amber-500 rounded" />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         )}
       </main>
 
-      {/* ── Lightbox ── */}
-      {lightbox !== null && filteredItems[lightbox] && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.97)' }} onClick={() => setLightbox(null)}>
-          {/* Close */}
-          <button onClick={e => { e.stopPropagation(); setLightbox(null); }}
-            className="absolute top-4 right-4 w-10 h-10 bg-white/8 hover:bg-white/15 border border-white/10 rounded-2xl flex items-center justify-center text-white/70 hover:text-white transition-all z-20">
-            <X className="h-5 w-5" />
-          </button>
-          {/* Counter */}
-          <div className="absolute top-4 left-4 text-xs text-stone-500 bg-black/40 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/8 z-20">
-            {lightbox + 1} / {filteredItems.length}
-          </div>
-
-          {/* Prev */}
-          {lightbox > 0 && (
-            <button onClick={e => { e.stopPropagation(); setLightbox(p => p! - 1); }}
-              className="absolute left-3 sm:left-5 top-1/2 -translate-y-1/2 w-11 h-11 bg-white/8 hover:bg-white/15 border border-white/10 rounded-2xl flex items-center justify-center text-white/70 hover:text-white transition-all z-20">
-              <ChevronLeft className="h-5 w-5" />
-            </button>
-          )}
-          {/* Next */}
-          {lightbox < filteredItems.length - 1 && (
-            <button onClick={e => { e.stopPropagation(); setLightbox(p => p! + 1); }}
-              className="absolute right-3 sm:right-5 top-1/2 -translate-y-1/2 w-11 h-11 bg-white/8 hover:bg-white/15 border border-white/10 rounded-2xl flex items-center justify-center text-white/70 hover:text-white transition-all z-20">
-              <ChevronRight className="h-5 w-5" />
-            </button>
-          )}
-
-          {/* Image area */}
-          <div
-            className="flex flex-col items-center justify-center w-full h-full px-16 sm:px-20"
-            onClick={e => e.stopPropagation()}
-            onPointerDown={handleLightboxPointerDown}
-            onPointerUp={handleLightboxPointerUp}
-            onPointerCancel={() => { lightboxGestureRef.current = null; }}
-            onPointerLeave={() => { lightboxGestureRef.current = null; }}
-            style={{ touchAction: 'none' }}
-          >
-            {/* Swipe hint */}
-            <div className="mb-4 inline-flex items-center gap-1.5 rounded-full border border-white/8 bg-white/5 px-3 py-1 text-[11px] text-stone-500 backdrop-blur-md">
-              <GripHorizontal className="h-3.5 w-3.5 text-stone-600" />
-              Swipe or use arrow keys
-            </div>
-
-            {filteredItems[lightbox].isVideo ? (
-              <video src={filteredItems[lightbox].imageUrl} controls className="max-h-[65vh] max-w-full rounded-2xl shadow-2xl" />
-            ) : (
-              <img
-                src={getThumbnailUrl(filteredItems[lightbox].id, 800)}
-                alt={filteredItems[lightbox].title}
-                decoding="async"
-                onLoad={() => setLightboxImageLoaded(true)}
-                className={`max-h-[65vh] max-w-full object-contain rounded-2xl shadow-2xl shadow-black/60 transition-all duration-300 ${
-                  lightboxImageLoaded ? 'opacity-100 scale-100' : 'opacity-0 scale-95'
-                }`}
-                style={{ transform: `rotate(${lightboxRotation}deg)`, transition: 'transform 180ms ease-out, opacity 300ms' }}
-              />
-            )}
-
-            {/* Bottom controls */}
-            <div className="mt-5 flex items-center justify-center gap-2 flex-wrap">
-              <button
-                onClick={() => toggleFavorite(filteredItems[lightbox!].id)}
-                className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold transition-all border ${
-                  favorites.has(filteredItems[lightbox].id)
-                    ? 'bg-red-600/90 border-red-500 text-white shadow-lg shadow-red-900/40'
-                    : 'bg-white/6 border-white/8 text-stone-300 hover:bg-white/12'}`}>
-                <Heart className={`h-4 w-4 ${favorites.has(filteredItems[lightbox].id) ? 'fill-current' : ''}`} />
-                {favorites.has(filteredItems[lightbox].id) ? 'Favorited' : 'Favorite'}
-              </button>
-
-              <button
-                onClick={() => setShowComments(!showComments)}
-                className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold transition-all border ${
-                  showComments ? 'bg-amber-600/90 border-amber-500 text-white' : 'bg-white/6 border-white/8 text-stone-300 hover:bg-white/12'}`}>
-                <MessageSquare className="h-4 w-4" />
-                Comments ({(filteredItems[lightbox].comments||[]).length})
-              </button>
-
-              {!filteredItems[lightbox].isVideo && (
-                <button onClick={handleRotateCurrentImage}
-                  className="flex items-center gap-1.5 px-4 py-2 bg-white/6 hover:bg-white/12 border border-white/8 text-stone-300 rounded-xl text-sm font-semibold transition-all">
-                  <RotateCw className="h-4 w-4" /> Rotate
-                </button>
-              )}
-
-              {allowDownload && (
-                <button onClick={() => downloadItem(filteredItems[lightbox!])}
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold transition-all text-white shadow-lg"
-                  style={{ background: `linear-gradient(135deg, ${brandColor}, ${brandColor}cc)` }}>
-                  <Download className="h-4 w-4" /> Download
-                </button>
-              )}
-            </div>
-
-            {/* Comments panel */}
-            {showComments && (
-              <div className="mt-4 w-full max-w-2xl mx-auto bg-stone-950/90 backdrop-blur-xl rounded-2xl border border-white/8 p-4 max-h-56 flex flex-col">
-                <div className="flex-1 overflow-y-auto space-y-2.5 mb-3 pr-1">
-                  {(filteredItems[lightbox].comments||[]).length === 0 ? (
-                    <p className="text-stone-600 text-center text-xs py-4">No comments yet. Be the first!</p>
-                  ) : (
-                    (filteredItems[lightbox].comments||[]).map((c, i) => (
-                      <div key={i} className="bg-white/4 border border-white/6 rounded-xl p-3">
-                        <div className="flex justify-between items-baseline mb-1">
-                          <span className="text-amber-400 text-xs font-bold">{c.author}</span>
-                          <span className="text-stone-600 text-[10px]">{new Date(c.createdAt).toLocaleDateString()}</span>
-                        </div>
-                        <p className="text-stone-300 text-sm">{c.text}</p>
-                      </div>
-                    ))
-                  )}
-                </div>
-                <form onSubmit={handleAddComment} className="flex gap-2 shrink-0">
-                  <input type="text" placeholder="Your name" value={authorName} onChange={e=>setAuthorName(e.target.value)}
-                    className="w-28 bg-white/5 border border-white/8 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500/60 placeholder-stone-600" />
-                  <input type="text" placeholder="Write a comment…" value={newComment} onChange={e=>setNewComment(e.target.value)}
-                    className="flex-1 bg-white/5 border border-white/8 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500/60 placeholder-stone-600" />
-                  <button type="submit" disabled={!newComment.trim()}
-                    className="bg-amber-600 hover:bg-amber-500 disabled:opacity-40 text-white px-3 py-2 rounded-xl transition-colors">
-                    <Send className="h-3.5 w-3.5" />
-                  </button>
-                </form>
+      {/* â”€â”€ Floating Action Bar (when favorites selected) â”€â”€ */}
+      {favCount > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50">
+          <div className="flex items-center gap-2 px-4 py-3 rounded-2xl border border-white/10 shadow-2xl"
+            style={{ background: 'rgba(15,15,17,0.95)', backdropFilter: 'blur(24px)', boxShadow: '0 25px 60px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.06)' }}>
+            <div className="flex items-center gap-2 pr-3 border-r border-white/10">
+              <div className="w-7 h-7 rounded-lg bg-rose-500/20 flex items-center justify-center">
+                <Heart className="h-3.5 w-3.5 text-rose-400 fill-current" />
               </div>
+              <span className="text-sm font-semibold text-white">{favCount}</span>
+              <span className="text-xs text-white/40 hidden sm:inline">favorited</span>
+            </div>
+
+            <button onClick={() => setShowFavoritesOnly(!showFavoritesOnly)}
+              className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+                showFavoritesOnly ? 'bg-white/15 text-white' : 'text-white/50 hover:text-white hover:bg-white/8'}`}>
+              {showFavoritesOnly ? 'Show All' : 'Filter Favs'}
+            </button>
+
+            {allowDownload && (
+              <button onClick={handleDownloadFavoritesZip} disabled={downloadingZip}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-white/8 hover:bg-white/15 text-white/70 hover:text-white transition-all disabled:opacity-40">
+                {downloadingZip ? <div className="w-3 h-3 border border-white/40 border-t-white rounded-full animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+                <span className="hidden sm:inline">Export ZIP</span>
+              </button>
             )}
+
+            <button onClick={submitFavorites} disabled={isSubmittingFavs}
+              className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl text-xs font-bold text-white transition-all disabled:opacity-50 shadow-lg"
+              style={{ background: `linear-gradient(135deg, #10b981, #059669)`, boxShadow: '0 4px 15px rgba(16,185,129,0.3)' }}>
+              {isSubmittingFavs ? <div className="w-3 h-3 border border-white/40 border-t-white rounded-full animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+              Submit
+            </button>
           </div>
         </div>
       )}
 
-      {/* ── Favorites Submitted Modal ── */}
-      {showFavoritesSubmittedModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.85)' }}>
-          <div className="absolute inset-0 backdrop-blur-md" onClick={() => setShowFavoritesSubmittedModal(false)} />
-          <div className="relative bg-stone-950/95 border border-emerald-500/20 rounded-3xl p-8 max-w-sm w-full shadow-2xl shadow-black/60 text-center">
-            <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-emerald-500/50 to-transparent rounded-t-3xl" />
-            <div className="w-18 h-18 bg-emerald-500/10 border border-emerald-500/25 rounded-3xl flex items-center justify-center mx-auto mb-5 shadow-[0_0_30px_rgba(52,211,153,0.15)]" style={{ width: 72, height: 72 }}>
-              <Heart className="h-9 w-9 text-emerald-400 fill-current" />
+      {/* â”€â”€ Cinematic Lightbox â”€â”€ */}
+      {lightbox !== null && currentLbItem && (
+        <div className="fixed inset-0 z-50 flex flex-col" style={{ background: 'rgba(0,0,0,0.98)' }}>
+
+          {/* Top bar */}
+          <div className="flex items-center justify-between px-4 sm:px-6 py-3 shrink-0"
+            style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.8), transparent)' }}>
+            <div className="flex items-center gap-3">
+              <button onClick={() => setLightbox(null)}
+                className="w-9 h-9 rounded-xl bg-white/8 hover:bg-white/15 border border-white/10 flex items-center justify-center text-white/70 hover:text-white transition-all">
+                <X className="h-4 w-4" />
+              </button>
+              <span className="text-white/40 text-sm">{lightbox + 1} <span className="text-white/20">/ {filteredItems.length}</span></span>
             </div>
-            <h3 className="text-2xl font-bold text-white mb-2">Favorites Submitted! 🎉</h3>
-            <p className="text-stone-400 text-sm mb-7 leading-relaxed">
-              Your {favorites.size} favorite photo{favorites.size !== 1 ? 's' : ''} have been sent to the photographer.
+            <p className="text-white/50 text-sm truncate max-w-[200px] hidden sm:block">{currentLbItem.title}</p>
+            <div className="flex items-center gap-2">
+              <button onClick={() => toggleFavorite(currentLbItem.id)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${
+                  favorites.has(currentLbItem.id)
+                    ? 'bg-rose-500/20 border-rose-500/40 text-rose-300'
+                    : 'bg-white/5 border-white/10 text-white/50 hover:text-white hover:border-white/25'}`}>
+                <Heart className={`h-3.5 w-3.5 ${favorites.has(currentLbItem.id) ? 'fill-current' : ''}`} />
+                {favorites.has(currentLbItem.id) ? 'Favorited' : 'Favorite'}
+              </button>
+              {!currentLbItem.isVideo && (
+                <button onClick={handleRotateCurrentImage}
+                  className="w-8 h-8 rounded-xl bg-white/5 hover:bg-white/12 border border-white/10 flex items-center justify-center text-white/50 hover:text-white transition-all">
+                  <RotateCw className="h-3.5 w-3.5" />
+                </button>
+              )}
+              <button onClick={() => setShowComments(!showComments)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${
+                  showComments ? 'bg-amber-500/20 border-amber-500/40 text-amber-300' : 'bg-white/5 border-white/10 text-white/50 hover:text-white hover:border-white/25'}`}>
+                <MessageSquare className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Comments</span>
+                <span>({(currentLbItem.comments||[]).length})</span>
+              </button>
+              {allowDownload && (
+                <button onClick={() => downloadItem(currentLbItem)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-white transition-all"
+                  style={{ background: brandColor }}>
+                  <Download className="h-3.5 w-3.5" /> Download
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Image area */}
+          <div className="flex-1 flex items-center justify-center relative px-14 sm:px-20 overflow-hidden"
+            onPointerDown={handleLightboxPointerDown}
+            onPointerUp={handleLightboxPointerUp}
+            onPointerCancel={() => { lightboxGestureRef.current = null; }}
+            onPointerLeave={() => { lightboxGestureRef.current = null; }}
+            style={{ touchAction: 'none' }}>
+
+            {/* Prev */}
+            {lightbox > 0 && (
+              <button onClick={e => { e.stopPropagation(); setLightbox(p => p! - 1); }}
+                className="absolute left-3 sm:left-5 top-1/2 -translate-y-1/2 w-10 h-10 rounded-2xl bg-white/8 hover:bg-white/18 border border-white/10 flex items-center justify-center text-white/60 hover:text-white transition-all z-10">
+                <ChevronLeft className="h-5 w-5" />
+              </button>
+            )}
+            {/* Next */}
+            {lightbox < filteredItems.length - 1 && (
+              <button onClick={e => { e.stopPropagation(); setLightbox(p => p! + 1); }}
+                className="absolute right-3 sm:right-5 top-1/2 -translate-y-1/2 w-10 h-10 rounded-2xl bg-white/8 hover:bg-white/18 border border-white/10 flex items-center justify-center text-white/60 hover:text-white transition-all z-10">
+                <ChevronRight className="h-5 w-5" />
+              </button>
+            )}
+
+            {currentLbItem.isVideo ? (
+              <video src={currentLbItem.imageUrl} controls className="max-h-[75vh] max-w-full rounded-2xl shadow-2xl" />
+            ) : (
+              <img src={getThumbnailUrl(currentLbItem.id, 1200)} alt={currentLbItem.title}
+                decoding="async"
+                onLoad={() => setLightboxImageLoaded(true)}
+                className={`lb-img-enter max-h-[75vh] max-w-full object-contain rounded-xl shadow-2xl`}
+                style={{ transform: `rotate(${lightboxRotation}deg)`, transition: 'transform 200ms ease' }} />
+            )}
+          </div>
+
+          {/* Progress bar */}
+          <div className="h-px mx-6 rounded-full shrink-0" style={{ background: 'rgba(255,255,255,0.06)' }}>
+            <div className="h-full rounded-full transition-all" style={{ width: `${((lightbox + 1) / filteredItems.length) * 100}%`, background: brandColor }} />
+          </div>
+
+          {/* Comment panel */}
+          {showComments && (
+            <div className="shrink-0 border-t border-white/6 px-4 sm:px-8 py-4 max-h-56 flex flex-col"
+              style={{ background: 'rgba(8,8,9,0.9)' }}>
+              <div className="flex-1 overflow-y-auto space-y-2 mb-3 pr-1">
+                {(currentLbItem.comments||[]).length === 0 ? (
+                  <p className="text-white/30 text-xs text-center py-3">No comments yet â€” be the first!</p>
+                ) : (
+                  (currentLbItem.comments||[]).map((c, i) => (
+                    <div key={i} className="bg-white/4 border border-white/6 rounded-xl p-3">
+                      <div className="flex justify-between mb-1">
+                        <span className="text-xs font-bold" style={{ color: brandColor }}>{c.author}</span>
+                        <span className="text-[10px] text-white/25">{new Date(c.createdAt).toLocaleDateString()}</span>
+                      </div>
+                      <p className="text-sm text-white/70">{c.text}</p>
+                    </div>
+                  ))
+                )}
+              </div>
+              <form onSubmit={handleAddComment} className="flex gap-2">
+                <input type="text" placeholder="Your name" value={authorName} onChange={e => setAuthorName(e.target.value)}
+                  className="w-24 bg-white/5 border border-white/8 rounded-xl px-3 py-2 text-xs text-white placeholder-white/25 focus:outline-none focus:border-amber-500/40" />
+                <input type="text" placeholder="Write a commentâ€¦" value={newComment} onChange={e => setNewComment(e.target.value)}
+                  className="flex-1 bg-white/5 border border-white/8 rounded-xl px-3 py-2 text-xs text-white placeholder-white/25 focus:outline-none focus:border-amber-500/40" />
+                <button type="submit" disabled={!newComment.trim()}
+                  className="px-4 py-2 rounded-xl text-white text-xs font-semibold disabled:opacity-30 transition-all"
+                  style={{ background: brandColor }}>
+                  <Send className="h-3.5 w-3.5" />
+                </button>
+              </form>
+            </div>
+          )}
+
+          {/* Thumbnail strip */}
+          <div className="flex items-center gap-1.5 px-4 py-3 overflow-x-auto shrink-0 scrollbar-hide"
+            style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.8), transparent)' }}>
+            {filteredItems.slice(Math.max(0, lightbox - 4), lightbox + 8).map((item, i) => {
+              const gi = Math.max(0, lightbox - 4) + i;
+              return (
+                <button key={item.id} onClick={() => setLightbox(gi)}
+                  className={`relative w-12 h-12 sm:w-14 sm:h-14 rounded-xl overflow-hidden shrink-0 border-2 transition-all ${
+                    gi === lightbox ? 'border-white scale-110' : 'border-transparent opacity-50 hover:opacity-80'}`}
+                  style={{ borderColor: gi === lightbox ? brandColor : undefined }}>
+                  {item.isVideo
+                    ? <div className="w-full h-full bg-stone-900 flex items-center justify-center"><Play className="h-3.5 w-3.5 text-white/60" /></div>
+                    : <img src={getThumbnailUrl(item.id, 100)} alt="" className="w-full h-full object-cover" />}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* â”€â”€ Favorites Submitted Modal â”€â”€ */}
+      {showFavoritesSubmittedModal && (
+        <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-4"
+          style={{ background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(16px)' }}>
+          <div className="relative rounded-3xl p-8 w-full max-w-sm text-center border border-white/8 shadow-2xl"
+            style={{ background: 'rgba(12,12,14,0.98)' }}>
+            <div className="absolute top-0 left-0 right-0 h-px rounded-t-3xl"
+              style={{ background: 'linear-gradient(to right, transparent, rgba(16,185,129,0.6), transparent)' }} />
+            <div className="w-16 h-16 rounded-3xl flex items-center justify-center mx-auto mb-5 shadow-lg"
+              style={{ background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.25)', boxShadow: '0 0 30px rgba(16,185,129,0.15)' }}>
+              <Heart className="h-8 w-8 text-emerald-400 fill-current" />
+            </div>
+            <h3 className="text-2xl font-bold text-white mb-2">Favorites Sent! ðŸŽ‰</h3>
+            <p className="text-white/40 text-sm mb-7 leading-relaxed">
+              Your {favorites.size} selected photo{favorites.size !== 1 ? 's' : ''} have been sent to the photographer.
             </p>
             <div className="flex flex-col gap-3">
-              <a
-                href={`https://api.whatsapp.com/send?text=${encodeURIComponent(`Hi! I've selected my ${favorites.size} favorites in the shared gallery: ${window.location.href}`)}`}
+              <a href={`https://api.whatsapp.com/send?text=${encodeURIComponent(`Hi! I've selected my ${favorites.size} favorites in the shared gallery: ${window.location.href}`)}`}
                 target="_blank" rel="noopener noreferrer"
-                className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl font-bold transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20 text-sm"
-              >
-                <MessageCircle className="h-4 w-4 fill-current" /> Notify on WhatsApp
+                className="w-full py-3 rounded-2xl font-bold text-sm text-white flex items-center justify-center gap-2 transition-all"
+                style={{ background: '#25D366', boxShadow: '0 8px 25px rgba(37,211,102,0.25)' }}>
+                <MessageCircle className="h-4 w-4 fill-current" /> Notify via WhatsApp
               </a>
-              <button
-                onClick={() => setShowFavoritesSubmittedModal(false)}
-                className="w-full py-3 bg-white/5 hover:bg-white/8 border border-white/8 text-stone-400 rounded-2xl font-semibold transition-all text-sm"
-              >
+              <button onClick={() => setShowFavoritesSubmittedModal(false)}
+                className="w-full py-3 bg-white/5 hover:bg-white/8 border border-white/8 text-white/50 hover:text-white rounded-2xl font-semibold text-sm transition-all">
                 Close
               </button>
             </div>
