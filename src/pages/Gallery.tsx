@@ -275,6 +275,7 @@ function Gallery() {
   });
   const [sortBy, setSortBy] = useState('uploadDate');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [uploadFiles, setUploadFiles] = useState<UploadFile[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
   const [createFolderLoading, setCreateFolderLoading] = useState(false); // New: Loader for folder creation
