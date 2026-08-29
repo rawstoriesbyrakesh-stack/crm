@@ -1494,8 +1494,9 @@ function Gallery() {
       return;
     }
 
-    const itemsToDelete = items.filter((item) => itemIds.includes(item.id));
-    const foldersToDelete = folders.filter((folder) => itemIds.includes(folder.path));
+    const normIds = itemIds.map(id => id.replace(/^\//, '').replace(/\/$/, ''));
+    const itemsToDelete = items.filter((item) => normIds.includes(item.id.replace(/^\//, '').replace(/\/$/, '')));
+    const foldersToDelete = folders.filter((folder) => normIds.includes(folder.path.replace(/^\//, '').replace(/\/$/, '')));
     const itemCount = itemsToDelete.length;
     const folderCount = foldersToDelete.length;
 
@@ -1512,6 +1513,8 @@ function Gallery() {
         folderCount === 1
           ? `Are you sure you want to delete the folder "${foldersToDelete[0]?.name}"?`
           : `Are you sure you want to delete ${folderCount} folder(s)?`;
+    } else {
+      confirmMessage = `Are you sure you want to delete ${itemIds.length} item(s)/folder(s)?`;
     }
 
     if (!globalThis.confirm?.(confirmMessage)) return;
@@ -1521,7 +1524,7 @@ function Gallery() {
       setError(null);
       setDeleteErrors([]);
 
-      const keys = [
+      const keys = Array.from(new Set([
         ...itemsToDelete
           .map((item) => item.key)
           .filter((key): key is string => typeof key === 'string' && key.trim() !== ''),
@@ -1531,7 +1534,15 @@ function Gallery() {
           if (!prefix.endsWith('/')) prefix += '/';
           return prefix;
         }),
-      ];
+        ...itemIds.map(id => {
+          let prefix = id.replace(/^\//, '');
+          const isFolderMatch = folders.some(f => f.path.replace(/^\//, '').replace(/\/$/, '') === prefix.replace(/\/$/, ''));
+          if (isFolderMatch && !prefix.endsWith('/')) {
+            prefix += '/';
+          }
+          return prefix;
+        })
+      ]));
 
       if (keys.length === 0) {
         throw new Error('No valid keys found for deletion');

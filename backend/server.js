@@ -812,23 +812,64 @@ const server = http.createServer(async (req, res) => {
       const fileMetaBulkOps = [];
       const folderMetaBulkOps = [];
 
-      for (const key of keys) {
-        if (key.endsWith('/')) {
-          const list = await s3.send(new ListObjectsV2Command({ Bucket: S3_BUCKET, Prefix: key }));
-          const objects = list.Contents || [];
+      for (let rawKey of keys) {
+        let key = rawKey.replace(/^\//, '');
+        if (!key) continue;
+
+        let isFolder = key.endsWith('/');
+        if (!isFolder && mongoose.connection.readyState === 1) {
+          const isFolderInDb = await FolderMeta.findOne({ path: `${key}/` }).lean().catch(() => null);
+          if (isFolderInDb) isFolder = true;
+        }
+
+        if (isFolder) {
+          const folderPrefix = key.endsWith('/') ? key : `${key}/`;
+          const trashPrefix = `trash/${folderPrefix}`;
+
+          // List all S3 objects with folderPrefix
+          const list = await s3.send(new ListObjectsV2Command({ Bucket: S3_BUCKET, Prefix: folderPrefix })).catch(() => null);
+          const objects = list?.Contents || [];
+
+          let foundObjects = false;
           for (const obj of objects) {
             if (!obj.Key) continue;
-            copyItems.push({ srcKey: obj.Key, trashKey: `trash/${obj.Key}` });
+            foundObjects = true;
+            const relPath = obj.Key.slice(folderPrefix.length);
+            copyItems.push({ srcKey: obj.Key, trashKey: `${trashPrefix}${relPath}` });
           }
-          folderMetaBulkOps.push({
-            updateOne: { filter: { path: key }, update: { path: `trash/${key}` } }
-          });
+
+          if (!foundObjects) {
+            copyItems.push({ srcKey: folderPrefix, trashKey: trashPrefix });
+          }
+
+          // Update MongoDB FileMeta and FolderMeta for ALL nested paths under this folder
+          if (mongoose.connection.readyState === 1) {
+            const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const regex = new RegExp('^' + escapeRegex(folderPrefix));
+            const filesToUpdate = await FileMeta.find({ key: regex }).lean().catch(() => []);
+            for (const fm of filesToUpdate) {
+              const newKey = `trash/${fm.key}`;
+              fileMetaBulkOps.push({
+                updateOne: { filter: { _id: fm._id }, update: { $set: { key: newKey } } }
+              });
+            }
+            const foldersToUpdate = await FolderMeta.find({ path: regex }).lean().catch(() => []);
+            for (const fdm of foldersToUpdate) {
+              const newPath = `trash/${fdm.path}`;
+              folderMetaBulkOps.push({
+                updateOne: { filter: { _id: fdm._id }, update: { $set: { path: newPath } } }
+              });
+            }
+          }
         } else {
+          // Single file
           const trashKey = `trash/${key}`;
           copyItems.push({ srcKey: key, trashKey });
-          fileMetaBulkOps.push({
-            updateOne: { filter: { key }, update: { key: trashKey } }
-          });
+          if (mongoose.connection.readyState === 1) {
+            fileMetaBulkOps.push({
+              updateOne: { filter: { key }, update: { $set: { key: trashKey } } }
+            });
+          }
         }
       }
 
@@ -841,10 +882,10 @@ const server = http.createServer(async (req, res) => {
         })).catch(e => console.error(`Error copying ${item.srcKey} to trash:`, e.message));
       });
 
-      // Execute DB bulk updates concurrently
+      // Execute DB bulk updates
       if (mongoose.connection.readyState === 1) {
-        if (fileMetaBulkOps.length > 0) await FileMeta.bulkWrite(fileMetaBulkOps).catch(() => {});
-        if (folderMetaBulkOps.length > 0) await FolderMeta.bulkWrite(folderMetaBulkOps).catch(() => {});
+        if (fileMetaBulkOps.length > 0) await FileMeta.bulkWrite(fileMetaBulkOps).catch(e => console.error('fileMetaBulkOps error:', e));
+        if (folderMetaBulkOps.length > 0) await FolderMeta.bulkWrite(folderMetaBulkOps).catch(e => console.error('folderMetaBulkOps error:', e));
       }
 
       // Batch delete original objects from S3
@@ -871,26 +912,62 @@ const server = http.createServer(async (req, res) => {
       const fileMetaBulkOps = [];
       const folderMetaBulkOps = [];
 
-      for (const key of keys) {
+      for (let rawKey of keys) {
+        let key = rawKey.replace(/^\//, '');
+        if (!key) continue;
         const trashKey = key.startsWith('trash/') ? key : `trash/${key}`;
         const originalKey = trashKey.replace(/^trash\//, '');
-        
-        if (trashKey.endsWith('/')) {
-          const list = await s3.send(new ListObjectsV2Command({ Bucket: S3_BUCKET, Prefix: trashKey }));
-          const objects = list.Contents || [];
+
+        let isFolder = trashKey.endsWith('/');
+        if (!isFolder && mongoose.connection.readyState === 1) {
+          const isFolderInDb = await FolderMeta.findOne({ path: `${trashKey}/` }).lean().catch(() => null);
+          if (isFolderInDb) isFolder = true;
+        }
+
+        if (isFolder) {
+          const folderTrashPrefix = trashKey.endsWith('/') ? trashKey : `${trashKey}/`;
+          const folderOrigPrefix = originalKey.endsWith('/') ? originalKey : `${originalKey}/`;
+
+          const list = await s3.send(new ListObjectsV2Command({ Bucket: S3_BUCKET, Prefix: folderTrashPrefix })).catch(() => null);
+          const objects = list?.Contents || [];
+
+          let foundObjects = false;
           for (const obj of objects) {
             if (!obj.Key) continue;
+            foundObjects = true;
             const newObjKey = obj.Key.replace(/^trash\//, '');
             restoreItems.push({ trashKey: obj.Key, originalKey: newObjKey });
           }
-          folderMetaBulkOps.push({
-            updateOne: { filter: { path: trashKey }, update: { path: originalKey } }
-          });
+
+          if (!foundObjects) {
+            restoreItems.push({ trashKey: folderTrashPrefix, originalKey: folderOrigPrefix });
+          }
+
+          if (mongoose.connection.readyState === 1) {
+            const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const regex = new RegExp('^' + escapeRegex(folderTrashPrefix));
+            const filesToRestore = await FileMeta.find({ key: regex }).lean().catch(() => []);
+            for (const fm of filesToRestore) {
+              const newKey = fm.key.replace(/^trash\//, '');
+              fileMetaBulkOps.push({
+                updateOne: { filter: { _id: fm._id }, update: { $set: { key: newKey } } }
+              });
+            }
+            const foldersToRestore = await FolderMeta.find({ path: regex }).lean().catch(() => []);
+            for (const fdm of foldersToRestore) {
+              const newPath = fdm.path.replace(/^trash\//, '');
+              folderMetaBulkOps.push({
+                updateOne: { filter: { _id: fdm._id }, update: { $set: { path: newPath } } }
+              });
+            }
+          }
         } else {
           restoreItems.push({ trashKey, originalKey });
-          fileMetaBulkOps.push({
-            updateOne: { filter: { key: trashKey }, update: { key: originalKey } }
-          });
+          if (mongoose.connection.readyState === 1) {
+            fileMetaBulkOps.push({
+              updateOne: { filter: { key: trashKey }, update: { $set: { key: originalKey } } }
+            });
+          }
         }
       }
 
