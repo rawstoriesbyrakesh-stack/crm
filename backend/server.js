@@ -233,6 +233,11 @@ const safeDecode = str => {
   try { return decodeURIComponent(str); } catch { return str; }
 };
 
+const encodeCopySource = (bucket, key) => {
+  const cleanKey = (key || '').replace(/^\//, '');
+  return `${bucket}/${encodeURIComponent(cleanKey).replace(/%2F/g, '/')}`;
+};
+
 const readBody = async req => {
   const chunks = [];
   for await (const chunk of req) chunks.push(chunk);
