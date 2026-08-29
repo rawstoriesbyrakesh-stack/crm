@@ -279,6 +279,7 @@ function Gallery() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
   const [createFolderLoading, setCreateFolderLoading] = useState(false); // New: Loader for folder creation
+  const [confirmDeleteModal, setConfirmDeleteModal] = useState<{ isOpen: boolean; message: string; itemIds: string[] }>({ isOpen: false, message: '', itemIds: [] });
   const [renameFolderModal, setRenameFolderModal] = useState({ isOpen: false, oldPath: '', newName: '' });
   const [renameFolderLoading, setRenameFolderLoading] = useState(false);
   const [shareLoading, setShareLoading] = useState(false); // New: Loader for share
@@ -1487,7 +1488,7 @@ function Gallery() {
     handleDeleteItems(selectedItems);
   };
 
-  const handleDeleteItems = async (itemIds: string[]) => {
+  const handleDeleteItems = (itemIds: string[]) => {
     if (itemIds.length === 0) {
       setError('No items or folders selected for deletion');
       addNotification('No items or folders selected for deletion', 'error');
@@ -1517,7 +1518,16 @@ function Gallery() {
       confirmMessage = `Are you sure you want to delete ${itemIds.length} item(s)/folder(s)?`;
     }
 
-    if (!globalThis.confirm?.(confirmMessage)) return;
+    setConfirmDeleteModal({ isOpen: true, message: confirmMessage, itemIds });
+  };
+
+  const executeDeleteItems = async (itemIds: string[]) => {
+    setConfirmDeleteModal({ isOpen: false, message: '', itemIds: [] });
+    if (itemIds.length === 0) return;
+
+    const normIds = itemIds.map(id => id.replace(/^\//, '').replace(/\/$/, ''));
+    const itemsToDelete = items.filter((item) => normIds.includes(item.id.replace(/^\//, '').replace(/\/$/, '')));
+    const foldersToDelete = folders.filter((folder) => normIds.includes(folder.path.replace(/^\//, '').replace(/\/$/, '')));
 
     try {
       setDeleteLoading(itemIds);
@@ -3823,6 +3833,36 @@ function Gallery() {
                   >
                     Create
                     {createFolderLoading && <Loader2 className="ml-2 h-4 w-4 animate-spin" />}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Custom Delete Confirmation Modal */}
+          {confirmDeleteModal.isOpen && (
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+              <div className="bg-slate-900 border border-slate-700 rounded-2xl p-6 max-w-md w-full shadow-2xl text-white">
+                <div className="flex items-center space-x-3 mb-4">
+                  <div className="w-10 h-10 rounded-full bg-red-500/20 flex items-center justify-center text-red-400">
+                    <Trash2 className="w-5 h-5" />
+                  </div>
+                  <h3 className="text-xl font-bold">Confirm Deletion</h3>
+                </div>
+                <p className="text-slate-300 text-sm mb-6">{confirmDeleteModal.message}</p>
+                <div className="flex items-center justify-end space-x-3">
+                  <button
+                    onClick={() => setConfirmDeleteModal({ isOpen: false, message: '', itemIds: [] })}
+                    className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl font-medium text-sm transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => executeDeleteItems(confirmDeleteModal.itemIds)}
+                    className="px-5 py-2 bg-red-600 hover:bg-red-500 text-white rounded-xl font-medium text-sm transition-colors shadow-lg shadow-red-600/30 flex items-center"
+                  >
+                    <Trash2 className="w-4 h-4 mr-2" />
+                    Delete
                   </button>
                 </div>
               </div>
