@@ -228,6 +228,11 @@ const sendJson = (res, status, body) => {
 };
 const sendError = (res, status, message) => sendJson(res, status, { success: false, message });
 
+const safeDecode = str => {
+  if (!str) return '';
+  try { return decodeURIComponent(str); } catch { return str; }
+};
+
 const readBody = async req => {
   const chunks = [];
   for await (const chunk of req) chunks.push(chunk);
