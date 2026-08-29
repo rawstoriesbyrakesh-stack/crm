@@ -77,6 +77,7 @@ interface UploadFile {
   speed?: number; // Current upload speed in KB/s
   watermarkPosition?: WatermarkPosition; // Watermark position for this file
   processedFile?: File; // File after watermark is applied
+  relativePath?: string; // Relative path for folder uploads
 }
 
 interface DeleteError {
@@ -300,7 +301,8 @@ function Gallery() {
     // Load saved watermarks from localStorage on init
     try {
       const saved = localStorage.getItem('watermarkPresets');
-      return saved ? JSON.parse(saved) : [];
+      const parsed = saved ? JSON.parse(saved) : [];
+      return Array.isArray(parsed) ? parsed : [];
     } catch (error) {
       console.error('Failed to load watermark presets:', error);
       return [];
@@ -354,6 +356,36 @@ function Gallery() {
     return () => clearTimeout(timeoutId);
   };
 
+  // -------------------- Recursive Directory Reader --------------------
+  const traverseFileTree = async (entry: any, path: string = ''): Promise<{ file: File; relativePath: string }[]> => {
+    return new Promise((resolve) => {
+      if (entry.isFile) {
+        entry.file((file: File) => {
+          const relativePath = path ? `${path}/${file.name}` : file.name;
+          resolve([{ file, relativePath }]);
+        }, () => resolve([]));
+      } else if (entry.isDirectory) {
+        const dirReader = entry.createReader();
+        const entries: any[] = [];
+        const readEntries = () => {
+          dirReader.readEntries(async (result: any[]) => {
+            if (!result.length) {
+              const filesPromises = entries.map(e => traverseFileTree(e, path ? `${path}/${entry.name}` : entry.name));
+              const nestedFiles = await Promise.all(filesPromises);
+              resolve(nestedFiles.flat());
+            } else {
+              entries.push(...result);
+              readEntries();
+            }
+          }, () => resolve([]));
+        };
+        readEntries();
+      } else {
+        resolve([]);
+      }
+    });
+  };
+
   // -------------------- Drag and Drop Handlers --------------------
   const handleDrag = useCallback((e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -365,15 +397,37 @@ function Gallery() {
     }
   }, []);
 
-  const handleDrop = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+  const handleDrop = useCallback(async (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.stopPropagation();
     setDragActive(false);
 
-    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      handleFileSelect(e.dataTransfer.files);
+    const items = e.dataTransfer.items;
+    if (items && items.length > 0) {
+      const traversePromises: Promise<{ file: File; relativePath: string }[] >[] = [];
+      for (let i = 0; i < items.length; i++) {
+        const entry = items[i].webkitGetAsEntry ? items[i].webkitGetAsEntry() : null;
+        if (entry) {
+          traversePromises.push(traverseFileTree(entry));
+        } else {
+          const file = items[i].getAsFile();
+          if (file) {
+            traversePromises.push(Promise.resolve([{ file, relativePath: file.name }]));
+          }
+        }
+      }
+      const results = await Promise.all(traversePromises);
+      const allExtracted = results.flat();
+      if (allExtracted.length > 0) {
+        handleFileSelectWithPaths(allExtracted);
+      }
+    } else if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      const simpleFiles = Array.from(e.dataTransfer.files).map(file => ({
+        file,
+        relativePath: (file as any).webkitRelativePath || file.name
+      }));
+      handleFileSelectWithPaths(simpleFiles);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // -------------------- Fetch gallery items --------------------
@@ -2154,21 +2208,25 @@ function Gallery() {
 
   async function handleFileSelect(selectedFiles: FileList | null) {
     if (!selectedFiles) return;
+    const itemsWithPaths = Array.from(selectedFiles).map((file) => ({
+      file,
+      relativePath: (file as any).webkitRelativePath || file.name
+    }));
+    handleFileSelectWithPaths(itemsWithPaths);
+  }
 
-    const allFiles = Array.from(selectedFiles);
-    const validFiles: File[] = [];
+  async function handleFileSelectWithPaths(itemsWithPaths: { file: File; relativePath: string }[]) {
+    const validItems: { file: File; relativePath: string }[] = [];
     const rejectedFiles: string[] = [];
 
-    // Filter files and track rejected ones
-    allFiles.forEach((file) => {
-      if (isValidFileType(file)) {
-        validFiles.push(file);
+    itemsWithPaths.forEach((item) => {
+      if (isValidFileType(item.file)) {
+        validItems.push(item);
       } else {
-        rejectedFiles.push(file.name);
+        rejectedFiles.push(item.file.name);
       }
     });
 
-    // Show notification for rejected files
     if (rejectedFiles.length > 0) {
       const rejectedMessage = rejectedFiles.length === 1 
         ? `File "${rejectedFiles[0]}" was rejected (unsupported format or raw file)`
@@ -2176,32 +2234,46 @@ function Gallery() {
       addNotification(rejectedMessage, 'error');
     }
 
-    if (validFiles.length === 0) {
+    if (validItems.length === 0) {
       setError('No valid image or video files selected. Raw files and unsupported formats are not allowed.');
       addNotification('No valid image or video files selected. Raw files and unsupported formats are not allowed.', 'error');
       return;
     }
 
-    // Apply watermark if enabled
-    const processedFiles: File[] = [];
+    const processedItems: { file: File; relativePath: string }[] = [];
     if (watermarkEnabled && watermarkPosition !== 'none' && watermarkImage) {
-      addNotification('Applying watermarks...', 'info');
-      for (const file of validFiles) {
+      addNotification(`Applying watermarks to ${validItems.length} file(s) in parallel queue...`, 'info');
+      // Parallel watermarking queue with concurrency 6
+      const mapConcurrently = async <T, R>(arr: T[], concurrency: number, fn: (item: T) => Promise<R>): Promise<R[]> => {
+        const results = new Array<R>(arr.length);
+        let index = 0;
+        const worker = async () => {
+          while (index < arr.length) {
+            const i = index++;
+            results[i] = await fn(arr[i]);
+          }
+        };
+        const workers = Array.from({ length: Math.min(concurrency, arr.length || 1) }, () => worker());
+        await Promise.all(workers);
+        return results;
+      };
+
+      const results = await mapConcurrently(validItems, 6, async (item) => {
         try {
-          const processedFile = await applyWatermark(file, watermarkPosition, watermarkImage);
-          processedFiles.push(processedFile);
+          const processedFile = await applyWatermark(item.file, watermarkPosition, watermarkImage);
+          return { file: processedFile, relativePath: item.relativePath };
         } catch (error: any) {
-          console.error('Watermark failed for', file.name, error);
-          addNotification(`Watermark failed for ${file.name}: ${error.message}`, 'error');
-          processedFiles.push(file); // Use original file if watermark fails
+          console.error('Watermark failed for', item.file.name, error);
+          return { file: item.file, relativePath: item.relativePath };
         }
-      }
+      });
+      processedItems.push(...results);
     } else {
-      processedFiles.push(...validFiles);
+      processedItems.push(...validItems);
     }
 
-    const newFiles: UploadFile[] = processedFiles.map((file, index) => ({
-      file,
+    const newFiles: UploadFile[] = processedItems.map((item) => ({
+      file: item.file,
       id: Math.random().toString(36).substring(2, 11),
       progress: 0,
       status: 'pending' as const,
@@ -2210,21 +2282,17 @@ function Gallery() {
       lastTime: Date.now(),
       speed: 0,
       watermarkPosition: watermarkEnabled ? watermarkPosition : 'none',
-      processedFile: file,
+      processedFile: item.file,
+      relativePath: item.relativePath
     }));
 
-    // Show success message for accepted files
-  const acceptedMessage = watermarkEnabled
-        ? processedFiles.length === 1
-          ? '1 file ready for upload (with watermark)'
-          : `${processedFiles.length} files ready for upload (with watermarks)`
-        : processedFiles.length === 1
-        ? '1 file ready for upload'
-        : `${processedFiles.length} files ready for upload`;
-      addNotification(acceptedMessage, 'success');
+    const acceptedMessage = watermarkEnabled
+      ? `${processedItems.length} file(s) ready for upload (with watermarks)`
+      : `${processedItems.length} file(s) ready for upload`;
+    addNotification(acceptedMessage, 'success');
 
     setUploadFiles(newFiles);
-    setUploadModal(false); // Close the modal after files are selected
+    setUploadModal(false);
     startUpload(newFiles);
   }
 
@@ -2252,7 +2320,6 @@ function Gallery() {
               speed = (bytesDiff / timeDiff) / 1024; // KB/s
             }
           } else if (fileUpload.startTime) {
-            // Initial speed calculation from start
             const totalTime = (now - fileUpload.startTime) / 1000;
             if (totalTime > 0.5) {
               speed = (loaded / totalTime) / 1024; // KB/s
@@ -2267,7 +2334,7 @@ function Gallery() {
                     progress: percentComplete,
                     lastLoaded: loaded,
                     lastTime: now,
-                    speed: Math.max(0, speed), // Ensure speed is never negative
+                    speed: Math.max(0, speed),
                   }
                 : f
             )
@@ -2306,7 +2373,6 @@ function Gallery() {
         reject(error);
       });
 
-      // Start upload
       setUploadFiles((prev) =>
         prev.map((f) => (f.id === fileUpload.id ? { ...f, status: 'uploading', progress: 0, lastTime: Date.now(), lastLoaded: 0, speed: 0 } : f))
       );
@@ -2330,15 +2396,13 @@ function Gallery() {
 
       uploadPromises.push(uploadFileWithXHR(fileUpload, presigned));
 
-      // Limit concurrency
       if (uploadPromises.length >= MAX_CONCURRENT_UPLOADS || i === batchFiles.length - 1) {
         try {
           await Promise.all(uploadPromises);
         } catch (err) {
           console.error('Some uploads in batch failed:', err);
-          // Continue with next batch even if some fail
         }
-        uploadPromises.length = 0; // Clear for next set
+        uploadPromises.length = 0;
       }
     }
   };
@@ -2360,7 +2424,6 @@ function Gallery() {
         'info'
       );
 
-      // Split into batches for presigned URLs
       const batches: UploadFile[][] = [];
       for (let i = 0; i < filesToUpload.length; i += PRESIGNED_BATCH_SIZE) {
         batches.push(filesToUpload.slice(i, i + PRESIGNED_BATCH_SIZE));
@@ -2368,10 +2431,12 @@ function Gallery() {
 
       const allPresignedUrls: PresignedUpload[] = [];
 
-      // Get presigned URLs for each batch sequentially (to avoid overwhelming the lambda)
       for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
         const batch = batches[batchIndex];
-        const batchFilesData = batch.map((f) => ({ name: f.file.name, type: f.file.type || 'application/octet-stream' }));
+        const batchFilesData = batch.map((f) => ({
+          name: f.relativePath || (f.file as any).webkitRelativePath || f.file.name,
+          type: f.file.type || 'application/octet-stream'
+        }));
 
         addNotification(
           `Requesting presigned URLs for batch ${batchIndex + 1}/${batches.length} (${batch.length} files)...`,
@@ -3905,26 +3970,33 @@ function Gallery() {
                   </div>
 
                   {/* Saved Watermarks Section */}
-                  {savedWatermarks.length > 0 && (
+                  {Array.isArray(savedWatermarks) && savedWatermarks.length > 0 && (
                     <div className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
                       <h4 className="text-sm font-semibold text-gray-800 mb-3">Saved Watermarks</h4>
                       <div className="space-y-2 max-h-48 overflow-y-auto">
-                        {savedWatermarks
-                          .sort((a, b) => b.lastUsed - a.lastUsed)
+                        {[...savedWatermarks]
+                          .filter((preset) => preset && typeof preset === 'object')
+                          .sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0))
                           .map((preset) => (
                             <div
-                              key={preset.id}
+                              key={preset.id || Math.random().toString()}
                               className="flex items-center justify-between p-3 bg-white rounded-lg border border-gray-200 hover:border-purple-300 transition-colors group"
                             >
                               <div className="flex items-center space-x-3 flex-1 min-w-0">
-                                <img 
-                                  src={preset.imageUrl} 
-                                  alt={preset.imageName}
-                                  className="h-10 w-10 object-contain border border-gray-300 rounded"
-                                />
+                                {preset.imageUrl ? (
+                                  <img 
+                                    src={preset.imageUrl} 
+                                    alt={preset.imageName || 'Watermark'}
+                                    className="h-10 w-10 object-contain border border-gray-300 rounded"
+                                  />
+                                ) : (
+                                  <div className="h-10 w-10 bg-purple-100 text-purple-600 font-bold flex items-center justify-center rounded text-xs">
+                                    WM
+                                  </div>
+                                )}
                                 <div className="flex-1 min-w-0">
-                                  <p className="text-sm font-medium text-gray-900 truncate">{preset.imageName}</p>
-                                  <p className="text-xs text-gray-500">{getPositionLabel(preset.position)}</p>
+                                  <p className="text-sm font-medium text-gray-900 truncate">{preset.imageName || 'Watermark Preset'}</p>
+                                  <p className="text-xs text-gray-500">{preset.position ? getPositionLabel(preset.position) : 'Bottom Right'}</p>
                                 </div>
                               </div>
                               <div className="flex items-center space-x-2 ml-3">
@@ -3982,14 +4054,30 @@ function Gallery() {
                       className="hidden"
                       onChange={(e) => {
                         handleFileSelect(e.target.files);
-                        e.target.value = ''; // reset so the same files can be selected again
+                        e.target.value = '';
+                      }}
+                    />
+                    <input
+                      type="file"
+                      ref={folderInputRef}
+                      multiple
+                      {...({ webkitdirectory: '', directory: '' } as any)}
+                      className="hidden"
+                      onChange={(e) => {
+                        handleFileSelect(e.target.files);
+                        e.target.value = '';
                       }}
                     />
                     <button
-                      onClick={() => {
-                        fileInputRef.current?.click();
-                      }}
-                      className="w-full sm:w-auto px-6 py-3 bg-[#FF6B00] text-white rounded-lg hover:bg-[#FF9900] font-medium flex items-center justify-center shadow-lg hover:shadow-xl transition-all"
+                      onClick={() => folderInputRef.current?.click()}
+                      className="w-full sm:w-auto px-5 py-2.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-medium flex items-center justify-center shadow transition-all text-sm"
+                    >
+                      <Folder className="w-4 h-4 mr-2" />
+                      Choose Folder
+                    </button>
+                    <button
+                      onClick={() => fileInputRef.current?.click()}
+                      className="w-full sm:w-auto px-6 py-2.5 bg-[#FF6B00] text-white rounded-lg hover:bg-[#FF9900] font-medium flex items-center justify-center shadow-lg hover:shadow-xl transition-all text-sm"
                     >
                       <Upload className="w-4 h-4 mr-2" />
                       Choose Files

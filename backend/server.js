@@ -596,6 +596,48 @@ const server = http.createServer(async (req, res) => {
       }
     }
 
+    // ── Helper: Map array concurrently ─────────────────────────────────────
+    const mapConcurrently = async (items, concurrency, fn) => {
+      const results = new Array(items.length);
+      let index = 0;
+      const worker = async () => {
+        while (index < items.length) {
+          const i = index++;
+          try {
+            results[i] = await fn(items[i], i);
+          } catch (err) {
+            results[i] = { error: err };
+          }
+        }
+      };
+      const workers = Array.from({ length: Math.min(concurrency, items.length || 1) }, () => worker());
+      await Promise.all(workers);
+      return results;
+    };
+
+    // Helper: Ensure FolderMeta exists for all parent folders in a key path
+    const ensureFolderMeta = async (key) => {
+      if (mongoose.connection.readyState !== 1) return;
+      const parts = key.split('/').filter(Boolean);
+      if (parts.length <= 1) return;
+      let currentPath = '';
+      const bulkOps = [];
+      for (let i = 0; i < parts.length - 1; i++) {
+        currentPath += parts[i] + '/';
+        const name = safeDecode(parts[i]);
+        bulkOps.push({
+          updateOne: {
+            filter: { path: currentPath },
+            update: { $setOnInsert: { path: currentPath, name } },
+            upsert: true
+          }
+        });
+      }
+      if (bulkOps.length > 0) {
+        await FolderMeta.bulkWrite(bulkOps).catch(() => {});
+      }
+    };
+
     // ── Upload: generate presigned PUT URL ─────────────────────────────────
     if (pathname === '/default/imagesupload' && req.method === 'POST') {
       if (!isAuthed(req)) return sendError(res, 401, 'Unauthorized');
@@ -607,28 +649,37 @@ const server = http.createServer(async (req, res) => {
         if (!files || !Array.isArray(files)) return sendError(res, 400, 'Invalid files array');
         
         const presignedUrls = [];
+        const fileMetaOps = [];
         for (let i = 0; i < files.length; i++) {
-          const filename = files[i];
+          const rawFilename = files[i];
+          const cleanPath = rawFilename.replace(/\\/g, '/').replace(/^\/+/, '');
           const type = fileTypes && fileTypes[i] ? fileTypes[i] : 'image/webp';
-          const key = folder ? `${folder}/${filename}` : filename;
+          const key = folder ? `${folder}/${cleanPath}` : cleanPath;
           const url = await presignPut(key, type);
           presignedUrls.push(url);
           
+          await ensureFolderMeta(key);
+
           // Save file meta
           const tags = fileTags && fileTags[i] ? fileTags[i] : [];
           const isFavorite = tags.includes('Favorite');
-          await FileMeta.findOneAndUpdate(
-            { key },
-            { 
-              key, 
-              tags, 
-              isFavorite,
-              clientName: body.client_name,
-              shootType: body.event_type,
-              eventDate: body.event_date
-            },
-            { upsert: true }
-          );
+          fileMetaOps.push({
+            updateOne: {
+              filter: { key },
+              update: {
+                key, 
+                tags, 
+                isFavorite,
+                clientName: body.client_name,
+                shootType: body.event_type,
+                eventDate: body.event_date
+              },
+              upsert: true
+            }
+          });
+        }
+        if (fileMetaOps.length > 0 && mongoose.connection.readyState === 1) {
+          await FileMeta.bulkWrite(fileMetaOps).catch(e => console.error('FileMeta bulkWrite error:', e));
         }
         return sendJson(res, 200, { success: true, presignedUrls });
       } else {
@@ -655,42 +706,35 @@ const server = http.createServer(async (req, res) => {
 
       if (isCopy) {
         // Server-side copy (e.g. client favorites selection)
-        const uploads = [];
-        for (const srcKey of files) {
-          const filename = srcKey.split('/').pop() || srcKey;
-          const key = folder ? `${folder}/${filename}` : filename;
-          
+        const uploads = await mapConcurrently(files, 20, async (srcKey) => {
+          const rawFilename = srcKey.split('/').pop() || srcKey;
+          const key = folder ? `${folder}/${rawFilename}` : rawFilename;
           try {
             await s3.send(new CopyObjectCommand({
               Bucket: S3_BUCKET,
               CopySource: encodeCopySource(S3_BUCKET, srcKey),
               Key: key,
             }));
-
-            // Also copy FileMeta
             const srcMeta = await FileMeta.findOne({ key: srcKey }).lean();
-            if (srcMeta) {
+            if (srcMeta && mongoose.connection.readyState === 1) {
               const { _id, ...metaData } = srcMeta;
-              await FileMeta.findOneAndUpdate(
-                { key },
-                { ...metaData, key },
-                { upsert: true }
-              );
+              await FileMeta.findOneAndUpdate({ key }, { ...metaData, key }, { upsert: true });
             }
-            uploads.push({ key, success: true });
+            return { key, success: true };
           } catch (err) {
             console.error(`Failed to copy ${srcKey} to ${key}:`, err);
-            uploads.push({ key, success: false, error: err.message });
+            return { key, success: false, error: err.message };
           }
-        }
+        });
         return sendJson(res, 200, { success: true, uploads, folderPath: folderStr });
       } else {
         // Normal bulk upload: generate presigned PUT URLs
         const uploads = await Promise.all(files.map(async (f) => {
           const rawFilename = typeof f === 'string' ? f : f.name;
-          const filename = rawFilename.split('/').pop() || rawFilename;
+          const cleanPath = rawFilename.replace(/\\/g, '/').replace(/^\/+/, '');
           const type = typeof f === 'object' && f.type ? f.type : 'application/octet-stream';
-          const key = folder ? `${folder}/${filename}` : filename;
+          const key = folder ? `${folder}/${cleanPath}` : cleanPath;
+          await ensureFolderMeta(key);
           const url = await presignPut(key, type);
           return { key, url };
         }));
@@ -710,7 +754,7 @@ const server = http.createServer(async (req, res) => {
       if (!key.endsWith('/')) key += '/';
       // Create placeholder object in Wasabi
       await s3.send(new PutObjectCommand({ Bucket: S3_BUCKET, Key: key }));
-      const name = key.replace(/\/$/, '').split('/').pop() || key;
+      const name = safeDecode(key.replace(/\/$/, '').split('/').pop() || key);
       await FolderMeta.findOneAndUpdate({ path: key }, { path: key, name }, { upsert: true, new: true });
       return sendJson(res, 200, { success: true, message: 'Folder created', folderPath: key });
     }
@@ -727,16 +771,18 @@ const server = http.createServer(async (req, res) => {
       // List all objects under oldKey and copy them to newKey
       const list = await s3.send(new ListObjectsV2Command({ Bucket: S3_BUCKET, Prefix: oldKey }));
       const objects = list.Contents || [];
-      for (const obj of objects) {
-        if (!obj.Key) continue;
+      await mapConcurrently(objects, 20, async (obj) => {
+        if (!obj.Key) return;
         const newObjKey = newKey + obj.Key.slice(oldKey.length);
         await s3.send(new CopyObjectCommand({ Bucket: S3_BUCKET, CopySource: encodeCopySource(S3_BUCKET, obj.Key), Key: newObjKey }));
-      }
+      });
       // Delete old objects
       if (objects.length > 0) {
-        await s3.send(new DeleteObjectsCommand({ Bucket: S3_BUCKET, Delete: { Objects: objects.map(o => ({ Key: o.Key })) } }));
+        for (let i = 0; i < objects.length; i += 1000) {
+          await s3.send(new DeleteObjectsCommand({ Bucket: S3_BUCKET, Delete: { Objects: objects.slice(i, i + 1000).map(o => ({ Key: o.Key })) } }));
+        }
       }
-      const newName = newKey.replace(/\/$/, '').split('/').pop() || newKey;
+      const newName = safeDecode(newKey.replace(/\/$/, '').split('/').pop() || newKey);
       await FolderMeta.findOneAndUpdate({ path: oldKey }, { path: newKey, name: newName }, { upsert: true });
       return sendJson(res, 200, { success: true, message: 'Renamed successfully' });
     }
@@ -749,7 +795,9 @@ const server = http.createServer(async (req, res) => {
       if (!oldKey || !newKey) return sendError(res, 400, 'Missing oldKey or newKey');
       await s3.send(new CopyObjectCommand({ Bucket: S3_BUCKET, CopySource: encodeCopySource(S3_BUCKET, oldKey), Key: newKey }));
       await s3.send(new DeleteObjectsCommand({ Bucket: S3_BUCKET, Delete: { Objects: [{ Key: oldKey }] } }));
-      await FileMeta.findOneAndUpdate({ key: oldKey }, { key: newKey });
+      if (mongoose.connection.readyState === 1) {
+        await FileMeta.findOneAndUpdate({ key: oldKey }, { key: newKey });
+      }
       return sendJson(res, 200, { success: true, message: 'Moved successfully' });
     }
 
@@ -759,38 +807,49 @@ const server = http.createServer(async (req, res) => {
       const body = await readBody(req);
       const rawKeys = body?.keys || (body?.key ? [body.key] : []);
       const keys = rawKeys.map(k => { try { return decodeURIComponent(k); } catch { return k; } });
-      const toDeleteOriginal = [];
+
+      const copyItems = [];
+      const fileMetaBulkOps = [];
+      const folderMetaBulkOps = [];
 
       for (const key of keys) {
-        try {
-          if (key.endsWith('/')) {
-            // it's a folder — list everything under it
-            const list = await s3.send(new ListObjectsV2Command({ Bucket: S3_BUCKET, Prefix: key }));
-            const objects = list.Contents || [];
-            for (const obj of objects) {
-              if (!obj.Key) continue;
-              const newObjKey = `trash/${obj.Key}`;
-              await s3.send(new CopyObjectCommand({ Bucket: S3_BUCKET, CopySource: encodeCopySource(S3_BUCKET, obj.Key), Key: newObjKey }));
-              toDeleteOriginal.push({ Key: obj.Key });
-            }
-            if (mongoose.connection.readyState === 1) {
-              await FolderMeta.findOneAndUpdate({ path: key }, { path: `trash/${key}` }).catch(() => {});
-            }
-          } else {
-            const trashKey = `trash/${key}`;
-            await s3.send(new CopyObjectCommand({ Bucket: S3_BUCKET, CopySource: encodeCopySource(S3_BUCKET, key), Key: trashKey }));
-            toDeleteOriginal.push({ Key: key });
-            if (mongoose.connection.readyState === 1) {
-              await FileMeta.findOneAndUpdate({ key }, { key: trashKey }).catch(() => {});
-            }
+        if (key.endsWith('/')) {
+          const list = await s3.send(new ListObjectsV2Command({ Bucket: S3_BUCKET, Prefix: key }));
+          const objects = list.Contents || [];
+          for (const obj of objects) {
+            if (!obj.Key) continue;
+            copyItems.push({ srcKey: obj.Key, trashKey: `trash/${obj.Key}` });
           }
-        } catch (itemErr) {
-          console.error(`Error moving item ${key} to trash:`, itemErr.message || itemErr);
+          folderMetaBulkOps.push({
+            updateOne: { filter: { path: key }, update: { path: `trash/${key}` } }
+          });
+        } else {
+          const trashKey = `trash/${key}`;
+          copyItems.push({ srcKey: key, trashKey });
+          fileMetaBulkOps.push({
+            updateOne: { filter: { key }, update: { key: trashKey } }
+          });
         }
       }
 
+      // Execute S3 copy concurrently (20 at a time)
+      await mapConcurrently(copyItems, 20, async (item) => {
+        await s3.send(new CopyObjectCommand({
+          Bucket: S3_BUCKET,
+          CopySource: encodeCopySource(S3_BUCKET, item.srcKey),
+          Key: item.trashKey
+        })).catch(e => console.error(`Error copying ${item.srcKey} to trash:`, e.message));
+      });
+
+      // Execute DB bulk updates concurrently
+      if (mongoose.connection.readyState === 1) {
+        if (fileMetaBulkOps.length > 0) await FileMeta.bulkWrite(fileMetaBulkOps).catch(() => {});
+        if (folderMetaBulkOps.length > 0) await FolderMeta.bulkWrite(folderMetaBulkOps).catch(() => {});
+      }
+
+      // Batch delete original objects from S3
+      const toDeleteOriginal = copyItems.map(item => ({ Key: item.srcKey }));
       if (toDeleteOriginal.length > 0) {
-        // Delete original objects in batches of 1000
         for (let i = 0; i < toDeleteOriginal.length; i += 1000) {
           await s3.send(new DeleteObjectsCommand({
             Bucket: S3_BUCKET,
@@ -807,37 +866,51 @@ const server = http.createServer(async (req, res) => {
       const body = await readBody(req);
       const rawKeys = body?.keys || (body?.key ? [body.key] : []);
       const keys = rawKeys.map(k => { try { return decodeURIComponent(k); } catch { return k; } });
-      const toDeleteTrash = [];
+
+      const restoreItems = [];
+      const fileMetaBulkOps = [];
+      const folderMetaBulkOps = [];
 
       for (const key of keys) {
-        try {
-          const trashKey = key.startsWith('trash/') ? key : `trash/${key}`;
-          const originalKey = trashKey.replace(/^trash\//, '');
-          
-          if (trashKey.endsWith('/')) {
-            const list = await s3.send(new ListObjectsV2Command({ Bucket: S3_BUCKET, Prefix: trashKey }));
-            const objects = list.Contents || [];
-            for (const obj of objects) {
-              if (!obj.Key) continue;
-              const newObjKey = obj.Key.replace(/^trash\//, '');
-              await s3.send(new CopyObjectCommand({ Bucket: S3_BUCKET, CopySource: encodeCopySource(S3_BUCKET, obj.Key), Key: newObjKey }));
-              toDeleteTrash.push({ Key: obj.Key });
-            }
-            if (mongoose.connection.readyState === 1) {
-              await FolderMeta.findOneAndUpdate({ path: trashKey }, { path: originalKey }).catch(() => {});
-            }
-          } else {
-            await s3.send(new CopyObjectCommand({ Bucket: S3_BUCKET, CopySource: encodeCopySource(S3_BUCKET, trashKey), Key: originalKey }));
-            toDeleteTrash.push({ Key: trashKey });
-            if (mongoose.connection.readyState === 1) {
-              await FileMeta.findOneAndUpdate({ key: trashKey }, { key: originalKey }).catch(() => {});
-            }
+        const trashKey = key.startsWith('trash/') ? key : `trash/${key}`;
+        const originalKey = trashKey.replace(/^trash\//, '');
+        
+        if (trashKey.endsWith('/')) {
+          const list = await s3.send(new ListObjectsV2Command({ Bucket: S3_BUCKET, Prefix: trashKey }));
+          const objects = list.Contents || [];
+          for (const obj of objects) {
+            if (!obj.Key) continue;
+            const newObjKey = obj.Key.replace(/^trash\//, '');
+            restoreItems.push({ trashKey: obj.Key, originalKey: newObjKey });
           }
-        } catch (itemErr) {
-          console.error(`Error restoring item ${key}:`, itemErr.message || itemErr);
+          folderMetaBulkOps.push({
+            updateOne: { filter: { path: trashKey }, update: { path: originalKey } }
+          });
+        } else {
+          restoreItems.push({ trashKey, originalKey });
+          fileMetaBulkOps.push({
+            updateOne: { filter: { key: trashKey }, update: { key: originalKey } }
+          });
         }
       }
 
+      // Execute S3 copy concurrently
+      await mapConcurrently(restoreItems, 20, async (item) => {
+        await s3.send(new CopyObjectCommand({
+          Bucket: S3_BUCKET,
+          CopySource: encodeCopySource(S3_BUCKET, item.trashKey),
+          Key: item.originalKey
+        })).catch(e => console.error(`Error restoring ${item.trashKey}:`, e.message));
+      });
+
+      // Execute DB bulk updates
+      if (mongoose.connection.readyState === 1) {
+        if (fileMetaBulkOps.length > 0) await FileMeta.bulkWrite(fileMetaBulkOps).catch(() => {});
+        if (folderMetaBulkOps.length > 0) await FolderMeta.bulkWrite(folderMetaBulkOps).catch(() => {});
+      }
+
+      // Batch delete trash objects
+      const toDeleteTrash = restoreItems.map(item => ({ Key: item.trashKey }));
       if (toDeleteTrash.length > 0) {
         for (let i = 0; i < toDeleteTrash.length; i += 1000) {
           await s3.send(new DeleteObjectsCommand({

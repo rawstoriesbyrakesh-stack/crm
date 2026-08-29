@@ -6,6 +6,7 @@ import { rawStoriesApiUrl } from '../api/rawStoriesBackend';
 import { 
   ArrowLeft, 
   Upload, 
+  Folder,
   X, 
   Eye, 
   EyeOff, 
@@ -21,6 +22,7 @@ interface UploadedFile {
   title: string;
   watermarkedFile?: File; // Add watermarked file to store the processed image
   aiTags?: string[]; // Store auto-extracted AI tags
+  relativePath?: string; // Relative path for folder upload
 }
 
 interface ProjectData {
@@ -49,10 +51,56 @@ function GalleryUpload() {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const folderInputRef = useRef<HTMLInputElement>(null);
   const [uploadMessages, setUploadMessages] = useState<string[]>([]);
   const [projectData, setProjectData] = useState<ProjectData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Helper for parallel mapping with concurrency control
+  const mapConcurrently = async <T, R>(items: T[], concurrency: number, fn: (item: T, idx: number) => Promise<R>): Promise<R[]> => {
+    const results = new Array<R>(items.length);
+    let index = 0;
+    const worker = async () => {
+      while (index < items.length) {
+        const i = index++;
+        results[i] = await fn(items[i], i);
+      }
+    };
+    const workers = Array.from({ length: Math.min(concurrency, items.length || 1) }, () => worker());
+    await Promise.all(workers);
+    return results;
+  };
+
+  // Recursive Directory Reader
+  const traverseFileTree = async (entry: any, path: string = ''): Promise<{ file: File; relativePath: string }[]> => {
+    return new Promise((resolve) => {
+      if (entry.isFile) {
+        entry.file((file: File) => {
+          const relativePath = path ? `${path}/${file.name}` : file.name;
+          resolve([{ file, relativePath }]);
+        }, () => resolve([]));
+      } else if (entry.isDirectory) {
+        const dirReader = entry.createReader();
+        const entries: any[] = [];
+        const readEntries = () => {
+          dirReader.readEntries(async (result: any[]) => {
+            if (!result.length) {
+              const filesPromises = entries.map(e => traverseFileTree(e, path ? `${path}/${entry.name}` : entry.name));
+              const nestedFiles = await Promise.all(filesPromises);
+              resolve(nestedFiles.flat());
+            } else {
+              entries.push(...result);
+              readEntries();
+            }
+          }, () => resolve([]));
+        };
+        readEntries();
+      } else {
+        resolve([]);
+      }
+    });
+  };
 
   const [settings, setSettings] = useState({
     enableFaceTagging: false,
@@ -356,35 +404,71 @@ function GalleryUpload() {
     setIsDragging(false);
   };
 
-  const handleDrop = (e: React.DragEvent) => {
+  const handleDrop = async (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
-    
-    const files = Array.from(e.dataTransfer.files);
-    handleFiles(files);
+
+    const items = e.dataTransfer.items;
+    if (items && items.length > 0) {
+      const traversePromises: Promise<{ file: File; relativePath: string }[] >[] = [];
+      for (let i = 0; i < items.length; i++) {
+        const entry = items[i].webkitGetAsEntry ? items[i].webkitGetAsEntry() : null;
+        if (entry) {
+          traversePromises.push(traverseFileTree(entry));
+        } else {
+          const file = items[i].getAsFile();
+          if (file) {
+            traversePromises.push(Promise.resolve([{ file, relativePath: file.name }]));
+          }
+        }
+      }
+      const results = await Promise.all(traversePromises);
+      const allExtracted = results.flat();
+      if (allExtracted.length > 0) {
+        handleFilesWithPaths(allExtracted);
+      }
+    } else if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      const simpleFiles = Array.from(e.dataTransfer.files).map(file => ({
+        file,
+        relativePath: (file as any).webkitRelativePath || file.name
+      }));
+      handleFilesWithPaths(simpleFiles);
+    }
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
-    handleFiles(files);
+    const files = Array.from(e.target.files || []).map(file => ({
+      file,
+      relativePath: (file as any).webkitRelativePath || file.name
+    }));
+    handleFilesWithPaths(files);
   };
 
   const handleFiles = async (files: File[]) => {
-    const imageFiles = files.filter(file => file.type.startsWith('image/'));
+    const items = files.map(file => ({
+      file,
+      relativePath: (file as any).webkitRelativePath || file.name
+    }));
+    handleFilesWithPaths(items);
+  };
+
+  const handleFilesWithPaths = async (items: { file: File; relativePath: string }[]) => {
+    const imageItems = items.filter(item => item.file.type.startsWith('image/'));
     const batchSize = 10;
-    for (let i = 0; i < imageFiles.length; i += batchSize) {
-      const batch = imageFiles.slice(i, i + batchSize);
-      const promises = batch.map(file => new Promise<UploadedFile>((resolve) => {
+    for (let i = 0; i < imageItems.length; i += batchSize) {
+      const batch = imageItems.slice(i, i + batchSize);
+      const promises = batch.map(item => new Promise<UploadedFile>((resolve) => {
         const reader = new FileReader();
         reader.onload = (e) => {
           resolve({
             id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
-            file,
+            file: item.file,
             preview: e.target?.result as string,
-            title: file.name.replace(/\.[^/.]+$/, '')
+            title: item.file.name.replace(/\.[^/.]+$/, ''),
+            relativePath: item.relativePath
           });
         };
-        reader.readAsDataURL(file);
+        reader.readAsDataURL(item.file);
       }));
       const newFiles = await Promise.all(promises);
       setUploadedFiles(prev => [...prev, ...newFiles]);
@@ -450,12 +534,11 @@ function GalleryUpload() {
     };
 
     try {
-      // Process images (convert to WebP, extract tags, and optional watermark)
-      let filesToUpload = uploadedFiles;
+      // Process images concurrently with concurrency limit 6
       const selectedPreset = settings.applyWatermark ? watermarkPresets.find(p => p.id === settings.selectedWatermarkId) : null;
-      setUploadMessages(prev => [...prev, '⚙️ Optimizing, analyzing colors, and converting...']);
+      setUploadMessages(prev => [...prev, `⚙️ Optimizing ${uploadedFiles.length} images in parallel queue...`]);
       
-      const processedPromises = uploadedFiles.map(async (fileObj) => {
+      const filesToUpload = await mapConcurrently(uploadedFiles, 6, async (fileObj) => {
         try {
           const { file: watermarkedFile, tags } = await processImage(fileObj.file, settings.applyWatermark, selectedPreset);
           return { ...fileObj, watermarkedFile, aiTags: tags };
@@ -463,10 +546,9 @@ function GalleryUpload() {
           return { ...fileObj };
         }
       });
-      filesToUpload = await Promise.all(processedPromises);
       setUploadedFiles(filesToUpload);
 
-      const fileNames = filesToUpload.map(file => file.watermarkedFile?.name || file.file.name);
+      const fileNames = filesToUpload.map(file => file.relativePath || file.watermarkedFile?.name || file.file.name);
       const fileTypes = filesToUpload.map(file => file.watermarkedFile?.type || file.file.type);
       // Create folder path: projects/gallery/clientName-eventType-eventDate
       const folder = `projects/gallery/${sanitizeFolderName(projectData!.clientName)}-${sanitizeFolderName(projectData!.eventType || 'Unknown')}-${sanitizeFolderName(projectData!.eventDate || new Date().toISOString().split('T')[0])}`;
@@ -521,7 +603,10 @@ function GalleryUpload() {
       }
 
       let completed = 0;
-      const uploadPromises = filesToUpload.map(async (fileObj, i) => {
+      setUploadMessages(prev => [...prev, `🚀 Streaming ${filesToUpload.length} file(s) to Wasabi S3...`]);
+
+      // Upload files concurrently with concurrency limit 12
+      await mapConcurrently(filesToUpload, 12, async (fileObj, i) => {
         const presignedUrl = presignedUrls[i];
         const fileToUpload = fileObj.watermarkedFile || fileObj.file;
         try {
@@ -617,23 +702,48 @@ function GalleryUpload() {
                   onDragOver={handleDragOver}
                   onDragLeave={handleDragLeave}
                   onDrop={handleDrop}
-                  onClick={() => fileInputRef.current?.click()}
                   className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-all duration-200 ${
                     isDragging ? 'border-[#00BCEB] bg-[#00BCEB]/5' : 'border-gray-300 hover:border-[#00BCEB] hover:bg-[#00BCEB]/5'
                   }`}
                 >
                   <Upload className="h-12 w-12 text-gray-400 mx-auto mb-4" />
                   <p className="text-lg font-medium text-[#2D2D2D] mb-2">
-                    Drop files here or click to browse
+                    Drop files or full folders here
                   </p>
-                  <p className="text-sm text-gray-500">
-                    Supports JPG, PNG, HEIC files up to 50MB each
+                  <p className="text-sm text-gray-500 mb-4">
+                    Supports JPG, PNG, HEIC files up to 50MB each. Folders auto-preserve structure.
                   </p>
+
+                  <div className="flex items-center justify-center gap-3" onClick={(e) => e.stopPropagation()}>
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="px-5 py-2.5 bg-[#00BCEB] hover:bg-[#00A5CF] text-white text-sm font-semibold rounded-lg shadow transition-all flex items-center gap-2"
+                    >
+                      <Upload className="h-4 w-4" /> Browse Files
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => folderInputRef.current?.click()}
+                      className="px-5 py-2.5 bg-purple-600 hover:bg-purple-700 text-white text-sm font-semibold rounded-lg shadow transition-all flex items-center gap-2"
+                    >
+                      <Folder className="h-4 w-4" /> Upload Folder
+                    </button>
+                  </div>
+
                   <input
                     ref={fileInputRef}
                     type="file"
                     multiple
                     accept="image/*"
+                    onChange={handleFileSelect}
+                    className="hidden"
+                  />
+                  <input
+                    ref={folderInputRef}
+                    type="file"
+                    multiple
+                    {...({ webkitdirectory: '', directory: '' } as any)}
                     onChange={handleFileSelect}
                     className="hidden"
                   />
