@@ -3389,7 +3389,7 @@ function Gallery() {
             </div>
 
             {/* Floating Bulk Actions Toolbar */}
-            {selectedItems.length > 0 && (
+            {selectedItems.length > 0 && !shareModal.isOpen && (
               <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 z-40">
                 <div className="bg-white rounded-2xl shadow-2xl border border-gray-200 px-6 py-4 flex items-center space-x-4 animate-slide-up">
                   <div className="flex items-center space-x-2 text-sm font-medium text-gray-700">
