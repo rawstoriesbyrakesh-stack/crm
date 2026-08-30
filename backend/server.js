@@ -99,11 +99,6 @@ const setThumbCached = (key, buf) => {
 const presignPut = (key, contentType = 'application/octet-stream', expiresIn = PRESIGNED_EXPIRY) =>
   getSignedUrl(s3, new PutObjectCommand({ Bucket: S3_BUCKET, Key: key, ContentType: contentType, CacheControl: 'public, max-age=31536000, immutable' }), { expiresIn });
 
-const encodeCopySource = (bucket, key) => {
-  let rawKey = key;
-  try { rawKey = decodeURIComponent(key); } catch {}
-  return `${bucket}/${rawKey.split('/').map(encodeURIComponent).join('/')}`;
-};
 
 // Auto-configure Bucket CORS to allow browser uploads
 const configureBucketCors = async () => {
