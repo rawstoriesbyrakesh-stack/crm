@@ -296,6 +296,7 @@ function Gallery() {
   const [watermarkPosition, setWatermarkPosition] = useState<WatermarkPosition>('bottom-right'); // Default watermark position
   const [watermarkImage, setWatermarkImage] = useState<string | null>(null); // Watermark image (base64)
   const [watermarkImageName, setWatermarkImageName] = useState<string>(''); // Watermark image name
+  const [selectedWatermarkPreset, setSelectedWatermarkPreset] = useState<WatermarkPreset | null>(null); // Full preset with size/opacity/rotation
   const [uploadModal, setUploadModal] = useState(false); // Upload modal state
   const watermarkInputRef = useRef<HTMLInputElement>(null);
   const [currentPage, setCurrentPage] = useState(1);
@@ -2057,6 +2058,7 @@ function Gallery() {
     setWatermarkImage(preset.imageUrl);
     setWatermarkImageName(preset.imageName);
     setWatermarkPosition(preset.position);
+    setSelectedWatermarkPreset(preset); // ← store full preset so size/opacity/rotation are preserved
     setWatermarkEnabled(true);
 
     // Update last used time
@@ -2117,7 +2119,8 @@ function Gallery() {
   const applyWatermark = async (
     file: File,
     position: WatermarkPosition,
-    watermarkLoadedImg: HTMLImageElement | null
+    watermarkLoadedImg: HTMLImageElement | null,
+    preset?: WatermarkPreset | null
   ): Promise<File> => {
     // Skip watermark for videos
     if (file.type.startsWith('video/')) return file;
@@ -2149,38 +2152,42 @@ function Gallery() {
           canvas.height = height;
           ctx.drawImage(img, 0, 0, width, height);
 
-          // Calculate watermark size (15% of image width, maintaining aspect ratio)
-          const watermarkMaxWidth = width * 0.15;
-          const watermarkScale = watermarkMaxWidth / (watermarkLoadedImg.width || 1);
-          const watermarkWidth = watermarkLoadedImg.width * watermarkScale;
-          const watermarkHeight = watermarkLoadedImg.height * watermarkScale;
-          const padding = width * 0.02;
+          // ── Use preset's saved sizeRatio / xRatio / yRatio / opacity / rotation ──
+          const watermarkAspect = watermarkLoadedImg.naturalHeight / watermarkLoadedImg.naturalWidth || 1;
+          const sizeRatio = preset?.sizeRatio ?? 0.20; // default 20% if no preset saved
+          const resolvedWidth = width * sizeRatio;
+          const watermarkWidth = Math.max(24, Math.min(width, resolvedWidth));
+          const watermarkHeight = watermarkWidth * watermarkAspect;
+          const opacity = typeof preset?.opacity === 'number' ? preset.opacity : 0.75;
+          const rotation = typeof preset?.rotation === 'number' ? preset.rotation : 0;
+          const marginX = width * 0.03;
+          const marginY = height * 0.03;
 
-          let x = padding;
-          let y = padding;
+          // xRatio / yRatio from drag-and-drop repositioning in Watermarks page
+          let x = typeof preset?.xRatio === 'number'
+            ? preset.xRatio * width
+            : canvas.width - watermarkWidth - marginX;
+          let y = typeof preset?.yRatio === 'number'
+            ? preset.yRatio * height
+            : canvas.height - watermarkHeight - marginY;
 
-          switch (position) {
-            case 'top-left':
-              x = padding;
-              y = padding;
-              break;
-            case 'top-right':
-              x = canvas.width - watermarkWidth - padding;
-              y = padding;
-              break;
-            case 'bottom-left':
-              x = padding;
-              y = canvas.height - watermarkHeight - padding;
-              break;
-            case 'bottom-right':
-              x = canvas.width - watermarkWidth - padding;
-              y = canvas.height - watermarkHeight - padding;
-              break;
+          // Fallback position if no xRatio/yRatio saved
+          if (typeof preset?.xRatio !== 'number') {
+            switch (position) {
+              case 'top-left':    x = marginX; y = marginY; break;
+              case 'top-right':   x = canvas.width - watermarkWidth - marginX; y = marginY; break;
+              case 'bottom-left': x = marginX; y = canvas.height - watermarkHeight - marginY; break;
+              case 'bottom-right':
+              default:            x = canvas.width - watermarkWidth - marginX; y = canvas.height - watermarkHeight - marginY; break;
+            }
           }
 
-          ctx.globalAlpha = 0.75;
-          ctx.drawImage(watermarkLoadedImg, x, y, watermarkWidth, watermarkHeight);
-          ctx.globalAlpha = 1;
+          ctx.save();
+          ctx.globalAlpha = opacity;
+          ctx.translate(x + watermarkWidth / 2, y + watermarkHeight / 2);
+          ctx.rotate((rotation * Math.PI) / 180);
+          ctx.drawImage(watermarkLoadedImg, -watermarkWidth / 2, -watermarkHeight / 2, watermarkWidth, watermarkHeight);
+          ctx.restore();
 
           canvas.toBlob(
             (blob) => {
@@ -2276,7 +2283,7 @@ function Gallery() {
 
       const results = await mapConcurrently(validItems, 12, async (item) => {
         try {
-          const processedFile = await applyWatermark(item.file, watermarkPosition, watermarkLoadedImg);
+          const processedFile = await applyWatermark(item.file, watermarkPosition, watermarkLoadedImg, selectedWatermarkPreset);
           return { file: processedFile, relativePath: item.relativePath };
         } catch (error: any) {
           console.error('Watermark failed for', item.file.name, error);
