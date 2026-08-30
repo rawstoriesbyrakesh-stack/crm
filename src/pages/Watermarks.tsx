@@ -611,6 +611,12 @@ export default function Watermarks() {
               <div className="flex items-center gap-3 mt-3">
                 {selectedPresetId ? (
                   <>
+                    <div className="ml-auto mr-2 text-xs text-white flex items-center gap-2">
+                      <span className="font-medium">Position (X / Y):</span>
+                      <span>
+                        {previewRef.current ? `${Math.round((wmX / previewRef.current.getBoundingClientRect().width) * 100)}% / ${Math.round((wmY / previewRef.current.getBoundingClientRect().height) * 100)}%` : '—'}
+                      </span>
+                    </div>
                     <button
                       onClick={() => selectedPresetId && persistSelectedLayout(selectedPresetId)}
                       className="py-2 px-3 bg-primary-600 text-white rounded-xl text-sm"
