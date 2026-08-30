@@ -579,9 +579,9 @@ export default function Watermarks() {
                     />
                   </label>
                     <label className="space-y-2 md:col-span-3">
-                      <span className="flex justify-between text-xs text-white">
+                      <span className="flex justify-between text-xs text-slate-400">
                         <span>Position (X / Y)</span>
-                        <span className="text-xs text-white">{previewRef.current ? `${Math.round((wmX / previewRef.current.getBoundingClientRect().width) * 100)}% / ${Math.round((wmY / previewRef.current.getBoundingClientRect().height) * 100)}%` : '—'}</span>
+                        <span className="text-xs text-slate-400">{previewRef.current ? `${Math.round((wmX / previewRef.current.getBoundingClientRect().width) * 100)}% / ${Math.round((wmY / previewRef.current.getBoundingClientRect().height) * 100)}%` : '—'}</span>
                       </span>
                       <div className="flex items-center gap-2">
                         <input
@@ -610,7 +610,7 @@ export default function Watermarks() {
                           className="w-20 px-2 py-1 bg-slate-800/60 border border-slate-700 rounded text-sm"
                         />
                         <span className="text-xs text-slate-400">%</span>
-                        <div className="text-xs text-white/80 ml-2">Use percentages to precisely position the watermark.</div>
+                        <div className="text-xs text-slate-500 ml-2">Use percentages to precisely position the watermark.</div>
                       </div>
                     </label>
                   <label className="space-y-2">
