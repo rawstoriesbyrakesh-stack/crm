@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { Droplet, Plus, Trash2, Image as ImageIcon, Check } from 'lucide-react';
 
-type WatermarkPosition = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right' | 'center' | 'none';
+type WatermarkPosition = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right' | 'center' | 'top' | 'bottom' | 'left' | 'right' | 'none';
 
 interface WatermarkPreset {
   id: string;
@@ -297,7 +297,11 @@ export default function Watermarks() {
           pos === 'top-right' ? 'top-1 right-1' :
           pos === 'bottom-left' ? 'bottom-1 left-1' :
           pos === 'bottom-right' ? 'bottom-1 right-1' :
-          pos === 'center' ? 'top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2' : 'hidden'
+          pos === 'center' ? 'top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2' :
+          pos === 'top' ? 'top-1 left-1/2 -translate-x-1/2' :
+          pos === 'bottom' ? 'bottom-1 left-1/2 -translate-x-1/2' :
+          pos === 'left' ? 'top-1/2 left-1 -translate-y-1/2' :
+          pos === 'right' ? 'top-1/2 right-1 -translate-y-1/2' : 'hidden'
         }`} />
       </div>
       <span className="text-xs font-medium">{getPositionLabel(pos)}</span>
@@ -482,12 +486,18 @@ export default function Watermarks() {
               {newImage && (
                 <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }}>
                   <label className="block text-sm font-medium text-slate-300 mb-3">Default Position</label>
-                  <div className="grid grid-cols-2 gap-3 mb-6">
+                  <div className="grid grid-cols-3 gap-3 mb-6">
                     {renderPositionButton('top-left', newPosition, setNewPosition)}
+                    {renderPositionButton('top', newPosition, setNewPosition)}
                     {renderPositionButton('top-right', newPosition, setNewPosition)}
-                    {renderPositionButton('bottom-left', newPosition, setNewPosition)}
-                    {renderPositionButton('bottom-right', newPosition, setNewPosition)}
+
+                    {renderPositionButton('left', newPosition, setNewPosition)}
                     {renderPositionButton('center', newPosition, setNewPosition)}
+                    {renderPositionButton('right', newPosition, setNewPosition)}
+
+                    {renderPositionButton('bottom-left', newPosition, setNewPosition)}
+                    {renderPositionButton('bottom', newPosition, setNewPosition)}
+                    {renderPositionButton('bottom-right', newPosition, setNewPosition)}
                   </div>
 
                   <button

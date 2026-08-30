@@ -232,6 +232,18 @@ function GalleryUpload() {
             } else if (preset.position === 'bottom-right') {
               if (typeof preset.xRatio !== 'number') watermarkX = width - watermarkWidth - marginX;
               if (typeof preset.yRatio !== 'number') watermarkY = height - watermarkHeight - marginY;
+            } else if (preset.position === 'top') {
+              if (typeof preset.xRatio !== 'number') watermarkX = (width - watermarkWidth) / 2;
+              if (typeof preset.yRatio !== 'number') watermarkY = marginY;
+            } else if (preset.position === 'bottom') {
+              if (typeof preset.xRatio !== 'number') watermarkX = (width - watermarkWidth) / 2;
+              if (typeof preset.yRatio !== 'number') watermarkY = height - watermarkHeight - marginY;
+            } else if (preset.position === 'left') {
+              if (typeof preset.xRatio !== 'number') watermarkX = marginX;
+              if (typeof preset.yRatio !== 'number') watermarkY = (height - watermarkHeight) / 2;
+            } else if (preset.position === 'right') {
+              if (typeof preset.xRatio !== 'number') watermarkX = width - watermarkWidth - marginX;
+              if (typeof preset.yRatio !== 'number') watermarkY = (height - watermarkHeight) / 2;
             } else if (preset.position === 'center') {
               if (typeof preset.xRatio !== 'number') watermarkX = (width - watermarkWidth) / 2;
               if (typeof preset.yRatio !== 'number') watermarkY = (height - watermarkHeight) / 2;
