@@ -2112,119 +2112,93 @@ function Gallery() {
   };
 
   // -------------------- Watermark Application --------------------
-  const applyWatermark = async (file: File, position: WatermarkPosition, watermarkImageUrl: string): Promise<File> => {
-    return new Promise((resolve, reject) => {
-      // Skip watermark for videos
-      if (file.type.startsWith('video/')) {
-        resolve(file);
-        return;
-      }
+  const applyWatermark = async (
+    file: File,
+    position: WatermarkPosition,
+    watermarkLoadedImg: HTMLImageElement | null
+  ): Promise<File> => {
+    // Skip watermark for videos
+    if (file.type.startsWith('video/')) return file;
+    if (position === 'none' || !watermarkLoadedImg) return file;
 
-      // Skip if position is 'none' or no watermark image
-      if (position === 'none' || !watermarkImageUrl) {
-        resolve(file);
-        return;
-      }
+    return new Promise((resolve) => {
+      const objectUrl = URL.createObjectURL(file);
+      const img = new Image();
 
-      const img = document.createElement('img');
-      const watermarkImg = document.createElement('img');
-      const reader = new FileReader();
+      img.onload = () => {
+        URL.revokeObjectURL(objectUrl);
+        try {
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            resolve(file);
+            return;
+          }
 
-      reader.onload = (e) => {
-        img.onload = () => {
-          // Load watermark image
-          watermarkImg.onload = () => {
-            try {
-              const canvas = document.createElement('canvas');
-              const ctx = canvas.getContext('2d');
-              
-              if (!ctx) {
-                reject(new Error('Could not get canvas context'));
+          canvas.width = img.width;
+          canvas.height = img.height;
+          ctx.drawImage(img, 0, 0);
+
+          // Calculate watermark size (15% of image width, maintaining aspect ratio)
+          const watermarkMaxWidth = img.width * 0.15;
+          const watermarkScale = watermarkMaxWidth / (watermarkLoadedImg.width || 1);
+          const watermarkWidth = watermarkLoadedImg.width * watermarkScale;
+          const watermarkHeight = watermarkLoadedImg.height * watermarkScale;
+          const padding = img.width * 0.02;
+
+          let x = padding;
+          let y = padding;
+
+          switch (position) {
+            case 'top-left':
+              x = padding;
+              y = padding;
+              break;
+            case 'top-right':
+              x = canvas.width - watermarkWidth - padding;
+              y = padding;
+              break;
+            case 'bottom-left':
+              x = padding;
+              y = canvas.height - watermarkHeight - padding;
+              break;
+            case 'bottom-right':
+              x = canvas.width - watermarkWidth - padding;
+              y = canvas.height - watermarkHeight - padding;
+              break;
+          }
+
+          ctx.globalAlpha = 0.75;
+          ctx.drawImage(watermarkLoadedImg, x, y, watermarkWidth, watermarkHeight);
+          ctx.globalAlpha = 1;
+
+          canvas.toBlob(
+            (blob) => {
+              if (!blob) {
+                resolve(file);
                 return;
               }
-
-              // Set canvas dimensions to match image
-              canvas.width = img.width;
-              canvas.height = img.height;
-
-              // Draw the original image
-              ctx.drawImage(img, 0, 0);
-
-              // Calculate watermark size (10% of image width, maintaining aspect ratio)
-              const watermarkMaxWidth = img.width * 0.15;
-              const watermarkScale = watermarkMaxWidth / watermarkImg.width;
-              const watermarkWidth = watermarkImg.width * watermarkScale;
-              const watermarkHeight = watermarkImg.height * watermarkScale;
-              const padding = img.width * 0.02; // 2% padding
-
-              // Calculate position based on selection
-              let x = 0;
-              let y = 0;
-
-              switch (position) {
-                case 'top-left':
-                  x = padding;
-                  y = padding;
-                  break;
-                case 'top-right':
-                  x = canvas.width - watermarkWidth - padding;
-                  y = padding;
-                  break;
-                case 'bottom-left':
-                  x = padding;
-                  y = canvas.height - watermarkHeight - padding;
-                  break;
-                case 'bottom-right':
-                  x = canvas.width - watermarkWidth - padding;
-                  y = canvas.height - watermarkHeight - padding;
-                  break;
-              }
-
-              // Draw watermark image with some transparency
-              ctx.globalAlpha = 0.7;
-              ctx.drawImage(watermarkImg, x, y, watermarkWidth, watermarkHeight);
-              ctx.globalAlpha = 1;
-
-              // Convert canvas to blob
-              canvas.toBlob((blob) => {
-                if (!blob) {
-                  reject(new Error('Failed to create watermarked image'));
-                  return;
-                }
-
-                // Create new file with watermark
-                const watermarkedFile = new File([blob], file.name, {
-                  type: file.type,
-                  lastModified: Date.now(),
-                });
-
-                resolve(watermarkedFile);
-              }, file.type, 0.95); // High quality
-            } catch (error) {
-              reject(error);
-            }
-          };
-
-          watermarkImg.onerror = () => {
-            reject(new Error('Failed to load watermark image'));
-          };
-
-          // Load watermark image
-          watermarkImg.src = watermarkImageUrl;
-        };
-
-        img.onerror = () => {
-          reject(new Error('Failed to load image'));
-        };
-
-        img.src = e.target?.result as string;
+              const watermarkedFile = new File([blob], file.name, {
+                type: file.type,
+                lastModified: Date.now(),
+              });
+              resolve(watermarkedFile);
+            },
+            file.type || 'image/jpeg',
+            0.92
+          );
+        } catch (err) {
+          console.error('Canvas watermarking error:', err);
+          resolve(file);
+        }
       };
 
-      reader.onerror = () => {
-        reject(new Error('Failed to read file'));
+      img.onerror = () => {
+        URL.revokeObjectURL(objectUrl);
+        resolve(file);
       };
 
-      reader.readAsDataURL(file);
+      img.src = objectUrl;
     });
   };
 
@@ -2265,6 +2239,16 @@ function Gallery() {
     const processedItems: { file: File; relativePath: string }[] = [];
     if (watermarkEnabled && watermarkPosition !== 'none' && watermarkImage) {
       addNotification(`Applying watermarks to ${validItems.length} file(s) in parallel queue...`, 'info');
+      
+      // Pre-load watermark image ONCE before loop
+      const watermarkLoadedImg = await new Promise<HTMLImageElement | null>((res) => {
+        const wImg = new Image();
+        wImg.crossOrigin = 'anonymous';
+        wImg.onload = () => res(wImg);
+        wImg.onerror = () => res(null);
+        wImg.src = watermarkImage;
+      });
+
       // Parallel watermarking queue with concurrency 6
       const mapConcurrently = async <T, R>(arr: T[], concurrency: number, fn: (item: T) => Promise<R>): Promise<R[]> => {
         const results = new Array<R>(arr.length);
@@ -2282,7 +2266,7 @@ function Gallery() {
 
       const results = await mapConcurrently(validItems, 6, async (item) => {
         try {
-          const processedFile = await applyWatermark(item.file, watermarkPosition, watermarkImage);
+          const processedFile = await applyWatermark(item.file, watermarkPosition, watermarkLoadedImg);
           return { file: processedFile, relativePath: item.relativePath };
         } catch (error: any) {
           console.error('Watermark failed for', item.file.name, error);
