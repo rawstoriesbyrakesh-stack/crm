@@ -596,6 +596,30 @@ export default function SharedLinks() {
                   </button>
 
                   <button
+                    onClick={() => {
+                      const canvas = document.querySelector('#admin-qr-canvas-box canvas') as HTMLCanvasElement;
+                      if (!canvas) return;
+                      canvas.toBlob(async (blob) => {
+                        if (!blob) return;
+                        try {
+                          await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+                          copyToClipboard('__qr_image__', selectedQrLink.shareId, 'qr-img');
+                        } catch {
+                          // Fallback: download if clipboard write not supported
+                          const a = document.createElement('a');
+                          a.href = canvas.toDataURL('image/png');
+                          a.download = `share_qr_${selectedQrLink.shareId}.png`;
+                          a.click();
+                        }
+                      });
+                    }}
+                    className="w-full py-2.5 bg-violet-600/20 hover:bg-violet-600/30 text-violet-300 font-bold rounded-xl text-xs flex items-center justify-center gap-2 border border-violet-500/30 transition-all"
+                  >
+                    {copiedId === `${selectedQrLink.shareId}-qr-img` ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+                    {copiedId === `${selectedQrLink.shareId}-qr-img` ? 'QR Image Copied!' : 'Copy QR Image to Clipboard'}
+                  </button>
+
+                  <button
                     onClick={() => copyToClipboard(getShareUrl(selectedQrLink), selectedQrLink.shareId, 'modal-qr')}
                     className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold rounded-xl text-xs flex items-center justify-center gap-2 border border-slate-700 transition-all"
                   >

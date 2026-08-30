@@ -1406,6 +1406,27 @@ export default function SharedFolderView() {
                 <Download className="h-4 w-4" /> Download QR Code PNG
               </button>
 
+              <button onClick={async () => {
+                const canvas = document.querySelector('#gallery-qr-canvas-container canvas') as HTMLCanvasElement;
+                if (!canvas) return;
+                canvas.toBlob(async (blob) => {
+                  if (!blob) return;
+                  try {
+                    await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+                    notify(setNotifications, 'QR Code image copied to clipboard!', 'success');
+                  } catch {
+                    // Fallback: download if clipboard API blocked
+                    const a = document.createElement('a');
+                    a.href = canvas.toDataURL('image/png');
+                    a.download = `gallery_qr_${galleryTitle.toLowerCase().replace(/\s+/g, '_')}.png`;
+                    a.click();
+                    notify(setNotifications, 'QR Code downloaded (clipboard not supported).', 'info');
+                  }
+                });
+              }} className="w-full py-2.5 bg-violet-600/20 hover:bg-violet-600/30 text-violet-300 font-bold rounded-xl text-xs flex items-center justify-center gap-2 border border-violet-500/30">
+                <Copy className="h-4 w-4" /> Copy QR Image to Clipboard
+              </button>
+
               <button onClick={() => {
                 navigator.clipboard.writeText(window.location.href);
                 setQrCopied(true);
