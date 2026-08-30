@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'fs';
 import path from 'path';
 
-const API_BASE = 'http://localhost:8787';
+const API_BASE = process.env.API_BASE || 'https://rawstoriesbyrakesh.vercel.app/_/backend';
 
 // Functional Test 1: Health Check Endpoint & Storage status
 test('Functional Test: Backend GET /api/health', async () => {
