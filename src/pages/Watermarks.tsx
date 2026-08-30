@@ -293,15 +293,15 @@ export default function Watermarks() {
     >
       <div className="w-10 h-10 border-2 border-current rounded relative">
         <div className={`absolute w-2 h-2 bg-current rounded-full ${
-          pos === 'top-left' ? 'top-1 left-1' :
-          pos === 'top-right' ? 'top-1 right-1' :
-          pos === 'bottom-left' ? 'bottom-1 left-1' :
-          pos === 'bottom-right' ? 'bottom-1 right-1' :
+          pos === 'top-left' ? 'top-2 left-2' :
+          pos === 'top-right' ? 'top-2 right-2' :
+          pos === 'bottom-left' ? 'bottom-2 left-2' :
+          pos === 'bottom-right' ? 'bottom-2 right-2' :
           pos === 'center' ? 'top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2' :
-          pos === 'top' ? 'top-1 left-1/2 -translate-x-1/2' :
-          pos === 'bottom' ? 'bottom-1 left-1/2 -translate-x-1/2' :
-          pos === 'left' ? 'top-1/2 left-1 -translate-y-1/2' :
-          pos === 'right' ? 'top-1/2 right-1 -translate-y-1/2' : 'hidden'
+          pos === 'top' ? 'top-2 left-1/2 -translate-x-1/2' :
+          pos === 'bottom' ? 'bottom-2 left-1/2 -translate-x-1/2' :
+          pos === 'left' ? 'top-1/2 left-2 -translate-y-1/2' :
+          pos === 'right' ? 'top-1/2 right-2 -translate-y-1/2' : 'hidden'
         }`} />
       </div>
       <span className="text-xs font-medium">{getPositionLabel(pos)}</span>
