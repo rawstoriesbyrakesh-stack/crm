@@ -562,26 +562,55 @@ export default function SharedLinks() {
               initial={{ scale: 0.9, opacity: 0, y: 20 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.9, opacity: 0, y: 20 }}
-              className="relative bg-slate-900 border border-slate-700 rounded-3xl p-8 w-full max-w-sm shadow-2xl"
+              className="relative bg-slate-900 border border-slate-700 rounded-3xl p-8 w-full max-w-sm shadow-2xl overflow-hidden"
             >
               <button onClick={() => setSelectedQrLink(null)} className="absolute top-4 right-4 p-2 rounded-xl bg-slate-800 text-slate-400 hover:text-white transition-colors">
                 <X className="w-5 h-5" />
               </button>
               <div className="text-center">
-                <div className="flex items-center justify-center gap-2 mb-6">
+                <div className="flex items-center justify-center gap-2 mb-4">
                   <QrCode className="w-5 h-5 text-[#00BCEB]" />
-                  <h3 className="text-lg font-bold text-white">Scan QR Code</h3>
+                  <h3 className="text-lg font-bold text-white">Scan Gallery QR</h3>
                 </div>
-                <div className="bg-white p-4 rounded-2xl inline-block mb-4 shadow-xl">
-                  <QRCodeCanvas value={getShareUrl(selectedQrLink)} size={200} />
+                <p className="text-xs text-slate-400 mb-5">Point camera to open shared gallery link</p>
+
+                <div id="admin-qr-canvas-box" className="bg-white p-4 rounded-2xl inline-block mb-4 shadow-xl">
+                  <QRCodeCanvas value={getShareUrl(selectedQrLink)} size={200} includeMargin bg="#ffffff" fg="#090d16" />
                 </div>
                 <p className="text-[11px] text-slate-500 font-mono break-all px-2 mb-6">{getShareUrl(selectedQrLink)}</p>
-                <button
-                  onClick={() => setSelectedQrLink(null)}
-                  className="w-full py-3 bg-gradient-to-r from-[#00BCEB] to-blue-500 text-white font-semibold rounded-xl hover:from-[#00A5CF] hover:to-blue-600 transition-all shadow-lg shadow-[#00BCEB]/20"
-                >
-                  Done
-                </button>
+
+                <div className="space-y-2.5">
+                  <button
+                    onClick={() => {
+                      const canvas = document.querySelector('#admin-qr-canvas-box canvas') as HTMLCanvasElement;
+                      if (canvas) {
+                        const a = document.createElement('a');
+                        a.href = canvas.toDataURL('image/png');
+                        a.download = `share_qr_${selectedQrLink.shareId}.png`;
+                        a.click();
+                      }
+                    }}
+                    className="w-full py-3 bg-gradient-to-r from-[#00BCEB] to-blue-500 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 transition-all shadow-lg shadow-[#00BCEB]/20 hover:brightness-110"
+                  >
+                    <Download className="w-4 h-4" /> Download QR Code PNG
+                  </button>
+
+                  <button
+                    onClick={() => copyToClipboard(getShareUrl(selectedQrLink), selectedQrLink.shareId, 'modal-qr')}
+                    className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold rounded-xl text-xs flex items-center justify-center gap-2 border border-slate-700 transition-all"
+                  >
+                    {copiedId === `${selectedQrLink.shareId}-modal-qr` ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+                    {copiedId === `${selectedQrLink.shareId}-modal-qr` ? 'Copied Link!' : 'Copy Gallery Link'}
+                  </button>
+
+                  <a
+                    href={`https://api.whatsapp.com/send?text=${encodeURIComponent(`Here is your gallery link: ${getShareUrl(selectedQrLink)}`)}`}
+                    target="_blank" rel="noopener noreferrer"
+                    className="w-full py-2.5 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 font-bold rounded-xl text-xs flex items-center justify-center gap-2 border border-emerald-500/30 transition-all"
+                  >
+                    {WHATSAPP_ICON} Share via WhatsApp
+                  </a>
+                </div>
               </div>
             </motion.div>
           </motion.div>

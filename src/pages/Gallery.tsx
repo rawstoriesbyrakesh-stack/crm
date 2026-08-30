@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 // Sidebar and Header removed per request - gallery management UI is self-contained
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
+import { QRCodeCanvas } from 'qrcode.react';
 import {
   Plus,
   Search,
@@ -30,6 +31,7 @@ import {
   GripVertical,
   Edit2,
   Lock,
+  QrCode,
 } from 'lucide-react';
 import { rawStoriesApiUrl, getRawStoriesToken } from '../api/rawStoriesBackend';
 
@@ -4387,7 +4389,7 @@ function Gallery() {
                         </div>
                       )}
                       {shareModal.links.map((link, i) => (
-                        <div key={i} className="space-y-2">
+                        <div key={i} className="space-y-3 pt-2">
                           <label className="text-sm font-medium text-gray-700">Share Link</label>
                           <div className="flex items-center gap-2">
                             <input readOnly value={link}
@@ -4395,6 +4397,27 @@ function Gallery() {
                             <button onClick={() => copyToClipboard(link)}
                               className="flex items-center gap-1.5 px-4 py-2.5 bg-[#00BCEB] hover:bg-[#00A5CF] text-white rounded-xl text-sm font-medium transition-all whitespace-nowrap">
                               <Copy className="h-4 w-4" />Copy
+                            </button>
+                          </div>
+
+                          {/* QR Code Section */}
+                          <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 text-center">
+                            <p className="text-xs font-semibold text-slate-700 mb-2.5 flex items-center justify-center gap-1.5">
+                              <QrCode className="h-4 w-4 text-[#00BCEB]" /> Gallery QR Scan Code
+                            </p>
+                            <div id={`created-qr-${i}`} className="bg-white p-3 rounded-xl inline-block shadow-md border border-slate-100">
+                              <QRCodeCanvas value={link} size={150} includeMargin bg="#ffffff" fg="#0f172a" />
+                            </div>
+                            <button onClick={() => {
+                              const canvas = document.querySelector(`#created-qr-${i} canvas`) as HTMLCanvasElement;
+                              if (canvas) {
+                                const a = document.createElement('a');
+                                a.href = canvas.toDataURL('image/png');
+                                a.download = `share_qr_${shareModal.sharePin || 'gallery'}.png`;
+                                a.click();
+                              }
+                            }} className="mt-3 w-full py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 transition-all">
+                              <Download className="h-3.5 w-3.5" /> Download QR Code PNG
                             </button>
                           </div>
                         </div>
