@@ -578,6 +578,41 @@ export default function Watermarks() {
                       className="w-full accent-primary-500"
                     />
                   </label>
+                    <label className="space-y-2 md:col-span-3">
+                      <span className="flex justify-between text-xs text-slate-400">
+                        <span>Position (X / Y)</span>
+                        <span className="text-xs text-slate-400">{previewRef.current ? `${Math.round((wmX / previewRef.current.getBoundingClientRect().width) * 100)}% / ${Math.round((wmY / previewRef.current.getBoundingClientRect().height) * 100)}%` : '—'}</span>
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="number"
+                          min={0}
+                          max={100}
+                          value={previewRef.current ? Math.round((wmX / previewRef.current.getBoundingClientRect().width) * 100) : 0}
+                          onChange={(e) => {
+                            const pct = Math.max(0, Math.min(100, Number(e.target.value) || 0));
+                            const rect = previewRef.current?.getBoundingClientRect();
+                            if (rect) setWmX(Math.min(Math.max(0, Math.round((pct / 100) * rect.width)), Math.max(0, rect.width - wmWidth)));
+                          }}
+                          className="w-20 px-2 py-1 bg-slate-800/60 border border-slate-700 rounded text-sm"
+                        />
+                        <span className="text-xs text-slate-400">%</span>
+                        <input
+                          type="number"
+                          min={0}
+                          max={100}
+                          value={previewRef.current ? Math.round((wmY / previewRef.current.getBoundingClientRect().height) * 100) : 0}
+                          onChange={(e) => {
+                            const pct = Math.max(0, Math.min(100, Number(e.target.value) || 0));
+                            const rect = previewRef.current?.getBoundingClientRect();
+                            if (rect) setWmY(Math.min(Math.max(0, Math.round((pct / 100) * rect.height)), Math.max(0, rect.height - (wmWidth * wmAspect))));
+                          }}
+                          className="w-20 px-2 py-1 bg-slate-800/60 border border-slate-700 rounded text-sm"
+                        />
+                        <span className="text-xs text-slate-400">%</span>
+                        <div className="text-xs text-slate-500 ml-2">Use percentages to precisely position the watermark.</div>
+                      </div>
+                    </label>
                   <label className="space-y-2">
                     <span className="flex justify-between text-xs text-slate-400">
                       <span>Opacity</span>
