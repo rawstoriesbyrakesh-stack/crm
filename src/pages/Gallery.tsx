@@ -508,7 +508,7 @@ function Gallery() {
     if (!item || isRotating || item.isVideo) return;
     setIsRotating(true);
     try {
-      const img = new Image();
+      const img = new globalThis.Image();
       img.crossOrigin = 'anonymous';
       img.src = item.imageUrl + (item.imageUrl.includes('?') ? '&' : '?') + 'cachebust=' + Date.now();
 
@@ -2128,7 +2128,7 @@ function Gallery() {
 
     return new Promise((resolve) => {
       const objectUrl = URL.createObjectURL(file);
-      const img = new Image();
+      const img = new globalThis.Image();
 
       img.onload = () => {
         URL.revokeObjectURL(objectUrl);
@@ -2259,7 +2259,7 @@ function Gallery() {
       
       // Pre-load watermark image ONCE before loop
       const watermarkLoadedImg = await new Promise<HTMLImageElement | null>((res) => {
-        const wImg = new Image();
+        const wImg = new globalThis.Image();
         wImg.crossOrigin = 'anonymous';
         wImg.onload = () => res(wImg);
         wImg.onerror = () => res(null);

@@ -142,7 +142,7 @@ function GalleryUpload() {
   // Function to process image (compress to WebP, optionally watermark, extract AI tags)
   const processImage = async (file: File, applyWatermark: boolean, preset?: any): Promise<{ file: File, tags: string[] }> => {
     return new Promise((resolve, reject) => {
-      const img = new Image();
+      const img = new globalThis.Image();
       const reader = new FileReader();
       img.crossOrigin = 'anonymous';
 
@@ -201,7 +201,7 @@ function GalleryUpload() {
         };
 
         if (applyWatermark && preset && preset.imageUrl) {
-          const watermarkImg = new Image();
+          const watermarkImg = new globalThis.Image();
           watermarkImg.crossOrigin = 'anonymous';
           watermarkImg.src = preset.imageUrl;
 

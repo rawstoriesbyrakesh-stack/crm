@@ -390,7 +390,7 @@ function SharedImages() {
 
     const imgs: HTMLImageElement[] = [];
     toPreload.forEach((src) => {
-      const img = new Image();
+      const img = new globalThis.Image();
       img.decoding = 'async';
       img.src = src;
       imgs.push(img);

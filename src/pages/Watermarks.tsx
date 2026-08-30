@@ -144,7 +144,7 @@ export default function Watermarks() {
   };
 
   const loadImageDimensions = (url: string) => new Promise<{w:number,h:number}>((res) => {
-    const img = new Image();
+    const img = new globalThis.Image();
     img.onload = () => res({w: img.naturalWidth, h: img.naturalHeight});
     img.src = url;
   });
