@@ -133,7 +133,8 @@ const CameraShutterLoader: React.FC<{ onDone: () => void }> = ({ onDone }) => {
           alt="Raw Stories by Rakesh"
           style={{
             height: 48, objectFit: 'contain',
-            filter: 'invert(1) brightness(1.05) drop-shadow(0 0 12px rgba(217,119,6,0.5))'
+            // Force logo to render white for dark backgrounds
+            filter: 'brightness(0) invert(1) drop-shadow(0 0 12px rgba(0,0,0,0.5))'
           }}
         />
         {/* Tagline */}
