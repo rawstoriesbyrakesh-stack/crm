@@ -216,22 +216,21 @@ function GalleryUpload() {
             const marginY = height * 0.05;
 
             // Compute default from ratios if present, otherwise default to bottom-right
-            let watermarkX = typeof preset.xRatio === 'number' ? preset.xRatio * width : width - watermarkWidth - marginX;
-            let watermarkY = typeof preset.yRatio === 'number' ? preset.yRatio * height : height - watermarkHeight - marginY;
+            const cornerPositions = ['top-left','top-right','bottom-left','bottom-right'];
+            const usePresetRatios = typeof preset.xRatio === 'number' && typeof preset.yRatio === 'number' && !cornerPositions.includes(preset.position);
+
+            let watermarkX = usePresetRatios ? preset.xRatio * width : width - watermarkWidth - marginX;
+            let watermarkY = usePresetRatios ? preset.yRatio * height : height - watermarkHeight - marginY;
 
             // Apply named positions when explicit ratios are not provided
             if (preset.position === 'top-left') {
-              if (typeof preset.xRatio !== 'number') watermarkX = marginX;
-              if (typeof preset.yRatio !== 'number') watermarkY = marginY;
+              if (!usePresetRatios && preset.position === 'top-left') { watermarkX = marginX; watermarkY = marginY; }
             } else if (preset.position === 'top-right') {
-              if (typeof preset.xRatio !== 'number') watermarkX = width - watermarkWidth - marginX;
-              if (typeof preset.yRatio !== 'number') watermarkY = marginY;
+              if (!usePresetRatios && preset.position === 'top-right') { watermarkX = width - watermarkWidth - marginX; watermarkY = marginY; }
             } else if (preset.position === 'bottom-left') {
-              if (typeof preset.xRatio !== 'number') watermarkX = marginX;
-              if (typeof preset.yRatio !== 'number') watermarkY = height - watermarkHeight - marginY;
+              if (!usePresetRatios && preset.position === 'bottom-left') { watermarkX = marginX; watermarkY = height - watermarkHeight - marginY; }
             } else if (preset.position === 'bottom-right') {
-              if (typeof preset.xRatio !== 'number') watermarkX = width - watermarkWidth - marginX;
-              if (typeof preset.yRatio !== 'number') watermarkY = height - watermarkHeight - marginY;
+              if (!usePresetRatios && preset.position === 'bottom-right') { watermarkX = width - watermarkWidth - marginX; watermarkY = height - watermarkHeight - marginY; }
             } else if (preset.position === 'top') {
               if (typeof preset.xRatio !== 'number') watermarkX = (width - watermarkWidth) / 2;
               if (typeof preset.yRatio !== 'number') watermarkY = marginY;
