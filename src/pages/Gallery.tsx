@@ -2135,16 +2135,24 @@ function Gallery() {
             return;
           }
 
-          canvas.width = img.width;
-          canvas.height = img.height;
-          ctx.drawImage(img, 0, 0);
+          let width = img.width;
+          let height = img.height;
+          const MAX_DIM = 2800;
+          if (width > MAX_DIM || height > MAX_DIM) {
+            if (width > height) { height = Math.round((height * MAX_DIM) / width); width = MAX_DIM; }
+            else { width = Math.round((width * MAX_DIM) / height); height = MAX_DIM; }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          ctx.drawImage(img, 0, 0, width, height);
 
           // Calculate watermark size (15% of image width, maintaining aspect ratio)
-          const watermarkMaxWidth = img.width * 0.15;
+          const watermarkMaxWidth = width * 0.15;
           const watermarkScale = watermarkMaxWidth / (watermarkLoadedImg.width || 1);
           const watermarkWidth = watermarkLoadedImg.width * watermarkScale;
           const watermarkHeight = watermarkLoadedImg.height * watermarkScale;
-          const padding = img.width * 0.02;
+          const padding = width * 0.02;
 
           let x = padding;
           let y = padding;
@@ -2264,7 +2272,7 @@ function Gallery() {
         return results;
       };
 
-      const results = await mapConcurrently(validItems, 6, async (item) => {
+      const results = await mapConcurrently(validItems, 12, async (item) => {
         try {
           const processedFile = await applyWatermark(item.file, watermarkPosition, watermarkLoadedImg);
           return { file: processedFile, relativePath: item.relativePath };
