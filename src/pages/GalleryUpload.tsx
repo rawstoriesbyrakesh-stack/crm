@@ -639,8 +639,6 @@ function GalleryUpload() {
         }
       });
 
-      await Promise.all(uploadPromises);
-
       setUploadMessages(prev => [...prev, '✅ Upload completed successfully']);
       setTimeout(() => navigate('/gallery'), 2000);
     } catch (err: any) {
