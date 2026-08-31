@@ -66,7 +66,7 @@ export default function Layout({ children }: LayoutProps) {
           <div className="p-8 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center shadow-lg shadow-cyan-500/10 overflow-hidden">
-                <img src="/rawstories-logo.png" alt="RawStoriesbyrakesh logo" className="w-full h-full object-contain" style={{ filter: 'invert(1) brightness(1.2)' }} />
+                <img src="/rawstories-logo.png" alt="RawStoriesbyrakesh logo" className="w-full h-full object-contain" style={{ filter: 'brightness(0) invert(1)' }} />
               </div>
               <h1 className="text-lg font-bold bg-clip-text text-transparent bg-gradient-to-r from-white via-slate-200 to-cyan-400 tracking-tight">
                 RawStoriesbyrakesh
@@ -135,7 +135,7 @@ export default function Layout({ children }: LayoutProps) {
         <header className="lg:hidden flex items-center justify-between p-4 bg-slate-900/80 backdrop-blur-lg border-b border-slate-700/50 sticky top-0 z-30">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center overflow-hidden">
-              <img src="/rawstories-logo.png" alt="RawStoriesbyrakesh logo" className="w-full h-full object-contain" style={{ filter: 'invert(1) brightness(1.2)' }} />
+              <img src="/rawstories-logo.png" alt="RawStoriesbyrakesh logo" className="w-full h-full object-contain" style={{ filter: 'brightness(0) invert(1)' }} />
             </div>
             <h1 className="text-lg font-bold text-white">RawStoriesbyrakesh</h1>
           </div>

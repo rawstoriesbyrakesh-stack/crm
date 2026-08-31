@@ -133,7 +133,7 @@ const CameraShutterLoader: React.FC<{ onDone: () => void }> = ({ onDone }) => {
           alt="Raw Stories by Rakesh"
           style={{
             height: 48, objectFit: 'contain',
-            filter: 'invert(1) brightness(1.05) drop-shadow(0 0 12px rgba(217,119,6,0.5))'
+            filter: 'brightness(0) invert(1) drop-shadow(0 0 12px rgba(217,119,6,0.5))'
           }}
         />
         {/* Tagline */}
@@ -788,7 +788,7 @@ export default function SharedFolderView() {
           src="/rawstories-logo.png"
           alt="Raw Stories by Rakesh"
           className="h-14 object-contain"
-          style={{ filter: 'invert(1) brightness(1.2) drop-shadow(0 0 20px rgba(245,158,11,0.5))' }}
+          style={{ filter: 'brightness(0) invert(1) drop-shadow(0 0 20px rgba(245,158,11,0.5))' }}
         />
         <p className="text-amber-400/90 text-xs font-semibold tracking-[0.35em] uppercase">Your Memories, Our Craft</p>
       </div>
@@ -909,7 +909,7 @@ export default function SharedFolderView() {
           {/* Brand */}
           <div className="flex items-center gap-3 min-w-0">
             <img src="/rawstories-logo.png" alt="Raw Stories by Rakesh" className="h-8 object-contain shrink-0 drop-shadow-[0_0_12px_rgba(245,158,11,0.4)]"
-              style={{ filter: 'invert(1) brightness(1.2)' }} />
+              style={{ filter: 'brightness(0) invert(1)' }} />
             <div className="h-6 w-px bg-slate-700" />
             <div className="min-w-0">
               <p className="text-slate-100 font-bold text-sm sm:text-base capitalize truncate leading-tight">{galleryTitle}</p>
