@@ -64,6 +64,12 @@ interface WatermarkPreset {
   imageUrl: string; // Base64 or URL of watermark image
   imageName: string; // Name of the watermark image
   position: WatermarkPosition;
+  sizeRatio?: number;
+  xRatio?: number;
+  yRatio?: number;
+  useCustomCoordinates?: boolean;
+  opacity?: number;
+  rotation?: number;
   lastUsed: number;
 }
 
@@ -2152,7 +2158,7 @@ function Gallery() {
           canvas.height = height;
           ctx.drawImage(img, 0, 0, width, height);
 
-          // ── Use preset's saved sizeRatio / xRatio / yRatio / opacity / rotation ──
+          // ── Use preset's saved sizeRatio / opacity / rotation ──
           const watermarkAspect = watermarkLoadedImg.naturalHeight / watermarkLoadedImg.naturalWidth || 1;
           const sizeRatio = preset?.sizeRatio ?? 0.20; // default 20% if no preset saved
           const resolvedWidth = width * sizeRatio;
@@ -2163,22 +2169,41 @@ function Gallery() {
           const marginX = width * 0.03;
           const marginY = height * 0.03;
 
-          // xRatio / yRatio from drag-and-drop repositioning in Watermarks page
-          let x = typeof preset?.xRatio === 'number'
-            ? preset.xRatio * width
-            : canvas.width - watermarkWidth - marginX;
-          let y = typeof preset?.yRatio === 'number'
-            ? preset.yRatio * height
-            : canvas.height - watermarkHeight - marginY;
+          // Determine active position: parameter position takes precedence, fallback to preset position or default 'bottom-right'
+          const activePos = (position && position !== 'none') ? position : (preset?.position || 'bottom-right');
 
-          // Fallback position if no xRatio/yRatio saved
-          if (typeof preset?.xRatio !== 'number') {
-            switch (position) {
-              case 'top-left':    x = marginX; y = marginY; break;
-              case 'top-right':   x = canvas.width - watermarkWidth - marginX; y = marginY; break;
-              case 'bottom-left': x = marginX; y = canvas.height - watermarkHeight - marginY; break;
+          let x = canvas.width - watermarkWidth - marginX;
+          let y = canvas.height - watermarkHeight - marginY;
+
+          const standardPositions = ['top-left', 'top-right', 'bottom-left', 'bottom-right', 'center'];
+          const usePresetRatios = typeof preset?.xRatio === 'number' && typeof preset?.yRatio === 'number' && preset?.useCustomCoordinates;
+
+          if (usePresetRatios) {
+            x = preset.xRatio * width;
+            y = preset.yRatio * height;
+          } else {
+            switch (activePos) {
+              case 'top-left':
+                x = marginX;
+                y = marginY;
+                break;
+              case 'top-right':
+                x = canvas.width - watermarkWidth - marginX;
+                y = marginY;
+                break;
+              case 'bottom-left':
+                x = marginX;
+                y = canvas.height - watermarkHeight - marginY;
+                break;
+              case 'center':
+                x = (canvas.width - watermarkWidth) / 2;
+                y = (canvas.height - watermarkHeight) / 2;
+                break;
               case 'bottom-right':
-              default:            x = canvas.width - watermarkWidth - marginX; y = canvas.height - watermarkHeight - marginY; break;
+              default:
+                x = canvas.width - watermarkWidth - marginX;
+                y = canvas.height - watermarkHeight - marginY;
+                break;
             }
           }
 

@@ -16,6 +16,7 @@ interface WatermarkPreset {
   xRatio?: number;
   yRatio?: number;
   sizeRatio?: number;
+  useCustomCoordinates?: boolean;
   opacity?: number;
   rotation?: number;
   lastUsed: number;
@@ -236,6 +237,7 @@ export default function Watermarks() {
       xRatio: rect ? wmX / rect.width : p.xRatio,
       yRatio: rect ? wmY / rect.height : p.yRatio,
       sizeRatio: rect ? wmWidth / rect.width : p.sizeRatio,
+      useCustomCoordinates: true,
       opacity: wmOpacity / 100,
       rotation: wmRotation,
     } : p);
