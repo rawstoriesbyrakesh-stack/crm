@@ -3964,65 +3964,69 @@ function Gallery() {
                           {/* Position Selector */}
                           <div>
                             <label className="block text-sm font-medium text-gray-700 mb-2">Watermark Position</label>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                               <button
+                                type="button"
                                 onClick={() => setWatermarkPosition('top-left')}
-                                className={`p-4 rounded-lg border-2 transition-all duration-200 ${
+                                className={`p-3.5 rounded-xl border-2 transition-all duration-200 ${
                                   watermarkPosition === 'top-left'
-                                    ? 'border-purple-600 bg-purple-50'
-                                    : 'border-gray-300 bg-white hover:border-purple-300'
+                                    ? 'border-purple-600 bg-purple-100/80 text-purple-950 shadow-sm'
+                                    : 'border-gray-300 bg-white text-gray-900 hover:border-purple-300 hover:bg-gray-50'
                                 }`}
                               >
-                                <div className="flex items-center space-x-2">
-                                  <div className="w-12 h-12 border-2 border-current rounded relative">
-                                    <div className="absolute top-0 left-0 w-3 h-3 bg-purple-600 rounded-full"></div>
+                                <div className="flex items-center space-x-3">
+                                  <div className={`w-9 h-9 border-2 rounded-md relative shrink-0 ${watermarkPosition === 'top-left' ? 'border-purple-600 bg-purple-200/50' : 'border-gray-400 bg-gray-50'}`}>
+                                    <div className="absolute top-1 left-1 w-2.5 h-2.5 bg-purple-600 rounded-full shadow-sm"></div>
                                   </div>
-                                  <span className="text-sm font-medium">Top Left</span>
+                                  <span className="text-sm font-bold text-gray-900">Top Left</span>
                                 </div>
                               </button>
                               <button
+                                type="button"
                                 onClick={() => setWatermarkPosition('top-right')}
-                                className={`p-4 rounded-lg border-2 transition-all duration-200 ${
+                                className={`p-3.5 rounded-xl border-2 transition-all duration-200 ${
                                   watermarkPosition === 'top-right'
-                                    ? 'border-purple-600 bg-purple-50'
-                                    : 'border-gray-300 bg-white hover:border-purple-300'
+                                    ? 'border-purple-600 bg-purple-100/80 text-purple-950 shadow-sm'
+                                    : 'border-gray-300 bg-white text-gray-900 hover:border-purple-300 hover:bg-gray-50'
                                 }`}
                               >
-                                <div className="flex items-center space-x-2">
-                                  <div className="w-12 h-12 border-2 border-current rounded relative">
-                                    <div className="absolute top-0 right-0 w-3 h-3 bg-purple-600 rounded-full"></div>
+                                <div className="flex items-center space-x-3">
+                                  <div className={`w-9 h-9 border-2 rounded-md relative shrink-0 ${watermarkPosition === 'top-right' ? 'border-purple-600 bg-purple-200/50' : 'border-gray-400 bg-gray-50'}`}>
+                                    <div className="absolute top-1 right-1 w-2.5 h-2.5 bg-purple-600 rounded-full shadow-sm"></div>
                                   </div>
-                                  <span className="text-sm font-medium">Top Right</span>
+                                  <span className="text-sm font-bold text-gray-900">Top Right</span>
                                 </div>
                               </button>
                               <button
+                                type="button"
                                 onClick={() => setWatermarkPosition('bottom-left')}
-                                className={`p-4 rounded-lg border-2 transition-all duration-200 ${
+                                className={`p-3.5 rounded-xl border-2 transition-all duration-200 ${
                                   watermarkPosition === 'bottom-left'
-                                    ? 'border-purple-600 bg-purple-50'
-                                    : 'border-gray-300 bg-white hover:border-purple-300'
+                                    ? 'border-purple-600 bg-purple-100/80 text-purple-950 shadow-sm'
+                                    : 'border-gray-300 bg-white text-gray-900 hover:border-purple-300 hover:bg-gray-50'
                                 }`}
                               >
-                                <div className="flex items-center space-x-2">
-                                  <div className="w-12 h-12 border-2 border-current rounded relative">
-                                    <div className="absolute bottom-0 left-0 w-3 h-3 bg-purple-600 rounded-full"></div>
+                                <div className="flex items-center space-x-3">
+                                  <div className={`w-9 h-9 border-2 rounded-md relative shrink-0 ${watermarkPosition === 'bottom-left' ? 'border-purple-600 bg-purple-200/50' : 'border-gray-400 bg-gray-50'}`}>
+                                    <div className="absolute bottom-1 left-1 w-2.5 h-2.5 bg-purple-600 rounded-full shadow-sm"></div>
                                   </div>
-                                  <span className="text-sm font-medium">Bottom Left</span>
+                                  <span className="text-sm font-bold text-gray-900">Bottom Left</span>
                                 </div>
                               </button>
                               <button
+                                type="button"
                                 onClick={() => setWatermarkPosition('bottom-right')}
-                                className={`p-4 rounded-lg border-2 transition-all duration-200 ${
+                                className={`p-3.5 rounded-xl border-2 transition-all duration-200 ${
                                   watermarkPosition === 'bottom-right'
-                                    ? 'border-purple-600 bg-purple-50'
-                                    : 'border-gray-300 bg-white hover:border-purple-300'
+                                    ? 'border-purple-600 bg-purple-100/80 text-purple-950 shadow-sm'
+                                    : 'border-gray-300 bg-white text-gray-900 hover:border-purple-300 hover:bg-gray-50'
                                 }`}
                               >
-                                <div className="flex items-center space-x-2">
-                                  <div className="w-12 h-12 border-2 border-current rounded relative">
-                                    <div className="absolute bottom-0 right-0 w-3 h-3 bg-purple-600 rounded-full"></div>
+                                <div className="flex items-center space-x-3">
+                                  <div className={`w-9 h-9 border-2 rounded-md relative shrink-0 ${watermarkPosition === 'bottom-right' ? 'border-purple-600 bg-purple-200/50' : 'border-gray-400 bg-gray-50'}`}>
+                                    <div className="absolute bottom-1 right-1 w-2.5 h-2.5 bg-purple-600 rounded-full shadow-sm"></div>
                                   </div>
-                                  <span className="text-sm font-medium">Bottom Right</span>
+                                  <span className="text-sm font-bold text-gray-900">Bottom Right</span>
                                 </div>
                               </button>
                             </div>
