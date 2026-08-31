@@ -304,6 +304,13 @@ function Gallery() {
   const [watermarkImageName, setWatermarkImageName] = useState<string>(''); // Watermark image name
   const [selectedWatermarkPreset, setSelectedWatermarkPreset] = useState<WatermarkPreset | null>(null); // Full preset with size/opacity/rotation
   const [uploadModal, setUploadModal] = useState(false); // Upload modal state
+  const [watermarkProcessing, setWatermarkProcessing] = useState({
+    isActive: false,
+    total: 0,
+    completed: 0,
+    current: '',
+    progress: 0,
+  });
   const watermarkInputRef = useRef<HTMLInputElement>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [lightboxImageLoaded, setLightboxImageLoaded] = useState(false);
@@ -2280,6 +2287,15 @@ function Gallery() {
 
     const processedItems: { file: File; relativePath: string }[] = [];
     if (watermarkEnabled && watermarkPosition !== 'none' && watermarkImage) {
+      const totalWatermarked = validItems.length;
+      const watermarkStartState = {
+        isActive: true,
+        total: totalWatermarked,
+        completed: 0,
+        current: '',
+        progress: 0,
+      };
+      setWatermarkProcessing(watermarkStartState);
       addNotification(`Applying watermarks to ${validItems.length} file(s) in parallel queue...`, 'info');
       
       // Pre-load watermark image ONCE before loop
@@ -2306,17 +2322,42 @@ function Gallery() {
         return results;
       };
 
+      let completedCount = 0;
       const results = await mapConcurrently(validItems, 12, async (item) => {
         try {
           const processedFile = await applyWatermark(item.file, watermarkPosition, watermarkLoadedImg, selectedWatermarkPreset);
+          completedCount += 1;
+          setWatermarkProcessing({
+            isActive: true,
+            total: totalWatermarked,
+            completed: completedCount,
+            current: item.file.name,
+            progress: (completedCount / totalWatermarked) * 100,
+          });
           return { file: processedFile, relativePath: item.relativePath };
         } catch (error: any) {
           console.error('Watermark failed for', item.file.name, error);
+          completedCount += 1;
+          setWatermarkProcessing({
+            isActive: true,
+            total: totalWatermarked,
+            completed: completedCount,
+            current: item.file.name,
+            progress: (completedCount / totalWatermarked) * 100,
+          });
           return { file: item.file, relativePath: item.relativePath };
         }
       });
+      setWatermarkProcessing({
+        isActive: false,
+        total: totalWatermarked,
+        completed: totalWatermarked,
+        current: '',
+        progress: 100,
+      });
       processedItems.push(...results);
     } else {
+      setWatermarkProcessing({ isActive: false, total: 0, completed: 0, current: '', progress: 0 });
       processedItems.push(...validItems);
     }
 
@@ -4119,6 +4160,31 @@ function Gallery() {
                       </p>
                     </div>
                   </div>
+
+                  {watermarkProcessing.isActive && (
+                    <div className="mb-6 rounded-xl border border-purple-200 bg-purple-50 p-4 shadow-sm">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-2 text-purple-800 font-medium text-sm">
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          Applying watermark
+                        </div>
+                        <span className="text-sm font-semibold text-purple-700">
+                          {Math.round(watermarkProcessing.progress)}%
+                        </span>
+                      </div>
+                      <div className="w-full h-2.5 overflow-hidden rounded-full bg-purple-100">
+                        <div
+                          className="h-full rounded-full bg-gradient-to-r from-purple-500 to-blue-500 transition-all duration-300"
+                          style={{ width: `${Math.min(100, Math.max(0, watermarkProcessing.progress))}%` }}
+                        />
+                      </div>
+                      <div className="mt-3 text-xs text-purple-700">
+                        {watermarkProcessing.current
+                          ? `Processing ${watermarkProcessing.current}`
+                          : `Preparing ${watermarkProcessing.total} file${watermarkProcessing.total === 1 ? '' : 's'}...`}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Action Buttons */}
                   <div className="flex flex-col-reverse sm:flex-row justify-end gap-3 sm:space-x-3 sm:gap-0">
