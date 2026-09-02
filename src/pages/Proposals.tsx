@@ -229,46 +229,88 @@ export default function Proposals() {
     setView('editor');
   };
 
-  // Robust Helper to validate and save parsed template object from JSON / Objects / Text
+  // ─── HELPER: Find the first array anywhere in a JSON object ───
+  const findFirstArray = (obj: any): any[] | null => {
+    if (Array.isArray(obj)) return obj;
+    if (obj && typeof obj === 'object') {
+      for (const key of Object.keys(obj)) {
+        if (Array.isArray(obj[key]) && obj[key].length > 0) return obj[key];
+      }
+      // Recurse one level deeper
+      for (const key of Object.keys(obj)) {
+        if (obj[key] && typeof obj[key] === 'object' && !Array.isArray(obj[key])) {
+          const found = findFirstArray(obj[key]);
+          if (found) return found;
+        }
+      }
+    }
+    return null;
+  };
+
+  // ─── HELPER: Extract a human-readable name from ANY object ───
+  const extractItemName = (it: any, idx: number): string => {
+    if (typeof it === 'string') return it.substring(0, 80);
+    if (typeof it !== 'object' || !it) return `Item ${idx + 1}`;
+    return String(
+      it.name || it.title || it.label || it.service || it.package ||
+      it.quote || it.text || it.content || it.heading || it.subject ||
+      it.product || it.item || `Item ${idx + 1}`
+    ).substring(0, 120);
+  };
+
+  // ─── HELPER: Extract a description from ANY object ───
+  const extractItemDesc = (it: any): string => {
+    if (typeof it === 'string') return it;
+    if (typeof it !== 'object' || !it) return '';
+    return String(
+      it.description || it.details || it.scope || it.desc || it.body ||
+      it.summary || it.note || it.notes || it.info || it.author ||
+      it.subtitle || it.message || ''
+    ).substring(0, 500);
+  };
+
+  // ─── CORE: Validate and save parsed template from JSON / Objects / Text ───
   const saveImportedTemplate = (data: any, fallbackTitle?: string) => {
-    if (!data) {
-      throw new Error('Empty template file');
+    if (data === null || data === undefined) {
+      notify('Empty template — nothing to import.', 'error');
+      return;
     }
 
-    let itemsRaw: any[] = [];
     let title = fallbackTitle || 'Imported Custom Template';
     let eventType = 'Custom';
     let terms = 'Terms to be agreed upon confirmation.';
     let paymentTerms = '50% Booking | 50% Final Delivery';
 
-    if (Array.isArray(data)) {
-      itemsRaw = data;
-    } else if (typeof data === 'object') {
-      title = data.title || data.name || data.templateName || fallbackTitle || 'Imported Custom Template';
-      eventType = data.eventType || data.type || data.category || 'Custom';
-      terms = data.terms || terms;
-      paymentTerms = data.paymentTerms || data.payment || paymentTerms;
+    // Extract metadata from the root object (if it IS an object)
+    if (data && typeof data === 'object' && !Array.isArray(data)) {
+      title = data.title || data.name || data.templateName || data.heading || fallbackTitle || 'Imported Custom Template';
+      eventType = data.eventType || data.type || data.category || data.event || 'Custom';
+      terms = data.terms || data.conditions || terms;
+      paymentTerms = data.paymentTerms || data.payment || data.paymentSchedule || paymentTerms;
+    }
 
-      if (Array.isArray(data.items)) itemsRaw = data.items;
-      else if (Array.isArray(data.deliverables)) itemsRaw = data.deliverables;
-      else if (Array.isArray(data.services)) itemsRaw = data.services;
-      else if (Array.isArray(data.packages)) itemsRaw = data.packages;
-      else if (Array.isArray(data.data)) itemsRaw = data.data;
-      else if (Array.isArray(data.rows)) itemsRaw = data.rows;
-      else {
-        itemsRaw = [data];
+    // Find the items array — search broadly
+    let itemsRaw: any[] | null = findFirstArray(data);
+
+    // If data itself is a flat object with no arrays, wrap it as a single item
+    if (!itemsRaw || itemsRaw.length === 0) {
+      if (data && typeof data === 'object' && !Array.isArray(data)) {
+        itemsRaw = [{ name: title, description: JSON.stringify(data).substring(0, 200), price: 0 }];
+      } else if (typeof data === 'string') {
+        itemsRaw = [{ name: data.substring(0, 80), description: data, price: 0 }];
+      } else {
+        itemsRaw = [{ name: title, description: 'Imported template', price: 0 }];
       }
     }
 
-    if (itemsRaw.length === 0) {
-      itemsRaw = [{ name: title, description: 'Imported service package', price: 0 }];
-    }
+    // Cap at 100 items to prevent memory blowout
+    if (itemsRaw.length > 100) itemsRaw = itemsRaw.slice(0, 100);
 
     const items: ProposalItem[] = itemsRaw.map((it: any, idx: number) => ({
       id: `it_${Date.now()}_${idx}`,
-      name: String(it.name || it.title || it.label || it.service || it.package || `Service ${idx + 1}`),
-      description: String(it.description || it.details || it.scope || it.desc || ''),
-      price: Number(it.price || it.cost || it.amount || it.rate) || 0,
+      name: extractItemName(it, idx),
+      description: extractItemDesc(it),
+      price: Number(it?.price || it?.cost || it?.amount || it?.rate || it?.value) || 0,
     }));
 
     const priceEstimate = items.reduce((acc, it) => acc + (it.price || 0), 0);
@@ -276,7 +318,7 @@ export default function Proposals() {
       id: `tmpl_custom_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
       title,
       eventType,
-      priceEstimate: Number(data.priceEstimate) || priceEstimate,
+      priceEstimate: (typeof data === 'object' && data && Number(data.priceEstimate)) || priceEstimate,
       items,
       terms,
       paymentTerms,
@@ -287,131 +329,190 @@ export default function Proposals() {
     setShowImportModal(false);
     setImportUrl('');
     setImportJsonText('');
-    notify(`Successfully imported template "${title}"!`, 'success');
+    notify(`✅ Imported "${title}" with ${items.length} items!`, 'success');
 
     // Auto open editor with newly imported template
     handleSelectTemplate(newTemplate);
   };
 
+  // ─── FETCH FROM URL (with CORS proxy fallback) ───
   const handleFetchOnlineUrl = async () => {
-    if (!importUrl.trim()) {
+    const url = importUrl.trim();
+    if (!url) {
       notify('Please enter a valid HTTP/HTTPS template URL', 'error');
       return;
     }
     setIsFetchingUrl(true);
     notify('Fetching online template...', 'info');
 
+    const tryFetch = async (fetchUrl: string): Promise<Response> => {
+      const res = await fetch(fetchUrl);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res;
+    };
+
     try {
-      const res = await fetch(importUrl.trim());
-      if (!res.ok) throw new Error(`HTTP ${res.status}: Failed to load URL`);
-      const data = await res.json();
-      saveImportedTemplate(data);
+      let res: Response;
+      try {
+        // Direct fetch first
+        res = await tryFetch(url);
+      } catch {
+        // CORS proxy fallback
+        notify('Direct fetch failed (CORS). Trying proxy...', 'info');
+        res = await tryFetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`);
+      }
+
+      const contentType = res.headers.get('content-type') || '';
+      const text = await res.text();
+
+      if (!text.trim()) {
+        notify('URL returned empty content.', 'error');
+        setIsFetchingUrl(false);
+        return;
+      }
+
+      // Try parsing as JSON
+      try {
+        const data = JSON.parse(text);
+        saveImportedTemplate(data);
+      } catch {
+        // Not JSON — treat as plain text lines
+        const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+        if (lines.length > 0) {
+          const textItems = lines.slice(0, 100).map(line => ({
+            name: line.substring(0, 60),
+            description: line,
+            price: 0,
+          }));
+          saveImportedTemplate({ title: 'URL Import', items: textItems }, 'URL Import');
+        } else {
+          notify('URL content could not be parsed as JSON or text.', 'error');
+        }
+      }
     } catch (err: any) {
-      notify(`Online import error: ${err.message}`, 'error');
+      notify(`Import error: ${err.message}. Check that the URL is accessible.`, 'error');
     } finally {
       setIsFetchingUrl(false);
     }
   };
 
+  // ─── PASTE JSON ───
   const handleParsePastedJson = () => {
-    if (!importJsonText.trim()) {
+    const text = importJsonText.trim();
+    if (!text) {
       notify('Please paste template JSON content', 'error');
       return;
     }
     try {
-      const data = JSON.parse(importJsonText.trim());
+      const data = JSON.parse(text);
       saveImportedTemplate(data);
-    } catch (err: any) {
-      notify(`JSON parse error: ${err.message}`, 'error');
+    } catch {
+      // Not valid JSON — treat lines as items
+      const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+      if (lines.length > 0) {
+        const textItems = lines.map(line => ({ name: line.substring(0, 60), description: line, price: 0 }));
+        saveImportedTemplate({ title: 'Pasted Template', items: textItems }, 'Pasted Template');
+      } else {
+        notify('Could not parse pasted content.', 'error');
+      }
     }
   };
 
+  // ─── UPLOAD .JSON / .TXT / .CSV FILE ───
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    const fileName = file.name.replace(/\.[^/.]+$/, '');
     const reader = new FileReader();
     reader.onload = (event) => {
       try {
         const text = event.target?.result as string;
         try {
           const data = JSON.parse(text);
-          saveImportedTemplate(data, file.name.replace(/\.[^/.]+$/, ''));
+          saveImportedTemplate(data, fileName);
         } catch {
-          // If not valid JSON, treat lines as items
-          const lines = text.split('\n').map((l) => l.trim()).filter(Boolean);
-          const textItems = lines.map((line) => ({
-            name: line.substring(0, 40),
+          // Not valid JSON — treat each line as an item
+          const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+          const textItems = lines.slice(0, 100).map(line => ({
+            name: line.substring(0, 60),
             description: line,
             price: 0,
           }));
-          saveImportedTemplate({ title: file.name.replace(/\.[^/.]+$/, ''), items: textItems }, file.name.replace(/\.[^/.]+$/, ''));
+          saveImportedTemplate({ title: fileName, items: textItems }, fileName);
         }
       } catch (err: any) {
         notify(`File import error: ${err.message}`, 'error');
       }
     };
     reader.readAsText(file);
+    // Reset input so the same file can be re-selected
+    e.target.value = '';
   };
 
-  // Upload Custom PDF / Image Design Template / Flyer
+  // ─── UPLOAD PDF / IMAGE DESIGN FLYER ───
+  const pdfBlobUrlsRef = React.useRef<Map<string, string>>(new Map());
+
   const handlePdfDesignUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const dataUrl = event.target?.result as string;
-      const cleanTitle = file.name.replace(/\.[^/.]+$/, '');
+    // Create an object URL for reliable viewing in browser
+    const blobUrl = URL.createObjectURL(file);
+    const cleanTitle = file.name.replace(/\.[^/.]+$/, '');
 
-      if (currentProposal && view === 'editor') {
-        setCurrentProposal({
-          ...currentProposal,
-          customPdfUrl: dataUrl,
-          customPdfName: file.name,
-        });
-        notify(`Attached PDF design flyer: ${file.name}`, 'success');
-      } else {
-        // Create new template entry from PDF file
-        const newTemplate: Template = {
-          id: `tmpl_pdf_${Date.now()}`,
-          title: cleanTitle,
-          eventType: 'PDF Design Flyer',
-          priceEstimate: 0,
-          items: [{ id: '1', name: 'Custom PDF Design Package', description: `Design flyer: ${file.name}`, price: 0 }],
-          terms: 'Terms as per attached custom PDF design flyer.',
-          paymentTerms: '50% Booking | 50% Final Delivery',
-          isCustom: true,
-        };
+    // Store the blob URL for cleanup later
+    pdfBlobUrlsRef.current.set(cleanTitle, blobUrl);
 
-        setCustomTemplates((prev) => [newTemplate, ...prev]);
+    if (currentProposal && view === 'editor') {
+      setCurrentProposal({
+        ...currentProposal,
+        customPdfUrl: blobUrl,
+        customPdfName: file.name,
+      });
+      notify(`✅ Attached PDF design flyer: ${file.name}`, 'success');
+    } else {
+      // Create new template + proposal from PDF file
+      const newTemplate: Template = {
+        id: `tmpl_pdf_${Date.now()}`,
+        title: cleanTitle,
+        eventType: 'PDF Design Flyer',
+        priceEstimate: 0,
+        items: [{ id: '1', name: 'Custom PDF Design Package', description: `Attached flyer: ${file.name}`, price: 0 }],
+        terms: 'Terms as per attached custom PDF design flyer.',
+        paymentTerms: '50% Booking | 50% Final Delivery',
+        isCustom: true,
+      };
 
-        const newProp: Proposal = {
-          id: `prop_pdf_${Date.now()}`,
-          title: cleanTitle,
-          eventType: 'PDF Design Flyer',
-          clientName: '',
-          clientEmail: '',
-          clientPhone: '',
-          eventDate: new Date().toISOString().split('T')[0],
-          eventLocation: '',
-          items: newTemplate.items,
-          discount: 0,
-          tax: 18,
-          terms: newTemplate.terms,
-          paymentTerms: newTemplate.paymentTerms,
-          status: 'Draft',
-          createdAt: new Date().toISOString(),
-          customPdfUrl: dataUrl,
-          customPdfName: file.name,
-        };
+      setCustomTemplates((prev) => [newTemplate, ...prev]);
 
-        setCurrentProposal(newProp);
-        setView('editor');
-        setShowImportModal(false);
-        notify(`Imported PDF template "${cleanTitle}" successfully!`, 'success');
-      }
-    };
-    reader.readAsDataURL(file);
+      const newProp: Proposal = {
+        id: `prop_pdf_${Date.now()}`,
+        title: cleanTitle,
+        eventType: 'PDF Design Flyer',
+        clientName: '',
+        clientEmail: '',
+        clientPhone: '',
+        eventDate: new Date().toISOString().split('T')[0],
+        eventLocation: '',
+        items: newTemplate.items,
+        discount: 0,
+        tax: 18,
+        terms: newTemplate.terms,
+        paymentTerms: newTemplate.paymentTerms,
+        status: 'Draft',
+        createdAt: new Date().toISOString(),
+        customPdfUrl: blobUrl,
+        customPdfName: file.name,
+      };
+
+      setCurrentProposal(newProp);
+      setView('editor');
+      setShowImportModal(false);
+      notify(`✅ Imported PDF "${cleanTitle}" — editor opened!`, 'success');
+    }
+
+    // Reset input so re-uploading the same file works
+    e.target.value = '';
   };
 
   const handleAddItem = () => {
@@ -1164,17 +1265,49 @@ export default function Proposals() {
 
               {/* Custom PDF Attachment Card if uploaded */}
               {currentProposal.customPdfUrl && (
-                <div className={`p-4 rounded-2xl border flex items-center justify-between ${quotationTheme === 'editorial' ? 'bg-slate-50 border-slate-200' : 'bg-slate-950 border-slate-800'}`}>
-                  <div className="flex items-center gap-3">
-                    <FileText className="h-5 w-5 text-amber-500" />
-                    <div>
-                      <p className={`text-xs font-bold ${quotationTheme === 'editorial' ? 'text-slate-900' : 'text-white'}`}>Attached Custom PDF Design Flyer</p>
-                      <p className="text-[11px] text-slate-500 font-mono">{currentProposal.customPdfName}</p>
+                <div className={`rounded-2xl border overflow-hidden ${quotationTheme === 'editorial' ? 'bg-slate-50 border-slate-200' : 'bg-slate-950 border-slate-800'}`}>
+                  <div className="p-4 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <FileText className="h-5 w-5 text-amber-500" />
+                      <div>
+                        <p className={`text-xs font-bold ${quotationTheme === 'editorial' ? 'text-slate-900' : 'text-white'}`}>Attached Custom PDF Design Flyer</p>
+                        <p className="text-[11px] text-slate-500 font-mono">{currentProposal.customPdfName}</p>
+                      </div>
                     </div>
+                    <button
+                      onClick={() => {
+                        const w = window.open('');
+                        if (w) {
+                          w.document.write(`<iframe src="${currentProposal.customPdfUrl}" style="width:100%;height:100%;border:none;" frameborder="0"></iframe>`);
+                          w.document.title = currentProposal.customPdfName || 'PDF Preview';
+                        }
+                      }}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500/20 text-amber-400 hover:bg-amber-500/30 rounded-xl text-xs font-bold no-print cursor-pointer"
+                    >
+                      <ExternalLink className="h-3.5 w-3.5" /> View PDF
+                    </button>
                   </div>
-                  <a href={currentProposal.customPdfUrl} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500/20 text-amber-400 hover:bg-amber-500/30 rounded-xl text-xs font-bold no-print">
-                    <ExternalLink className="h-3.5 w-3.5" /> View PDF
-                  </a>
+                  {/* Embedded PDF preview */}
+                  {currentProposal.customPdfName?.toLowerCase().endsWith('.pdf') && (
+                    <div className="px-4 pb-4">
+                      <iframe
+                        src={currentProposal.customPdfUrl}
+                        title="PDF Preview"
+                        className="w-full h-[400px] rounded-xl border border-slate-700"
+                        style={{ background: '#fff' }}
+                      />
+                    </div>
+                  )}
+                  {/* Embedded image preview for non-PDF files */}
+                  {currentProposal.customPdfName && !currentProposal.customPdfName.toLowerCase().endsWith('.pdf') && (
+                    <div className="px-4 pb-4">
+                      <img
+                        src={currentProposal.customPdfUrl}
+                        alt={currentProposal.customPdfName}
+                        className="w-full max-h-[400px] object-contain rounded-xl border border-slate-700"
+                      />
+                    </div>
+                  )}
                 </div>
               )}
 
