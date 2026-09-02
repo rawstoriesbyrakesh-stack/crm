@@ -10,7 +10,9 @@ import {
   Settings,
   Droplet,
   Trash2,
-  FolderHeart
+  FolderHeart,
+  FileText,
+  Heart
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -27,6 +29,8 @@ export default function Layout({ children }: LayoutProps) {
     { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
     { name: 'Gallery', path: '/gallery', icon: ImageIcon },
     { name: 'Shared Links', path: '/shared-links', icon: LinkIcon },
+    { name: 'Proposals', path: '/proposals', icon: FileText },
+    { name: 'Client Favorites', path: '/favorites', icon: Heart },
     { name: 'Watermarks', path: '/watermarks', icon: Droplet },
     { name: 'Smart Collections', path: '/smart-collections', icon: FolderHeart },
     { name: 'Trash', path: '/trash', icon: Trash2 },
