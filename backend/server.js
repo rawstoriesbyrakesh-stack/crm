@@ -180,9 +180,27 @@ const folderMetaSchema = new mongoose.Schema({
   brandColor:  String,
 }, { timestamps: true });
 
+const proposalSchema = new mongoose.Schema({
+  proposalId:   { type: String, required: true, unique: true, index: true },
+  title:        String,
+  eventType:    String,
+  clientName:   String,
+  clientEmail:  String,
+  clientPhone:  String,
+  eventDate:    String,
+  eventLocation:String,
+  items:        { type: mongoose.Schema.Types.Mixed, default: [] },
+  discount:     { type: Number, default: 0 },
+  tax:          { type: Number, default: 18 },
+  terms:        String,
+  paymentTerms: String,
+  status:       { type: String, default: 'Draft' },
+}, { timestamps: true });
+
 const Share      = mongoose.model('Share', shareSchema);
 const FileMeta   = mongoose.model('FileMeta', fileMetaSchema);
 const FolderMeta = mongoose.model('FolderMeta', folderMetaSchema);
+const Proposal   = mongoose.model('Proposal', proposalSchema);
 
 mongoose.set('bufferCommands', false);
 let mongoConnectionPromise = null;
@@ -1317,6 +1335,46 @@ const server = http.createServer(async (req, res) => {
       const body = await readBody(req);
       console.log('📧 Email stub →', body?.to, '|', body?.subject);
       return sendJson(res, 200, { success: true, message: 'Email sent (stub)' });
+    }
+
+    // ── Proposals: save / update proposal in MongoDB ────────────────────────
+    if (pathname === '/default/saveproposal' && req.method === 'POST') {
+      const body = await readBody(req);
+      const { id, proposalId, ...proposalData } = body || {};
+      const targetId = proposalId || id;
+      if (!targetId) return sendError(res, 400, 'Missing proposalId');
+
+      if (mongoose.connection.readyState === 1) {
+        const saved = await Proposal.findOneAndUpdate(
+          { proposalId: targetId },
+          { proposalId: targetId, ...proposalData },
+          { upsert: true, new: true }
+        ).catch(e => console.error('Proposal save error:', e));
+        return sendJson(res, 200, { success: true, proposal: saved });
+      }
+      return sendJson(res, 200, { success: true, message: 'Saved (local fallback)' });
+    }
+
+    // ── Proposals: list proposals from MongoDB ─────────────────────────────
+    if (pathname === '/default/listproposals' && req.method === 'GET') {
+      if (mongoose.connection.readyState === 1) {
+        const proposals = await Proposal.find({}).sort({ updatedAt: -1 }).lean().catch(() => []);
+        return sendJson(res, 200, { success: true, proposals });
+      }
+      return sendJson(res, 200, { success: true, proposals: [] });
+    }
+
+    // ── Proposals: delete proposal from MongoDB ────────────────────────────
+    if (pathname === '/default/deleteproposal' && req.method === 'POST') {
+      const body = await readBody(req);
+      const { proposalId, id } = body || {};
+      const targetId = proposalId || id;
+      if (!targetId) return sendError(res, 400, 'Missing proposalId');
+
+      if (mongoose.connection.readyState === 1) {
+        await Proposal.findOneAndDelete({ proposalId: targetId }).catch(() => {});
+      }
+      return sendJson(res, 200, { success: true, message: 'Proposal deleted' });
     }
 
     // --- Simulated Background Jobs ---

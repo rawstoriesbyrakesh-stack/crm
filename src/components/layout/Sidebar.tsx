@@ -13,7 +13,8 @@ import {
   BarChart3,
   Eye,
   UserCheck,
-  Activity
+  Activity,
+  Heart
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -32,6 +33,7 @@ function Sidebar({ collapsed, onToggle }: SidebarProps) {
     { name: 'Gallery', icon: Eye, path: '/gallery' },
     // { name: 'Clients', icon: UserCheck, path: '/clients' },
     { name: 'Proposals', icon: FileText, path: '/proposals' },
+    { name: 'Client Favorites', icon: Heart, path: '/favorites' },
     // { name: 'Finance', icon: DollarSign, path: '/finance' },
     { name: 'Team', icon: Users, path: '/team' },
     { name: 'Invoice ', icon: BarChart3, path: '/analytics' },

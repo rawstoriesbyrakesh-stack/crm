@@ -12,6 +12,8 @@ import SharedLinks from './pages/SharedLinks';
 import SmartCollections from './pages/SmartCollections';
 import Watermarks from './pages/Watermarks';
 import Trash from './pages/Trash';
+import Proposals from './pages/Proposals';
+import Favorites from './pages/Favorites';
 import Layout from './components/Layout';
 import { isRawStoriesAuthenticated } from './api/rawStoriesBackend';
 
@@ -64,6 +66,14 @@ function App() {
           <Route
             path="/trash"
             element={isAuthenticated ? <Layout><Trash /></Layout> : <Navigate to="/login" replace />}
+          />
+          <Route
+            path="/proposals"
+            element={isAuthenticated ? <Layout><Proposals /></Layout> : <Navigate to="/login" replace />}
+          />
+          <Route
+            path="/favorites"
+            element={isAuthenticated ? <Layout><Favorites /></Layout> : <Navigate to="/login" replace />}
           />
           <Route
             path="/gallery-upload/:projectId"
