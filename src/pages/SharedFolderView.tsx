@@ -180,7 +180,7 @@ async function getCachedImageUrl(src: string): Promise<string> {
     }
     const res = await fetch(src, { mode: 'cors' });
     if (res.ok) {
-      cache.put(src, res.clone()).catch(() => {});
+      cache.put(src, res.clone()).catch(() => { });
       const blob = await res.blob();
       return URL.createObjectURL(blob);
     }
@@ -514,7 +514,7 @@ export default function SharedFolderView() {
           setLoading(false);
         }
       }
-    } catch {}
+    } catch { }
 
     if (!items.length) setLoading(true);
     setError('');
@@ -546,7 +546,7 @@ export default function SharedFolderView() {
           comments: it.comments || [],
         }));
         setItems(resolved);
-        try { sessionStorage.setItem(metaCacheKey, JSON.stringify(resolved)); } catch {}
+        try { sessionStorage.setItem(metaCacheKey, JSON.stringify(resolved)); } catch { }
         setLoading(false);
         return;
       }
@@ -575,7 +575,7 @@ export default function SharedFolderView() {
       }
 
       setItems(mapped);
-      try { sessionStorage.setItem(metaCacheKey, JSON.stringify(mapped)); } catch {}
+      try { sessionStorage.setItem(metaCacheKey, JSON.stringify(mapped)); } catch { }
     } catch (e: any) {
       setError(e.message || 'Failed to load shared items');
     }
@@ -801,7 +801,7 @@ export default function SharedFolderView() {
           <div className="w-16 h-16 bg-amber-500/20 border border-amber-400/40 rounded-2xl flex items-center justify-center mx-auto mb-5 shadow-[0_0_30px_rgba(245,158,11,0.3)]">
             <Lock className="h-8 w-8 text-amber-300" />
           </div>
-          <h2 className="text-2xl font-bold text-white mb-2">Raw Stories</h2>
+          <h2 className="text-2xl font-bold text-white mb-2">Raw Stories By Rakesh</h2>
           <p className="text-slate-300 text-sm">Enter the PIN provided by your photographer</p>
         </div>
 
@@ -893,8 +893,8 @@ export default function SharedFolderView() {
       <div className="fixed top-5 right-5 z-[100] flex flex-col gap-2 pointer-events-none">
         {notifications.map(n => (
           <div key={n.id} className={`toast-in pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-semibold shadow-2xl backdrop-blur-xl border max-w-[320px] ${n.type === 'success' ? 'bg-emerald-950/90 border-emerald-500/40 text-emerald-200 shadow-emerald-950/50'
-              : n.type === 'error' ? 'bg-red-950/90 border-red-500/40 text-red-200 shadow-red-950/50'
-                : 'bg-slate-900/90 border-slate-700 text-white'}`}>
+            : n.type === 'error' ? 'bg-red-950/90 border-red-500/40 text-red-200 shadow-red-950/50'
+              : 'bg-slate-900/90 border-slate-700 text-white'}`}>
             <span className="flex-1 leading-snug">{n.msg}</span>
             <button onClick={() => setNotifications(p => p.filter(x => x.id !== n.id))} className="text-slate-400 hover:text-white transition-colors shrink-0">
               <X className="h-4 w-4" />
@@ -1049,8 +1049,8 @@ export default function SharedFolderView() {
                 const globalIdx = indexOfFirstItem + idx;
                 return (
                   <div key={item.id} className={`photo-card group relative rounded-2xl overflow-hidden border transition-all ${isSelected ? 'ring-4 ring-amber-400 border-amber-400 shadow-xl shadow-amber-500/30'
-                      : isFav ? 'ring-2 ring-rose-500 border-rose-400 shadow-lg shadow-rose-500/20'
-                        : 'bg-slate-900/90 border-slate-700/80 hover:border-slate-500'
+                    : isFav ? 'ring-2 ring-rose-500 border-rose-400 shadow-lg shadow-rose-500/20'
+                      : 'bg-slate-900/90 border-slate-700/80 hover:border-slate-500'
                     }`}>
 
                     {/* Aspect ratio box */}
@@ -1226,8 +1226,8 @@ export default function SharedFolderView() {
             <div className="flex items-center gap-2.5">
               <button onClick={() => toggleFavorite(currentLbItem.id)}
                 className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold border transition-all shadow-md ${favorites.has(currentLbItem.id)
-                    ? 'bg-rose-500 border-rose-400 text-white shadow-rose-500/30'
-                    : 'bg-slate-800 border-slate-700 text-slate-200 hover:bg-slate-700 hover:text-white'}`}>
+                  ? 'bg-rose-500 border-rose-400 text-white shadow-rose-500/30'
+                  : 'bg-slate-800 border-slate-700 text-slate-200 hover:bg-slate-700 hover:text-white'}`}>
                 <Heart className={`h-4 w-4 ${favorites.has(currentLbItem.id) ? 'fill-current' : ''}`} />
                 <span>{favorites.has(currentLbItem.id) ? 'Favorited' : 'Favorite'}</span>
               </button>
