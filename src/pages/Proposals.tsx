@@ -3,7 +3,7 @@ import {
   FileText, Plus, Search, Send, Download, Check, Eye, Trash2, Edit3,
   Copy, ArrowLeft, DollarSign, Calendar, MapPin, User, Mail, Phone,
   Sparkles, CheckCircle2, AlertCircle, Clock, ShieldCheck, Printer,
-  Globe, Upload, X, Link, Code, Palette, FilePlus, ExternalLink
+  Globe, Upload, X, Link, Code, Palette, FilePlus, ExternalLink, Image
 } from 'lucide-react';
 import { rawStoriesApiUrl } from '../api/rawStoriesBackend';
 
@@ -139,8 +139,12 @@ export default function Proposals() {
   const [view, setView] = useState<'list' | 'editor' | 'preview'>('list');
   const [currentProposal, setCurrentProposal] = useState<Proposal | null>(null);
 
-  // Quotation Visual Design Theme: 'signature' (Dark Gold), 'editorial' (Light Luxury), 'neon' (Modern Cyan)
-  const [quotationTheme, setQuotationTheme] = useState<'signature' | 'editorial' | 'neon'>('signature');
+  // Quotation Visual Design Theme
+  const [quotationTheme, setQuotationTheme] = useState<'signature' | 'editorial' | 'neon' | 'custom'>('signature');
+
+  // Auto-switch to 'custom' theme when a design background is uploaded
+  const hasCustomDesign = !!(currentProposal?.customPdfUrl && currentProposal.customPdfName && !currentProposal.customPdfName.toLowerCase().endsWith('.pdf'));
+  const activeTheme = quotationTheme === 'custom' && !hasCustomDesign ? 'signature' : quotationTheme;
 
   // Fetch saved proposals from MongoDB on mount
   useEffect(() => {
@@ -463,13 +467,21 @@ export default function Proposals() {
     // Store the blob URL for cleanup later
     pdfBlobUrlsRef.current.set(cleanTitle, blobUrl);
 
+    const isImageFile = !file.name.toLowerCase().endsWith('.pdf');
+
     if (currentProposal && view === 'editor') {
       setCurrentProposal({
         ...currentProposal,
         customPdfUrl: blobUrl,
         customPdfName: file.name,
       });
-      notify(`✅ Attached PDF design flyer: ${file.name}`, 'success');
+      // Auto-switch to custom design theme for images
+      if (isImageFile) {
+        setQuotationTheme('custom');
+        notify(`✅ Background design applied! Switch to preview to see it.`, 'success');
+      } else {
+        notify(`✅ Attached PDF: ${file.name}`, 'success');
+      }
     } else {
       // Create new template + proposal from PDF file
       const newTemplate: Template = {
@@ -985,6 +997,13 @@ export default function Proposals() {
                                   <button onClick={() => { setCurrentProposal(prop); setView('editor'); }} title="Edit" className="p-2 bg-slate-800 hover:bg-cyan-500 text-slate-300 hover:text-slate-950 rounded-xl transition-all border border-slate-700">
                                     <Edit3 className="h-4 w-4" />
                                   </button>
+                                  <button onClick={() => {
+                                    const dup: Proposal = { ...prop, id: `prop_${Date.now()}`, title: `${prop.title} (Copy)`, status: 'Draft', createdAt: new Date().toISOString() };
+                                    setProposals(prev => [dup, ...prev]);
+                                    notify('Proposal duplicated!', 'success');
+                                  }} title="Duplicate" className="p-2 bg-slate-800 hover:bg-emerald-500 text-slate-300 hover:text-slate-950 rounded-xl transition-all border border-slate-700">
+                                    <Copy className="h-4 w-4" />
+                                  </button>
                                   <button onClick={() => handleDeleteProposal(prop.id)} title="Delete" className="p-2 bg-slate-800 hover:bg-rose-500 text-slate-300 hover:text-white rounded-xl transition-all border border-slate-700">
                                     <Trash2 className="h-4 w-4" />
                                   </button>
@@ -1021,31 +1040,49 @@ export default function Proposals() {
               </div>
             </div>
 
-            {/* Custom PDF Design Flyer Upload Bar */}
+            {/* Custom Background Design Upload Bar */}
             <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div className="flex items-center gap-3">
-                <FilePlus className="h-5 w-5 text-amber-400" />
+                <Image className="h-5 w-5 text-amber-400" />
                 <div>
-                  <p className="text-xs font-bold text-white">Custom PDF Design Template / Flyer Attachment</p>
-                  <p className="text-[11px] text-slate-400">Attach a custom PDF flyer or brochure design to this quotation</p>
+                  <p className="text-xs font-bold text-white">Quotation Background Design</p>
+                  <p className="text-[11px] text-slate-400">Upload an image to use as the background design of your quotation (letterhead / branded template)</p>
                 </div>
               </div>
 
               <div className="flex items-center gap-3">
                 {currentProposal.customPdfName && (
-                  <span className="text-xs font-mono text-cyan-300 bg-cyan-950/60 px-3 py-1.5 rounded-xl border border-cyan-800/40">
-                    📎 {currentProposal.customPdfName}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-mono text-cyan-300 bg-cyan-950/60 px-3 py-1.5 rounded-xl border border-cyan-800/40">
+                      📎 {currentProposal.customPdfName}
+                    </span>
+                    <button onClick={() => setCurrentProposal({ ...currentProposal, customPdfUrl: undefined, customPdfName: undefined })} className="p-1.5 text-slate-500 hover:text-rose-400 rounded-lg transition-colors" title="Remove background">
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
                 )}
                 <label className="cursor-pointer px-4 py-2 bg-slate-800 hover:bg-slate-700 text-amber-300 font-bold rounded-xl text-xs transition-all border border-slate-700 flex items-center gap-2">
-                  <Upload className="h-4 w-4 text-amber-400" /> Upload PDF Design
+                  <Upload className="h-4 w-4 text-amber-400" /> Upload Background Design
                   <input type="file" accept=".pdf,image/*" onChange={handlePdfDesignUpload} className="hidden" />
                 </label>
               </div>
             </div>
 
+            {/* Background preview thumbnail */}
+            {currentProposal.customPdfUrl && currentProposal.customPdfName && !currentProposal.customPdfName.toLowerCase().endsWith('.pdf') && (
+              <div className="bg-slate-950/60 p-3 rounded-2xl border border-slate-800">
+                <p className="text-[10px] font-bold text-slate-400 uppercase mb-2">Background Design Preview</p>
+                <div className="relative w-full h-32 rounded-xl overflow-hidden border border-slate-700">
+                  <img src={currentProposal.customPdfUrl} alt="Background design" className="w-full h-full object-cover opacity-40" />
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <span className="text-xs font-bold text-white bg-slate-900/80 px-3 py-1.5 rounded-lg">This will appear as the quotation background</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Client Details Form */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 bg-slate-950/80 p-5 rounded-2xl border border-slate-800">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 bg-slate-950/80 p-5 rounded-2xl border border-slate-800">
               <div>
                 <label className="text-[11px] font-bold text-slate-400 uppercase flex items-center gap-1.5 mb-1.5">
                   <User className="h-3.5 w-3.5 text-amber-400" /> Client Name *
@@ -1058,6 +1095,13 @@ export default function Proposals() {
                   <Mail className="h-3.5 w-3.5 text-amber-400" /> Client Email
                 </label>
                 <input type="email" placeholder="client@gmail.com" value={currentProposal.clientEmail} onChange={(e) => setCurrentProposal({ ...currentProposal, clientEmail: e.target.value })} className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-400 font-medium" />
+              </div>
+
+              <div>
+                <label className="text-[11px] font-bold text-slate-400 uppercase flex items-center gap-1.5 mb-1.5">
+                  <Phone className="h-3.5 w-3.5 text-amber-400" /> Phone Number
+                </label>
+                <input type="tel" placeholder="+91 98765 43210" value={currentProposal.clientPhone} onChange={(e) => setCurrentProposal({ ...currentProposal, clientPhone: e.target.value })} className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-400 font-medium" />
               </div>
 
               <div>
@@ -1155,19 +1199,24 @@ export default function Proposals() {
             {/* Actions & Visual Theme Selector Bar */}
             <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-4 shadow-xl no-print">
               {/* Theme Switcher */}
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <Palette className="h-4 w-4 text-amber-400" />
                 <span className="text-xs font-bold text-slate-300">Design Theme:</span>
-                <div className="flex items-center bg-slate-950 p-1 rounded-xl border border-slate-800">
-                  <button onClick={() => setQuotationTheme('signature')} className={`px-3 py-1 rounded-lg text-xs font-extrabold transition-all ${quotationTheme === 'signature' ? 'bg-amber-500 text-slate-950 shadow-md' : 'text-slate-400 hover:text-white'}`}>
+                <div className="flex items-center bg-slate-950 p-1 rounded-xl border border-slate-800 flex-wrap">
+                  <button onClick={() => setQuotationTheme('signature')} className={`px-3 py-1 rounded-lg text-xs font-extrabold transition-all ${activeTheme === 'signature' ? 'bg-amber-500 text-slate-950 shadow-md' : 'text-slate-400 hover:text-white'}`}>
                     Dark Gold
                   </button>
-                  <button onClick={() => setQuotationTheme('editorial')} className={`px-3 py-1 rounded-lg text-xs font-extrabold transition-all ${quotationTheme === 'editorial' ? 'bg-white text-slate-950 shadow-md' : 'text-slate-400 hover:text-white'}`}>
+                  <button onClick={() => setQuotationTheme('editorial')} className={`px-3 py-1 rounded-lg text-xs font-extrabold transition-all ${activeTheme === 'editorial' ? 'bg-white text-slate-950 shadow-md' : 'text-slate-400 hover:text-white'}`}>
                     Light Luxury
                   </button>
-                  <button onClick={() => setQuotationTheme('neon')} className={`px-3 py-1 rounded-lg text-xs font-extrabold transition-all ${quotationTheme === 'neon' ? 'bg-cyan-500 text-slate-950 shadow-md' : 'text-slate-400 hover:text-white'}`}>
+                  <button onClick={() => setQuotationTheme('neon')} className={`px-3 py-1 rounded-lg text-xs font-extrabold transition-all ${activeTheme === 'neon' ? 'bg-cyan-500 text-slate-950 shadow-md' : 'text-slate-400 hover:text-white'}`}>
                     Modern Cyan
                   </button>
+                  {hasCustomDesign && (
+                    <button onClick={() => setQuotationTheme('custom')} className={`px-3 py-1 rounded-lg text-xs font-extrabold transition-all ${activeTheme === 'custom' ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}>
+                      📎 Custom Design
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -1188,74 +1237,91 @@ export default function Proposals() {
             {/* Document Printable Sheet */}
             <div
               id="quotation-print-area"
-              className={`rounded-3xl p-8 sm:p-12 shadow-2xl max-w-4xl mx-auto space-y-8 transition-all border ${
-                quotationTheme === 'editorial'
+              className={`rounded-3xl shadow-2xl max-w-4xl mx-auto transition-all border relative overflow-hidden ${
+                activeTheme === 'editorial'
                   ? 'bg-white text-slate-900 border-slate-200 print-bg-card'
-                  : quotationTheme === 'neon'
+                  : activeTheme === 'neon'
                   ? 'bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 text-cyan-100 border-cyan-500/40'
+                  : activeTheme === 'custom'
+                  ? 'bg-slate-950 text-white border-slate-700'
                   : 'bg-slate-900 text-slate-200 border-slate-800'
               }`}
             >
+              {/* ─── Custom Background Design Image ─── */}
+              {activeTheme === 'custom' && hasCustomDesign && (
+                <div className="absolute inset-0 z-0 pointer-events-none">
+                  <img
+                    src={currentProposal.customPdfUrl}
+                    alt="Background design"
+                    className="w-full h-full object-cover"
+                    style={{ opacity: 0.18 }}
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-b from-slate-950/60 via-slate-950/40 to-slate-950/80" />
+                </div>
+              )}
+
+              {/* Content layer (above background) */}
+              <div className="relative z-10 p-8 sm:p-12 space-y-8">
               {/* Document Header */}
-              <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-6 border-b pb-8 ${quotationTheme === 'editorial' ? 'border-slate-200' : 'border-slate-800'}`}>
+              <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-6 border-b pb-8 ${activeTheme === 'editorial' ? 'border-slate-200' : 'border-white/10'}`}>
                 <div>
                   <img
                     src="/rawstories-logo.png"
                     alt="Raw Stories by Rakesh"
                     className="h-12 object-contain mb-2"
-                    style={{ filter: quotationTheme === 'editorial' ? 'none' : 'brightness(0) invert(1)' }}
+                    style={{ filter: activeTheme === 'editorial' ? 'none' : 'brightness(0) invert(1)' }}
                   />
-                  <p className={`text-xs font-extrabold tracking-widest uppercase ${quotationTheme === 'editorial' ? 'text-amber-600' : quotationTheme === 'neon' ? 'text-cyan-400' : 'text-amber-400'}`}>
+                  <p className={`text-xs font-extrabold tracking-widest uppercase ${activeTheme === 'editorial' ? 'text-amber-600' : activeTheme === 'neon' ? 'text-cyan-400' : 'text-amber-400'}`}>
                     Raw Stories by Rakesh
                   </p>
-                  <p className={`text-xs mt-1 ${quotationTheme === 'editorial' ? 'text-slate-500' : 'text-slate-400'}`}>
+                  <p className={`text-xs mt-1 ${activeTheme === 'editorial' ? 'text-slate-500' : 'text-slate-400'}`}>
                     High Quality Photography & Cinematography
                   </p>
                 </div>
 
                 <div className="text-left sm:text-right">
-                  <span className={`text-2xl font-black uppercase tracking-widest block ${quotationTheme === 'editorial' ? 'text-slate-900 font-serif' : quotationTheme === 'neon' ? 'text-cyan-400' : 'text-amber-400'}`}>
+                  <span className={`text-2xl font-black uppercase tracking-widest block ${activeTheme === 'editorial' ? 'text-slate-900 font-serif' : activeTheme === 'neon' ? 'text-cyan-400' : 'text-amber-400'}`}>
                     Quotation
                   </span>
-                  <p className={`text-xs font-mono mt-1 ${quotationTheme === 'editorial' ? 'text-slate-500' : 'text-slate-400'}`}>Ref: #{currentProposal.id.slice(-6).toUpperCase()}</p>
-                  <p className={`text-xs ${quotationTheme === 'editorial' ? 'text-slate-500' : 'text-slate-400'}`}>Date: {new Date(currentProposal.createdAt).toLocaleDateString()}</p>
+                  <p className={`text-xs font-mono mt-1 ${activeTheme === 'editorial' ? 'text-slate-500' : 'text-slate-400'}`}>Ref: #{currentProposal.id.slice(-6).toUpperCase()}</p>
+                  <p className={`text-xs ${activeTheme === 'editorial' ? 'text-slate-500' : 'text-slate-400'}`}>Date: {new Date(currentProposal.createdAt).toLocaleDateString()}</p>
                 </div>
               </div>
 
               {/* Client Info Grid */}
-              <div className={`grid grid-cols-1 sm:grid-cols-2 gap-6 p-6 rounded-2xl border ${quotationTheme === 'editorial' ? 'bg-slate-50 border-slate-200' : 'bg-slate-950 border-slate-800'}`}>
+              <div className={`grid grid-cols-1 sm:grid-cols-2 gap-6 p-6 rounded-2xl border ${activeTheme === 'editorial' ? 'bg-slate-50 border-slate-200' : activeTheme === 'custom' ? 'bg-slate-950/70 backdrop-blur-md border-white/10' : 'bg-slate-950 border-slate-800'}`}>
                 <div>
-                  <p className={`text-[10px] font-extrabold uppercase tracking-wider mb-1 ${quotationTheme === 'editorial' ? 'text-amber-700' : 'text-amber-400'}`}>Prepared For</p>
-                  <p className={`text-base font-extrabold ${quotationTheme === 'editorial' ? 'text-slate-900' : 'text-white'}`}>{currentProposal.clientName || 'Client Name'}</p>
-                  <p className={`text-xs ${quotationTheme === 'editorial' ? 'text-slate-600' : 'text-slate-400'}`}>{currentProposal.clientEmail || 'Client Email'}</p>
-                  <p className={`text-xs ${quotationTheme === 'editorial' ? 'text-slate-600' : 'text-slate-400'}`}>{currentProposal.clientPhone}</p>
+                  <p className={`text-[10px] font-extrabold uppercase tracking-wider mb-1 ${activeTheme === 'editorial' ? 'text-amber-700' : 'text-amber-400'}`}>Prepared For</p>
+                  <p className={`text-base font-extrabold ${activeTheme === 'editorial' ? 'text-slate-900' : 'text-white'}`}>{currentProposal.clientName || 'Client Name'}</p>
+                  <p className={`text-xs ${activeTheme === 'editorial' ? 'text-slate-600' : 'text-slate-400'}`}>{currentProposal.clientEmail || 'Client Email'}</p>
+                  {currentProposal.clientPhone && <p className={`text-xs ${activeTheme === 'editorial' ? 'text-slate-600' : 'text-slate-400'}`}>{currentProposal.clientPhone}</p>}
                 </div>
                 <div>
-                  <p className={`text-[10px] font-extrabold uppercase tracking-wider mb-1 ${quotationTheme === 'editorial' ? 'text-slate-700' : 'text-cyan-400'}`}>Event Details</p>
-                  <p className={`text-sm font-bold ${quotationTheme === 'editorial' ? 'text-slate-900' : 'text-white'}`}>{currentProposal.title}</p>
-                  <p className={`text-xs ${quotationTheme === 'editorial' ? 'text-slate-700' : 'text-slate-300'}`}>Date: {currentProposal.eventDate}</p>
-                  <p className={`text-xs ${quotationTheme === 'editorial' ? 'text-slate-700' : 'text-slate-300'}`}>Venue: {currentProposal.eventLocation || 'To Be Finalized'}</p>
+                  <p className={`text-[10px] font-extrabold uppercase tracking-wider mb-1 ${activeTheme === 'editorial' ? 'text-slate-700' : 'text-cyan-400'}`}>Event Details</p>
+                  <p className={`text-sm font-bold ${activeTheme === 'editorial' ? 'text-slate-900' : 'text-white'}`}>{currentProposal.title}</p>
+                  <p className={`text-xs ${activeTheme === 'editorial' ? 'text-slate-700' : 'text-slate-300'}`}>Date: {currentProposal.eventDate}</p>
+                  <p className={`text-xs ${activeTheme === 'editorial' ? 'text-slate-700' : 'text-slate-300'}`}>Venue: {currentProposal.eventLocation || 'To Be Finalized'}</p>
                 </div>
               </div>
 
               {/* Scope Table */}
               <div>
-                <h3 className={`text-xs font-extrabold uppercase tracking-wider mb-3 ${quotationTheme === 'editorial' ? 'text-slate-700' : 'text-slate-400'}`}>Scope of Deliverables & Services</h3>
-                <div className={`border rounded-2xl overflow-hidden ${quotationTheme === 'editorial' ? 'border-slate-200' : 'border-slate-800'}`}>
+                <h3 className={`text-xs font-extrabold uppercase tracking-wider mb-3 ${activeTheme === 'editorial' ? 'text-slate-700' : 'text-slate-400'}`}>Scope of Deliverables & Services</h3>
+                <div className={`border rounded-2xl overflow-hidden ${activeTheme === 'editorial' ? 'border-slate-200' : activeTheme === 'custom' ? 'border-white/10 backdrop-blur-md' : 'border-slate-800'}`}>
                   <table className="w-full text-left text-xs">
-                    <thead className={`font-bold uppercase border-b ${quotationTheme === 'editorial' ? 'bg-slate-100 text-slate-700 border-slate-200' : 'bg-slate-950 text-slate-400 border-slate-800'}`}>
+                    <thead className={`font-bold uppercase border-b ${activeTheme === 'editorial' ? 'bg-slate-100 text-slate-700 border-slate-200' : activeTheme === 'custom' ? 'bg-slate-950/70 text-amber-300 border-white/10' : 'bg-slate-950 text-slate-400 border-slate-800'}`}>
                       <tr>
                         <th className="p-3.5">Service</th>
                         <th className="p-3.5">Description</th>
                         <th className="p-3.5 text-right">Amount</th>
                       </tr>
                     </thead>
-                    <tbody className={`divide-y font-medium ${quotationTheme === 'editorial' ? 'divide-slate-200 text-slate-800' : 'divide-slate-800/60'}`}>
+                    <tbody className={`divide-y font-medium ${activeTheme === 'editorial' ? 'divide-slate-200 text-slate-800' : activeTheme === 'custom' ? 'divide-white/10 bg-slate-950/50' : 'divide-slate-800/60'}`}>
                       {currentProposal.items.map((it) => (
                         <tr key={it.id}>
-                          <td className={`p-3.5 font-bold ${quotationTheme === 'editorial' ? 'text-slate-900' : 'text-white'}`}>{it.name}</td>
-                          <td className={`p-3.5 ${quotationTheme === 'editorial' ? 'text-slate-600' : 'text-slate-400'}`}>{it.description}</td>
-                          <td className={`p-3.5 text-right font-extrabold ${quotationTheme === 'editorial' ? 'text-slate-900' : 'text-emerald-400'}`}>₹{Number(it.price).toLocaleString('en-IN')}</td>
+                          <td className={`p-3.5 font-bold ${activeTheme === 'editorial' ? 'text-slate-900' : 'text-white'}`}>{it.name}</td>
+                          <td className={`p-3.5 ${activeTheme === 'editorial' ? 'text-slate-600' : 'text-slate-400'}`}>{it.description}</td>
+                          <td className={`p-3.5 text-right font-extrabold ${activeTheme === 'editorial' ? 'text-slate-900' : 'text-emerald-400'}`}>₹{Number(it.price).toLocaleString('en-IN')}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -1263,14 +1329,14 @@ export default function Proposals() {
                 </div>
               </div>
 
-              {/* Custom PDF Attachment Card if uploaded */}
-              {currentProposal.customPdfUrl && (
-                <div className={`rounded-2xl border overflow-hidden ${quotationTheme === 'editorial' ? 'bg-slate-50 border-slate-200' : 'bg-slate-950 border-slate-800'}`}>
+              {/* PDF Attachment info (only for actual .pdf files, not as background) */}
+              {currentProposal.customPdfUrl && currentProposal.customPdfName?.toLowerCase().endsWith('.pdf') && (
+                <div className={`rounded-2xl border overflow-hidden no-print ${activeTheme === 'editorial' ? 'bg-slate-50 border-slate-200' : 'bg-slate-950/70 backdrop-blur-md border-white/10'}`}>
                   <div className="p-4 flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <FileText className="h-5 w-5 text-amber-500" />
                       <div>
-                        <p className={`text-xs font-bold ${quotationTheme === 'editorial' ? 'text-slate-900' : 'text-white'}`}>Attached Custom PDF Design Flyer</p>
+                        <p className={`text-xs font-bold ${activeTheme === 'editorial' ? 'text-slate-900' : 'text-white'}`}>Attached PDF Design Flyer</p>
                         <p className="text-[11px] text-slate-500 font-mono">{currentProposal.customPdfName}</p>
                       </div>
                     </div>
@@ -1282,32 +1348,11 @@ export default function Proposals() {
                           w.document.title = currentProposal.customPdfName || 'PDF Preview';
                         }
                       }}
-                      className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500/20 text-amber-400 hover:bg-amber-500/30 rounded-xl text-xs font-bold no-print cursor-pointer"
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500/20 text-amber-400 hover:bg-amber-500/30 rounded-xl text-xs font-bold cursor-pointer"
                     >
                       <ExternalLink className="h-3.5 w-3.5" /> View PDF
                     </button>
                   </div>
-                  {/* Embedded PDF preview */}
-                  {currentProposal.customPdfName?.toLowerCase().endsWith('.pdf') && (
-                    <div className="px-4 pb-4">
-                      <iframe
-                        src={currentProposal.customPdfUrl}
-                        title="PDF Preview"
-                        className="w-full h-[400px] rounded-xl border border-slate-700"
-                        style={{ background: '#fff' }}
-                      />
-                    </div>
-                  )}
-                  {/* Embedded image preview for non-PDF files */}
-                  {currentProposal.customPdfName && !currentProposal.customPdfName.toLowerCase().endsWith('.pdf') && (
-                    <div className="px-4 pb-4">
-                      <img
-                        src={currentProposal.customPdfUrl}
-                        alt={currentProposal.customPdfName}
-                        className="w-full max-h-[400px] object-contain rounded-xl border border-slate-700"
-                      />
-                    </div>
-                  )}
                 </div>
               )}
 
@@ -1315,19 +1360,19 @@ export default function Proposals() {
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-6 pt-4">
                 <div className="space-y-3 max-w-md">
                   <div>
-                    <p className={`text-[11px] font-bold uppercase ${quotationTheme === 'editorial' ? 'text-slate-600' : 'text-slate-400'}`}>Payment Schedule</p>
-                    <p className={`text-xs font-medium ${quotationTheme === 'editorial' ? 'text-slate-800' : 'text-slate-200'}`}>{currentProposal.paymentTerms}</p>
+                    <p className={`text-[11px] font-bold uppercase ${activeTheme === 'editorial' ? 'text-slate-600' : 'text-slate-400'}`}>Payment Schedule</p>
+                    <p className={`text-xs font-medium ${activeTheme === 'editorial' ? 'text-slate-800' : 'text-slate-200'}`}>{currentProposal.paymentTerms}</p>
                   </div>
                   <div>
-                    <p className={`text-[11px] font-bold uppercase ${quotationTheme === 'editorial' ? 'text-slate-600' : 'text-slate-400'}`}>Terms & Conditions</p>
-                    <p className={`text-xs font-medium ${quotationTheme === 'editorial' ? 'text-slate-600' : 'text-slate-400'}`}>{currentProposal.terms}</p>
+                    <p className={`text-[11px] font-bold uppercase ${activeTheme === 'editorial' ? 'text-slate-600' : 'text-slate-400'}`}>Terms & Conditions</p>
+                    <p className={`text-xs font-medium ${activeTheme === 'editorial' ? 'text-slate-600' : 'text-slate-400'}`}>{currentProposal.terms}</p>
                   </div>
                 </div>
 
-                <div className={`p-5 rounded-2xl border min-w-[240px] text-right space-y-2 ${quotationTheme === 'editorial' ? 'bg-slate-50 border-slate-200' : 'bg-slate-950 border-slate-800'}`}>
-                  <div className={`flex justify-between text-xs ${quotationTheme === 'editorial' ? 'text-slate-600' : 'text-slate-400'}`}>
+                <div className={`p-5 rounded-2xl border min-w-[240px] text-right space-y-2 ${activeTheme === 'editorial' ? 'bg-slate-50 border-slate-200' : activeTheme === 'custom' ? 'bg-slate-950/70 backdrop-blur-md border-white/10' : 'bg-slate-950 border-slate-800'}`}>
+                  <div className={`flex justify-between text-xs ${activeTheme === 'editorial' ? 'text-slate-600' : 'text-slate-400'}`}>
                     <span>Subtotal:</span>
-                    <span className={`font-bold ${quotationTheme === 'editorial' ? 'text-slate-900' : 'text-slate-200'}`}>₹{calculateSubtotal(currentProposal.items).toLocaleString('en-IN')}</span>
+                    <span className={`font-bold ${activeTheme === 'editorial' ? 'text-slate-900' : 'text-slate-200'}`}>₹{calculateSubtotal(currentProposal.items).toLocaleString('en-IN')}</span>
                   </div>
                   {currentProposal.discount > 0 && (
                     <div className="flex justify-between text-xs text-rose-500">
@@ -1336,17 +1381,19 @@ export default function Proposals() {
                     </div>
                   )}
                   {currentProposal.tax > 0 && (
-                    <div className={`flex justify-between text-xs ${quotationTheme === 'editorial' ? 'text-slate-600' : 'text-cyan-400'}`}>
+                    <div className={`flex justify-between text-xs ${activeTheme === 'editorial' ? 'text-slate-600' : 'text-cyan-400'}`}>
                       <span>Tax / GST ({currentProposal.tax}%):</span>
                       <span>+₹{calculateTaxAmount(calculateSubtotal(currentProposal.items) - calculateDiscountAmount(calculateSubtotal(currentProposal.items), currentProposal.discount), currentProposal.tax).toLocaleString('en-IN')}</span>
                     </div>
                   )}
-                  <div className={`pt-2 border-t flex justify-between text-base font-black ${quotationTheme === 'editorial' ? 'border-slate-300 text-slate-900' : 'border-slate-800 text-amber-400'}`}>
+                  <div className={`pt-2 border-t flex justify-between text-base font-black ${activeTheme === 'editorial' ? 'border-slate-300 text-slate-900' : 'border-white/10 text-amber-400'}`}>
                     <span>Total Amount:</span>
                     <span>₹{calculateGrandTotal(currentProposal).toLocaleString('en-IN')}</span>
                   </div>
                 </div>
               </div>
+
+              </div>{/* end .relative.z-10 content layer */}
             </div>
           </div>
         )}
