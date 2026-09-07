@@ -1,9 +1,5 @@
-import server from '../backend/server.js';
+import requestHandler from '../backend/server.js';
 
-export default function handler(req, res) {
-  if (typeof server === 'function') {
-    return server(req, res);
-  } else if (server && typeof server.emit === 'function') {
-    return server.emit('request', req, res);
-  }
+export default async function handler(req, res) {
+  return requestHandler(req, res);
 }

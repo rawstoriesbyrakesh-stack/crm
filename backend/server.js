@@ -307,7 +307,7 @@ const checkRateLimit = (req, res) => {
 };
 
 // ─── Server ───────────────────────────────────────────────────────────────────
-const server = http.createServer(async (req, res) => {
+export const requestHandler = async (req, res) => {
   if (req.method === 'OPTIONS') {
     res.writeHead(204, cors);
     res.end();
@@ -1428,7 +1428,9 @@ const server = http.createServer(async (req, res) => {
     console.error('Unhandled error:', err);
     sendError(res, 500, err.message || 'Internal server error');
   }
-});
+};
+
+const server = http.createServer(requestHandler);
 
 // ─── Start ────────────────────────────────────────────────────────────────────
 let _port = PORT;
@@ -1441,20 +1443,18 @@ const startHttp = () => {
 };
 server.on('error', err => {
   if (err?.code === 'EADDRINUSE') { _port++; setTimeout(startHttp, 200); }
-  else { console.error(err); process.exit(1); }
+  else { console.error(err); }
 });
 
-ensureMongoConnected()
-  .then(() => {
-    console.log('🍃  MongoDB connected');
-    startHttp();
-  })
-  .catch(err => {
-    console.error('❌ MongoDB connection failed:', err.message);
-    process.exit(1);
-  });
+if (!process.env.VERCEL) {
+  ensureMongoConnected()
+    .then(() => {
+      console.log('🍃  MongoDB connected');
+      startHttp();
+    })
+    .catch(err => {
+      console.error('❌ MongoDB connection failed:', err.message);
+    });
+}
 
-// Export the server for hosting platforms (Vercel) that expect an exported
-// function or server object. This allows Vercel to detect and use the server
-// instead of requiring a separate serverless handler file.
-export default server;
+export default requestHandler;
