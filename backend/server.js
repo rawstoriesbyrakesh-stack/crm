@@ -200,10 +200,10 @@ const proposalSchema = new mongoose.Schema({
   status:       { type: String, default: 'Draft' },
 }, { timestamps: true });
 
-const Share      = mongoose.model('Share', shareSchema);
-const FileMeta   = mongoose.model('FileMeta', fileMetaSchema);
-const FolderMeta = mongoose.model('FolderMeta', folderMetaSchema);
-const Proposal   = mongoose.model('Proposal', proposalSchema);
+const Share      = mongoose.models.Share || mongoose.model('Share', shareSchema);
+const FileMeta   = mongoose.models.FileMeta || mongoose.model('FileMeta', fileMetaSchema);
+const FolderMeta = mongoose.models.FolderMeta || mongoose.model('FolderMeta', folderMetaSchema);
+const Proposal   = mongoose.models.Proposal || mongoose.model('Proposal', proposalSchema);
 
 mongoose.set('bufferCommands', false);
 let mongoConnectionPromise = null;
