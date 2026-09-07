@@ -1,9 +1,17 @@
-import 'dotenv/config';
+import dotenv from 'dotenv';
 import http from 'node:http';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import mongoose from 'mongoose';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname  = path.dirname(__filename);
+
+// Load .env from backend directory and root directory to ensure all env vars are loaded regardless of process.cwd()
+dotenv.config({ path: path.resolve(__dirname, '.env') });
+dotenv.config({ path: path.resolve(__dirname, '../.env') });
+
 // sharp is loaded lazily so a missing native binary never crashes the server
 let _sharp = null;
 const getSharp = async () => {
@@ -25,9 +33,6 @@ import {
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { GetObjectCommand } from '@aws-sdk/client-s3';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname  = path.dirname(__filename);
-
 // ─── Config (100% from .env, no hardcoded fallbacks) ─────────────────────────
 const PORT               = Number(process.env.PORT ?? 8787);
 const CORS_ORIGIN        = process.env.CORS_ORIGIN ?? '*';
@@ -39,34 +44,32 @@ const MONGO_URI          = process.env.MONGO_URI;
 // Load generic S3 or fallback to WASABI
 const S3_ACCESS_KEY      = process.env.S3_ACCESS_KEY ?? process.env.WASABI_ACCESS_KEY;
 const S3_SECRET_KEY      = process.env.S3_SECRET_KEY ?? process.env.WASABI_SECRET_KEY;
-const S3_BUCKET      = process.env.S3_BUCKET ?? process.env.S3_BUCKET;
+const S3_BUCKET          = process.env.S3_BUCKET ?? 'raw';
 const S3_REGION          = process.env.S3_REGION ?? process.env.WASABI_REGION ?? 'auto';
-const S3_ENDPOINT        = process.env.S3_ENDPOINT ?? process.env.WASABI_ENDPOINT;
+const S3_ENDPOINT        = process.env.S3_ENDPOINT ?? process.env.WASABI_ENDPOINT ?? 'https://s3.wasabisys.com';
 const PRESIGNED_EXPIRY   = Number(process.env.PRESIGNED_URL_EXPIRY ?? 3600);
 
 // Validate required vars
 const REQUIRED = ['RAWSTORIES_EMAIL','RAWSTORIES_PASSWORD','RAWSTORIES_TOKEN','MONGO_URI'];
 const MISSING = REQUIRED.filter(k => !process.env[k]);
 if (MISSING.length) {
-  console.error(`\n❌  Missing env vars: ${MISSING.join(', ')}\n   Set them in backend/.env\n`);
-  process.exit(1);
+  console.warn(`\n⚠️  Missing env vars: ${MISSING.join(', ')}\n   Check backend/.env or Vercel Environment Variables\n`);
 }
 
 if (!S3_ACCESS_KEY || !S3_SECRET_KEY || !S3_BUCKET || !S3_ENDPOINT) {
-  console.error(`\n❌  Missing S3 Storage configuration. Please set either generic S3_* variables or WASABI_* variables in backend/.env\n`);
-  process.exit(1);
+  console.warn(`\n⚠️  Missing S3 Storage configuration. Check S3_* or WASABI_* env variables.\n`);
 }
 
 // Determine if path style is forced (true for local development or Wasabi, false for Cloudflare R2)
 const S3_FORCE_PATH_STYLE = process.env.S3_FORCE_PATH_STYLE !== undefined
   ? process.env.S3_FORCE_PATH_STYLE === 'true'
-  : (S3_ENDPOINT.includes('wasabisys.com') || S3_ENDPOINT.includes('localhost') || S3_ENDPOINT.includes('127.0.0.1'));
+  : ((S3_ENDPOINT || '').includes('wasabisys.com') || (S3_ENDPOINT || '').includes('localhost') || (S3_ENDPOINT || '').includes('127.0.0.1'));
 
 // ─── S3 Storage Client ────────────────────────────────────────────────────────
 const s3 = new S3Client({
   region: S3_REGION,
   endpoint: S3_ENDPOINT,
-  credentials: { accessKeyId: S3_ACCESS_KEY, secretAccessKey: S3_SECRET_KEY },
+  credentials: { accessKeyId: S3_ACCESS_KEY || 'missing', secretAccessKey: S3_SECRET_KEY || 'missing' },
   forcePathStyle: S3_FORCE_PATH_STYLE,
 });
 
