@@ -7,7 +7,7 @@ import {
   ArrowLeft, Grid3X3, List, Download, Eye, X, Loader2,
   AlertCircle, Lock, Check, ChevronLeft, ChevronRight,
   Image, Play, ZoomIn, Camera, MessageSquare, Send, RotateCw, GripHorizontal,
-  Heart, MessageCircle, QrCode, Copy
+  Heart, MessageCircle, QrCode, Copy, CheckSquare, Square, CheckCircle2, FolderDown
 } from 'lucide-react';
 import { rawStoriesApiUrl, getThumbnailUrl } from '../api/rawStoriesBackend';
 
@@ -320,16 +320,38 @@ export default function SharedFolderView() {
   const [showQrModal, setShowQrModal] = useState(false);
   const [qrCopied, setQrCopied] = useState(false);
 
-  const toggleFavorite = (id: string) => {
-    setFavorites(p => {
-      const n = new Set(p);
-      if (n.has(id)) {
-        n.delete(id);
+  const [isSelectMode, setIsSelectMode] = useState(false);
+
+  const toggleSelect = (id: string) => {
+    setSelected(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
       } else {
-        n.add(id);
+        next.add(id);
       }
-      return n;
+      return next;
     });
+  };
+
+  const selectAll = () => {
+    const allIds = filteredItems.map(item => item.id);
+    setSelected(new Set(allIds));
+    notify(setNotifications, `Selected all ${allIds.length} photo(s)`, 'success');
+  };
+
+  const deselectAll = () => {
+    setSelected(new Set());
+  };
+
+  const favoriteSelected = () => {
+    if (selected.size === 0) return;
+    setFavorites(prev => {
+      const next = new Set(prev);
+      selected.forEach(id => next.add(id));
+      return next;
+    });
+    notify(setNotifications, `Added ${selected.size} photo(s) to Favorites!`, 'success');
   };
 
   const submitFavorites = async () => {
@@ -396,6 +418,46 @@ export default function SharedFolderView() {
     } catch (err: any) {
       console.error('Zip download error:', err);
       notify(setNotifications, `Zip export failed: ${err.message}`, 'error');
+    } finally {
+      setDownloadingZip(false);
+    }
+  };
+
+  const handleDownloadSelectedZip = async () => {
+    if (selected.size === 0) {
+      notify(setNotifications, 'Please select at least one photo to download', 'info');
+      return;
+    }
+    setDownloadingZip(true);
+    notify(setNotifications, `Preparing ZIP archive of ${selected.size} selected photo(s)...`, 'info');
+    try {
+      const zip = new JSZip();
+      const selItems = items.filter(item => selected.has(item.id));
+      let count = 0;
+      for (const item of selItems) {
+        try {
+          const downloadUrl = rawStoriesApiUrl(`/default/downloadimage?key=${encodeURIComponent(item.id)}&shareId=${shareId || ''}`);
+          const response = await fetch(downloadUrl);
+          if (response.ok) {
+            const blob = await response.blob();
+            const fileName = item.filename || item.id.split('/').pop() || `photo_${count + 1}.jpg`;
+            zip.file(fileName, blob);
+            count++;
+          }
+        } catch (err) {
+          console.error('Error downloading item for zip:', item.id, err);
+        }
+      }
+      if (count === 0) {
+        throw new Error('Could not fetch image data for zip archive');
+      }
+      const zipBlob = await zip.generateAsync({ type: 'blob' });
+      const zipName = `selected_photos_${folderPath ? folderPath.replace(/\//g, '_') : 'gallery'}.zip`;
+      saveAs(zipBlob, zipName);
+      notify(setNotifications, `Successfully downloaded ${count} selected photo(s)!`, 'success');
+    } catch (err: any) {
+      console.error('Zip download error:', err);
+      notify(setNotifications, `Zip download failed: ${err.message}`, 'error');
     } finally {
       setDownloadingZip(false);
     }
@@ -663,17 +725,6 @@ export default function SharedFolderView() {
     setSelected(new Set());
   };
 
-  const toggleSelect = (id: string) =>
-    setSelected(p => {
-      const n = new Set(p);
-      if (n.has(id)) {
-        n.delete(id);
-      } else {
-        n.add(id);
-      }
-      return n;
-    });
-
   const handleNextImage = () => {
     if (lightbox !== null && lightbox < filteredItems.length - 1) {
       setLightbox(lightbox + 1);
@@ -919,6 +970,24 @@ export default function SharedFolderView() {
 
           {/* Actions */}
           <div className="flex items-center gap-2.5 shrink-0">
+            {/* Multi-Select Toggle Button */}
+            <button onClick={() => {
+                if (isSelectMode && selected.size > 0) {
+                  setSelected(new Set());
+                }
+                setIsSelectMode(!isSelectMode);
+              }}
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all border shadow-md ${
+                isSelectMode || selected.size > 0
+                  ? 'bg-amber-400 text-slate-950 border-amber-400 shadow-amber-500/30'
+                  : 'bg-slate-800/90 border-slate-700 text-slate-200 hover:bg-slate-700 hover:text-amber-300'
+              }`}
+              title="Toggle Multi-Select Mode"
+            >
+              <CheckSquare className="h-4 w-4" />
+              <span>{selected.size > 0 ? `Selected (${selected.size})` : 'Select'}</span>
+            </button>
+
             {/* Favorites filter toggle */}
             {favCount > 0 && (
               <button onClick={() => setShowFavoritesOnly(!showFavoritesOnly)}
@@ -1010,6 +1079,47 @@ export default function SharedFolderView() {
 
       {/* ── Main Gallery Grid ── */}
       <main className="max-w-screen-2xl mx-auto px-4 sm:px-6 py-6 pb-40 relative z-10">
+        {/* ── Selection Control Bar (when Select Mode is active or items selected) ── */}
+        {(isSelectMode || selected.size > 0) && (
+          <div className="mb-6 p-4 rounded-2xl bg-slate-900/95 border-2 border-amber-400/80 shadow-2xl backdrop-blur-xl flex flex-wrap items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-400 text-slate-950 flex items-center justify-center font-bold text-sm shadow-md shadow-amber-500/20">
+                <CheckSquare className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="text-white font-black text-base">
+                  {selected.size > 0 ? `${selected.size} Photo(s) Selected` : 'Multi-Select Mode Active'}
+                </p>
+                <p className="text-xs text-slate-300">Click photo checkboxes to select multiple photos</p>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2.5">
+              <button onClick={selectAll} className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-all shadow-md">
+                <CheckCircle2 className="h-4 w-4 text-amber-400" /> Select All ({filteredItems.length})
+              </button>
+
+              {selected.size > 0 && (
+                <>
+                  <button onClick={deselectAll} className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition-all">
+                    <X className="h-4 w-4 text-slate-400" /> Clear
+                  </button>
+
+                  <button onClick={favoriteSelected} className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-bold bg-rose-500 hover:bg-rose-600 text-white border border-rose-400 transition-all shadow-md">
+                    <Heart className="h-4 w-4 fill-current" /> Add to Favs ({selected.size})
+                  </button>
+
+                  {allowDownload && (
+                    <button onClick={handleDownloadSelectedZip} disabled={downloadingZip} className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-black bg-cyan-600 hover:bg-cyan-500 text-white border border-cyan-400 transition-all shadow-md disabled:opacity-40">
+                      {downloadingZip ? <div className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" /> : <FolderDown className="h-4 w-4" />}
+                      <span>Download Selected ZIP</span>
+                    </button>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+        )}
         {loading ? (
           /* Vibrant skeleton grid */
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4">
@@ -1170,39 +1280,81 @@ export default function SharedFolderView() {
         )}
       </main>
 
-      {/* ── High-Visibility Floating Action Bar (when favorites selected) ── */}
-      {favCount > 0 && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50">
-          <div className="flex items-center gap-3 px-5 py-3.5 rounded-2xl border-2 border-amber-400/80 shadow-2xl"
+      {/* ── High-Visibility Floating Selection / Favorites Action Bar ── */}
+      {(selected.size > 0 || favCount > 0) && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 max-w-[92vw]">
+          <div className="flex flex-wrap items-center justify-center gap-3 px-5 py-3.5 rounded-2xl border-2 border-amber-400/80 shadow-2xl"
             style={{ background: 'rgba(15,23,42,0.95)', backdropFilter: 'blur(24px)', boxShadow: '0 25px 60px rgba(0,0,0,0.8), 0 0 30px rgba(245,158,11,0.3)' }}>
-            <div className="flex items-center gap-2.5 pr-4 border-r border-slate-700">
-              <div className="w-8 h-8 rounded-xl bg-rose-500 flex items-center justify-center shadow-md shadow-rose-500/30">
-                <Heart className="h-4 w-4 text-white fill-current" />
-              </div>
-              <div className="flex flex-col leading-tight">
-                <span className="text-base font-black text-white">{favCount} Photos</span>
-                <span className="text-[10px] font-bold text-rose-400 uppercase tracking-wider">Favorited</span>
-              </div>
-            </div>
+            
+            {/* If photos are selected */}
+            {selected.size > 0 ? (
+              <>
+                <div className="flex items-center gap-2.5 pr-4 border-r border-slate-700">
+                  <div className="w-8 h-8 rounded-xl bg-amber-400 text-slate-950 flex items-center justify-center font-black shadow-md shadow-amber-500/30">
+                    <CheckSquare className="h-4 w-4" />
+                  </div>
+                  <div className="flex flex-col leading-tight">
+                    <span className="text-base font-black text-white">{selected.size} Photos</span>
+                    <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider">Selected</span>
+                  </div>
+                </div>
 
-            <button onClick={() => setShowFavoritesOnly(!showFavoritesOnly)}
-              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all border ${showFavoritesOnly ? 'bg-amber-400 text-slate-950 border-amber-400' : 'bg-slate-800 border-slate-700 text-slate-200 hover:bg-slate-700'}`}>
-              {showFavoritesOnly ? 'Show All' : 'Filter Favs'}
-            </button>
+                <button onClick={selectAll}
+                  className="px-3.5 py-2 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 transition-all">
+                  Select All
+                </button>
 
-            {allowDownload && (
-              <button onClick={handleDownloadFavoritesZip} disabled={downloadingZip}
-                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-100 transition-all disabled:opacity-40 shadow-md">
-                {downloadingZip ? <div className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" /> : <Download className="h-4 w-4 text-cyan-400" />}
-                <span className="hidden sm:inline">Export ZIP</span>
-              </button>
+                <button onClick={favoriteSelected}
+                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-rose-500 hover:bg-rose-600 border border-rose-400 text-white transition-all shadow-md">
+                  <Heart className="h-3.5 w-3.5 fill-current" /> Add to Favs
+                </button>
+
+                {allowDownload && (
+                  <button onClick={handleDownloadSelectedZip} disabled={downloadingZip}
+                    className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-cyan-600 hover:bg-cyan-500 border border-cyan-400 text-white transition-all disabled:opacity-40 shadow-md">
+                    {downloadingZip ? <div className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" /> : <FolderDown className="h-3.5 w-3.5" />}
+                    <span>ZIP Selected</span>
+                  </button>
+                )}
+
+                <button onClick={deselectAll}
+                  className="px-3 py-2 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-all">
+                  Clear
+                </button>
+              </>
+            ) : (
+              /* Favorites Bar */
+              <>
+                <div className="flex items-center gap-2.5 pr-4 border-r border-slate-700">
+                  <div className="w-8 h-8 rounded-xl bg-rose-500 flex items-center justify-center shadow-md shadow-rose-500/30">
+                    <Heart className="h-4 w-4 text-white fill-current" />
+                  </div>
+                  <div className="flex flex-col leading-tight">
+                    <span className="text-base font-black text-white">{favCount} Photos</span>
+                    <span className="text-[10px] font-bold text-rose-400 uppercase tracking-wider">Favorited</span>
+                  </div>
+                </div>
+
+                <button onClick={() => setShowFavoritesOnly(!showFavoritesOnly)}
+                  className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all border ${showFavoritesOnly ? 'bg-amber-400 text-slate-950 border-amber-400' : 'bg-slate-800 border-slate-700 text-slate-200 hover:bg-slate-700'}`}>
+                  {showFavoritesOnly ? 'Show All' : 'Filter Favs'}
+                </button>
+
+                {allowDownload && (
+                  <button onClick={handleDownloadFavoritesZip} disabled={downloadingZip}
+                    className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-100 transition-all disabled:opacity-40 shadow-md">
+                    {downloadingZip ? <div className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" /> : <Download className="h-4 w-4 text-cyan-400" />}
+                    <span className="hidden sm:inline">Export ZIP</span>
+                  </button>
+                )}
+
+                <button onClick={submitFavorites} disabled={isSubmittingFavs}
+                  className="flex items-center gap-2 px-5 py-2 rounded-xl text-xs font-black text-white transition-all disabled:opacity-50 shadow-lg bg-emerald-600 hover:bg-emerald-500 shadow-emerald-600/30">
+                  {isSubmittingFavs ? <div className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" /> : <Check className="h-4 w-4 stroke-[3]" />}
+                  <span>Submit to Photographer</span>
+                </button>
+              </>
             )}
-
-            <button onClick={submitFavorites} disabled={isSubmittingFavs}
-              className="flex items-center gap-2 px-5 py-2 rounded-xl text-xs font-black text-white transition-all disabled:opacity-50 shadow-lg bg-emerald-600 hover:bg-emerald-500 shadow-emerald-600/30">
-              {isSubmittingFavs ? <div className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" /> : <Check className="h-4 w-4 stroke-[3]" />}
-              <span>Submit to Photographer</span>
-            </button>
           </div>
         </div>
       )}
