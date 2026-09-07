@@ -356,7 +356,7 @@ export const requestHandler = async (req, res) => {
     });
 
     // ── Health ─────────────────────────────────────────────────────────────
-    if (pathname === '/api/health') {
+    if (pathname === '/health' || pathname === '/api/health') {
       return sendJson(res, 200, {
         success: true,
         storage: 's3',
@@ -366,7 +366,7 @@ export const requestHandler = async (req, res) => {
     }
 
     // ── Auth: login ────────────────────────────────────────────────────────
-    if (pathname === '/api/login' && req.method === 'POST') {
+    if ((pathname === '/login' || pathname === '/api/login') && req.method === 'POST') {
       const body = await readBody(req);
       if (body?.email === ADMIN_EMAIL && body?.password === ADMIN_PASSWORD)
         return sendJson(res, 200, { success: true, token: SESSION_TOKEN });
@@ -374,13 +374,13 @@ export const requestHandler = async (req, res) => {
     }
 
     // ── Auth: session ──────────────────────────────────────────────────────
-    if (pathname === '/api/session' && req.method === 'GET') {
+    if ((pathname === '/session' || pathname === '/api/session') && req.method === 'GET') {
       if (!isAuthed(req)) return sendError(res, 401, 'Unauthorized');
       return sendJson(res, 200, { success: true, user: { email: ADMIN_EMAIL, role: 'admin' } });
     }
 
     // ── Stats ──────────────────────────────────────────────────────────────
-    if (pathname === '/api/stats' && req.method === 'GET') {
+    if ((pathname === '/stats' || pathname === '/api/stats') && req.method === 'GET') {
       if (!isAuthed(req)) return sendError(res, 401, 'Unauthorized');
       try {
         const list = await s3.send(new ListObjectsV2Command({ Bucket: S3_BUCKET, Delimiter: '/' }));
