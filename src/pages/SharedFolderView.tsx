@@ -496,6 +496,38 @@ export default function SharedFolderView() {
     }
   };
 
+  const handleDownloadAllZip = async () => {
+    const itemsToZip = filteredItems.length > 0 ? filteredItems : items;
+    if (itemsToZip.length === 0) {
+      notify(setNotifications, 'No photos in this folder to download', 'info');
+      return;
+    }
+    setDownloadingZip(true);
+    const total = itemsToZip.length;
+    notify(setNotifications, `📦 Preparing ZIP of complete folder (${total} photos)...`, 'info');
+    try {
+      const zip = new JSZip();
+      const count = await buildZip(zip, itemsToZip, total, (done) => {
+        if (done % 10 === 0 || done === total) {
+          notify(setNotifications, `Downloading folder photos: ${done}/${total}...`, 'info');
+        }
+      });
+      if (count === 0) throw new Error('Could not fetch any images for the ZIP archive');
+      notify(setNotifications, 'Creating complete folder ZIP file...', 'info');
+      const zipBlob = await zip.generateAsync({ type: 'blob', compression: 'STORE' });
+      const rawTitle = galleryTitle || (folderPath ? folderPath.replace(/\//g, '_') : 'gallery');
+      const safeTitle = rawTitle.replace(/[^a-zA-Z0-9_-]/g, '_');
+      const zipName = `${safeTitle}_complete_folder.zip`;
+      saveAs(zipBlob, zipName);
+      notify(setNotifications, `✅ Complete folder (${count} photo(s)) downloaded!`, 'success');
+    } catch (err: any) {
+      console.error('Zip download error:', err);
+      notify(setNotifications, `Folder ZIP download failed: ${err.message}`, 'error');
+    } finally {
+      setDownloadingZip(false);
+    }
+  };
+
   const decoded = folderPath ? decodeURIComponent(folderPath) : '';
 
   const safeDecode = (value: string) => {
@@ -752,10 +784,7 @@ export default function SharedFolderView() {
   };
 
   const downloadSelected = () => {
-    const toDown = items.filter(i => selected.has(i.id));
-    if (!toDown.length) { notify(setNotifications, 'Select items first', 'info'); return; }
-    toDown.forEach(downloadItem);
-    setSelected(new Set());
+    handleDownloadSelectedZip();
   };
 
   const handleNextImage = () => {
@@ -1050,6 +1079,16 @@ export default function SharedFolderView() {
               <span className="hidden sm:inline">QR Scan</span>
             </button>
 
+            {/* Download Complete Folder Button */}
+            {allowDownload && (
+              <button onClick={handleDownloadAllZip} disabled={downloadingZip}
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-cyan-600 hover:bg-cyan-500 text-white border border-cyan-400/50 transition-all shadow-md hover:scale-105 disabled:opacity-40"
+                title="Download Complete Folder (ZIP)">
+                {downloadingZip ? <div className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" /> : <FolderDown className="h-4 w-4" />}
+                <span className="hidden sm:inline">Download Folder (ZIP)</span>
+              </button>
+            )}
+
             {/* Social buttons */}
             <a href="https://www.instagram.com/rawstoriesbyrakesh?igsh=MXg4NTJjeDBybmxndQ==" target="_blank" rel="noopener noreferrer"
               className="hidden md:flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold text-white transition-all shadow-md hover:scale-105"
@@ -1088,8 +1127,15 @@ export default function SharedFolderView() {
                 </p>
               </div>
 
-              {/* Stats badges */}
+              {/* Action & Stats badges */}
               <div className="flex flex-wrap items-center gap-3 shrink-0">
+                {allowDownload && (
+                  <button onClick={handleDownloadAllZip} disabled={downloadingZip}
+                    className="flex items-center gap-2.5 px-5 py-3 rounded-2xl text-xs sm:text-sm font-black bg-gradient-to-r from-cyan-600 via-teal-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white border border-cyan-300/40 shadow-xl shadow-cyan-950/50 transition-all hover:scale-105 active:scale-95 disabled:opacity-40">
+                    {downloadingZip ? <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" /> : <FolderDown className="h-5 w-5" />}
+                    <span>Download Complete Folder ({filteredItems.length} Photos)</span>
+                  </button>
+                )}
                 <div className="bg-slate-800/90 border border-slate-700 px-4 py-3 rounded-2xl flex flex-col items-center min-w-[100px] shadow-lg">
                   <span className="text-xs text-slate-400 font-semibold uppercase">Total Photos</span>
                   <span className="text-2xl font-black text-amber-400">{filteredItems.length}</span>
@@ -1374,10 +1420,18 @@ export default function SharedFolderView() {
                 </button>
 
                 {allowDownload && (
+                  <button onClick={handleDownloadAllZip} disabled={downloadingZip}
+                    className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-cyan-600 hover:bg-cyan-500 border border-cyan-400 text-white transition-all disabled:opacity-40 shadow-md">
+                    {downloadingZip ? <div className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" /> : <FolderDown className="h-4 w-4" />}
+                    <span className="hidden sm:inline">Download Complete Folder</span>
+                  </button>
+                )}
+
+                {allowDownload && (
                   <button onClick={handleDownloadFavoritesZip} disabled={downloadingZip}
                     className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-100 transition-all disabled:opacity-40 shadow-md">
                     {downloadingZip ? <div className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" /> : <Download className="h-4 w-4 text-cyan-400" />}
-                    <span className="hidden sm:inline">Export ZIP</span>
+                    <span className="hidden sm:inline">Export Favs ZIP</span>
                   </button>
                 )}
 
