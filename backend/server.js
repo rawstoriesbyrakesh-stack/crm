@@ -211,10 +211,11 @@ let hasStartedHttpServer = false;
 
 const ensureMongoConnected = async () => {
   if (mongoose.connection.readyState === 1) return;
+  if (!MONGO_URI) return;
   if (!mongoConnectionPromise) {
     mongoConnectionPromise = mongoose.connect(MONGO_URI).catch(err => {
       mongoConnectionPromise = null;
-      throw err;
+      console.warn('MongoDB connect error:', err.message);
     });
   }
   await mongoConnectionPromise;
@@ -317,15 +318,21 @@ export const requestHandler = async (req, res) => {
   if (!checkRateLimit(req, res)) return;
 
   const url      = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
-  let pathname   = url.pathname;
+  let pathname   = url.searchParams.get('path') || url.pathname;
   if (pathname.startsWith('/_/backend')) {
     pathname = pathname.slice('/_/backend'.length);
   }
   if (pathname.startsWith('/api/index.js')) {
     pathname = pathname.slice('/api/index.js'.length);
   }
+  if (pathname.startsWith('/api/index')) {
+    pathname = pathname.slice('/api/index'.length);
+  }
   if (pathname.startsWith('/api')) {
     pathname = pathname.slice('/api'.length);
+  }
+  if (!pathname.startsWith('/')) {
+    pathname = '/' + pathname;
   }
 
   try {
