@@ -255,6 +255,10 @@ const encodeCopySource = (bucket, key) => {
 };
 
 const readBody = async req => {
+  if (req.body && typeof req.body === 'object') return req.body;
+  if (req.body && typeof req.body === 'string') {
+    try { return JSON.parse(req.body); } catch { return req.body; }
+  }
   const chunks = [];
   for await (const chunk of req) chunks.push(chunk);
   const raw = Buffer.concat(chunks).toString('utf8');
@@ -282,7 +286,7 @@ const isAuthed = req => {
 // Simple in-memory rate limiter
 const rateLimits = new Map();
 const checkRateLimit = (req, res) => {
-  const ip = req.socket.remoteAddress;
+  const ip = req.socket?.remoteAddress || req.headers['x-forwarded-for'] || '127.0.0.1';
   const now = Date.now();
   if (!rateLimits.has(ip)) {
     rateLimits.set(ip, { count: 1, resetAt: now + 15 * 60 * 1000 });
@@ -312,10 +316,16 @@ const server = http.createServer(async (req, res) => {
 
   if (!checkRateLimit(req, res)) return;
 
-  const url      = new URL(req.url || '/', `http://${req.headers.host}`);
+  const url      = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
   let pathname   = url.pathname;
   if (pathname.startsWith('/_/backend')) {
     pathname = pathname.slice('/_/backend'.length);
+  }
+  if (pathname.startsWith('/api/index.js')) {
+    pathname = pathname.slice('/api/index.js'.length);
+  }
+  if (pathname.startsWith('/api')) {
+    pathname = pathname.slice('/api'.length);
   }
 
   try {
