@@ -503,28 +503,48 @@ export default function SharedFolderView() {
       return;
     }
     setDownloadingZip(true);
-    const total = itemsToZip.length;
-    notify(setNotifications, `📦 Preparing ZIP of complete folder (${total} photos)...`, 'info');
+    notify(setNotifications, `🚀 Starting direct ZIP download of complete folder (${itemsToZip.length} photos)...`, 'info');
+    
     try {
-      const zip = new JSZip();
-      const count = await buildZip(zip, itemsToZip, total, (done) => {
-        if (done % 10 === 0 || done === total) {
-          notify(setNotifications, `Downloading folder photos: ${done}/${total}...`, 'info');
-        }
-      });
-      if (count === 0) throw new Error('Could not fetch any images for the ZIP archive');
-      notify(setNotifications, 'Creating complete folder ZIP file...', 'info');
-      const zipBlob = await zip.generateAsync({ type: 'blob', compression: 'STORE' });
+      // 1. Direct single ZIP download stream via backend endpoint
+      const zipUrl = rawStoriesApiUrl(
+        `/default/download-folder-zip?prefix=${encodeURIComponent(folderPath || '')}&shareId=${encodeURIComponent(shareId || '')}`
+      );
       const rawTitle = galleryTitle || (folderPath ? folderPath.replace(/\//g, '_') : 'gallery');
       const safeTitle = rawTitle.replace(/[^a-zA-Z0-9_-]/g, '_');
-      const zipName = `${safeTitle}_complete_folder.zip`;
-      saveAs(zipBlob, zipName);
-      notify(setNotifications, `✅ Complete folder (${count} photo(s)) downloaded!`, 'success');
+      
+      const a = document.createElement('a');
+      a.href = zipUrl;
+      a.download = `${safeTitle}_complete_folder.zip`;
+      a.style.display = 'none';
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => document.body.removeChild(a), 2000);
+      
+      notify(setNotifications, `✅ Complete folder ZIP download started!`, 'success');
     } catch (err: any) {
-      console.error('Zip download error:', err);
-      notify(setNotifications, `Folder ZIP download failed: ${err.message}`, 'error');
+      console.warn('Direct ZIP endpoint error, falling back to client zipper:', err);
+      // Fallback: Client-side batched ZIP
+      try {
+        const total = itemsToZip.length;
+        const zip = new JSZip();
+        const count = await buildZip(zip, itemsToZip, total, (done) => {
+          if (done % 10 === 0 || done === total) {
+            notify(setNotifications, `Downloading folder photos: ${done}/${total}...`, 'info');
+          }
+        });
+        if (count === 0) throw new Error('Could not fetch any images for the ZIP archive');
+        const zipBlob = await zip.generateAsync({ type: 'blob', compression: 'STORE' });
+        const rawTitle = galleryTitle || (folderPath ? folderPath.replace(/\//g, '_') : 'gallery');
+        const safeTitle = rawTitle.replace(/[^a-zA-Z0-9_-]/g, '_');
+        saveAs(zipBlob, `${safeTitle}_complete_folder.zip`);
+        notify(setNotifications, `✅ Complete folder (${count} photo(s)) downloaded!`, 'success');
+      } catch (fallbackErr: any) {
+        console.error('Zip download error:', fallbackErr);
+        notify(setNotifications, `Folder ZIP download failed: ${fallbackErr.message}`, 'error');
+      }
     } finally {
-      setDownloadingZip(false);
+      setTimeout(() => setDownloadingZip(false), 2500);
     }
   };
 

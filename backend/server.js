@@ -1198,6 +1198,83 @@ export const requestHandler = async (req, res) => {
       return;
     }
 
+    // ── Download Complete Folder as direct single ZIP ───────────────────────
+    if (pathname === '/default/download-folder-zip' && (req.method === 'GET' || req.method === 'POST')) {
+      const prefix = url.searchParams.get('prefix') || url.searchParams.get('folderPath') || '';
+      const shareId = url.searchParams.get('shareId') || '';
+      let keys = [];
+
+      if (req.method === 'POST') {
+        try {
+          const body = await readBody(req);
+          if (Array.isArray(body?.keys)) keys = body.keys;
+        } catch {}
+      }
+
+      try {
+        let itemsToZip = [];
+        if (keys.length > 0) {
+          itemsToZip = keys.map(k => ({ Key: k }));
+        } else if (prefix) {
+          let p = decodeURIComponent(prefix);
+          if (!p.endsWith('/') && p.length > 0) p += '/';
+          const listRes = await s3.send(new ListObjectsV2Command({ Bucket: S3_BUCKET, Prefix: p }));
+          itemsToZip = (listRes.Contents || []).filter(o => 
+            o.Key && 
+            !o.Key.endsWith('/') && 
+            !o.Key.startsWith('_thumbnails/') &&
+            o.Key.match(/\.(jpg|jpeg|png|gif|webp|mp4|mov|avi|arw|cr2|nef|dng)$/i)
+          );
+        }
+
+        if (itemsToZip.length === 0) {
+          return sendError(res, 404, 'No photos found in folder to zip');
+        }
+
+        const rawFolderName = (prefix || 'gallery').replace(/\/+$/, '').split('/').pop() || 'gallery';
+        const safeFolderName = decodeURIComponent(rawFolderName).replace(/[^\w.\- ]/g, '_').trim() || 'gallery';
+        const zipFilename = `${safeFolderName}_complete_folder.zip`;
+
+        res.writeHead(200, {
+          'Content-Type': 'application/zip',
+          'Content-Disposition': `attachment; filename="${zipFilename}"; filename*=UTF-8''${encodeURIComponent(zipFilename)}`,
+          'Cache-Control': 'no-store',
+          ...cors,
+        });
+
+        const JSZip = (await import('jszip')).default;
+        const zip = new JSZip();
+
+        const CONCURRENCY = 8;
+        for (let i = 0; i < itemsToZip.length; i += CONCURRENCY) {
+          const batch = itemsToZip.slice(i, i + CONCURRENCY);
+          await Promise.all(batch.map(async (item) => {
+            try {
+              const s3Obj = await s3.send(new GetObjectCommand({ Bucket: S3_BUCKET, Key: item.Key }));
+              const chunks = [];
+              for await (const chunk of s3Obj.Body) chunks.push(chunk);
+              const buf = Buffer.concat(chunks);
+              const fileName = item.Key.split('/').pop() || `photo_${i}.jpg`;
+              zip.file(decodeURIComponent(fileName), buf);
+            } catch (err) {
+              console.error('Failed to fetch object for backend ZIP:', item.Key, err.message);
+            }
+          }));
+        }
+
+        const zipBuffer = await zip.generateAsync({ type: 'nodebuffer', compression: 'STORE' });
+        if (!res.writableEnded) res.end(zipBuffer);
+        return;
+      } catch (err) {
+        console.error('download-folder-zip error:', err.message);
+        if (!res.headersSent) {
+          return sendError(res, 500, `Failed to generate ZIP: ${err.message}`);
+        }
+        if (!res.writableEnded) res.destroy(err);
+      }
+      return;
+    }
+
     // ── Share: create ──────────────────────────────────────────────────────
     if (pathname === '/default/sharelink' && req.method === 'POST') {
       if (!isAuthed(req)) return sendError(res, 401, 'Unauthorized');
