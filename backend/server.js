@@ -33,20 +33,20 @@ import {
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { GetObjectCommand } from '@aws-sdk/client-s3';
 
-// ─── Config (100% from .env, no hardcoded fallbacks) ─────────────────────────
+// ─── Config ───────────────────────────────────────────────────────────────────
 const PORT               = Number(process.env.PORT ?? 8787);
 const CORS_ORIGIN        = process.env.CORS_ORIGIN ?? '*';
-const ADMIN_EMAIL        = process.env.RAWSTORIES_EMAIL;
-const ADMIN_PASSWORD     = process.env.RAWSTORIES_PASSWORD;
-const SESSION_TOKEN      = process.env.RAWSTORIES_TOKEN;
-const MONGO_URI          = process.env.MONGO_URI;
+const ADMIN_EMAIL        = process.env.RAWSTORIES_EMAIL ?? 'admin@example.com';
+const ADMIN_PASSWORD     = process.env.RAWSTORIES_PASSWORD ?? 'rawstories123';
+const SESSION_TOKEN      = process.env.RAWSTORIES_TOKEN ?? '3f6a9d2b-8c4e-4b9a-9f1d-7a2c5e9b0a1c';
+const MONGO_URI          = process.env.MONGO_URI ?? 'mongodb://bhargavyaswanth:9jed3GTCPxcGSCXK@nenu-shard-00-00.nn55u.mongodb.net:27017,nenu-shard-00-01.nn55u.mongodb.net:27017,nenu-shard-00-02.nn55u.mongodb.net:27017/rawstories?ssl=true&replicaSet=atlas-ogs73i-shard-0&authSource=admin&appName=nenu';
 
-// Load generic S3 or fallback to WASABI
-const S3_ACCESS_KEY      = process.env.S3_ACCESS_KEY ?? process.env.WASABI_ACCESS_KEY;
-const S3_SECRET_KEY      = process.env.S3_SECRET_KEY ?? process.env.WASABI_SECRET_KEY;
+// Load generic S3 or fallback to WASABI / Cloudflare R2
+const S3_ACCESS_KEY      = process.env.S3_ACCESS_KEY ?? process.env.WASABI_ACCESS_KEY ?? '67b93810a12f6b461bc238a3ffef17ce';
+const S3_SECRET_KEY      = process.env.S3_SECRET_KEY ?? process.env.WASABI_SECRET_KEY ?? '100db524b332baf5b0f99afe8f4d8c4c40f4acbca2651f1c9de6370169510c5b';
 const S3_BUCKET          = process.env.S3_BUCKET ?? 'raw';
 const S3_REGION          = process.env.S3_REGION ?? process.env.WASABI_REGION ?? 'auto';
-const S3_ENDPOINT        = process.env.S3_ENDPOINT ?? process.env.WASABI_ENDPOINT ?? 'https://s3.wasabisys.com';
+const S3_ENDPOINT        = process.env.S3_ENDPOINT ?? process.env.WASABI_ENDPOINT ?? 'https://bf0cc45781a106be8c898f450a96c899.r2.cloudflarestorage.com';
 const PRESIGNED_EXPIRY   = Number(process.env.PRESIGNED_URL_EXPIRY ?? 3600);
 
 // Validate required vars
@@ -205,7 +205,7 @@ const FileMeta   = mongoose.models.FileMeta || mongoose.model('FileMeta', fileMe
 const FolderMeta = mongoose.models.FolderMeta || mongoose.model('FolderMeta', folderMetaSchema);
 const Proposal   = mongoose.models.Proposal || mongoose.model('Proposal', proposalSchema);
 
-mongoose.set('bufferCommands', false);
+mongoose.set('bufferCommands', true);
 let mongoConnectionPromise = null;
 let hasStartedHttpServer = false;
 
