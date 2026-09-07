@@ -389,20 +389,30 @@ export default function SharedFolderView() {
       return;
     }
     setDownloadingZip(true);
-    notify(setNotifications, `Preparing ZIP archive of ${favorites.size} favorite photo(s)...`, 'info');
+    const total = favorites.size;
+    notify(setNotifications, `Preparing ZIP archive of ${total} favorite photo(s)...`, 'info');
     try {
       const zip = new JSZip();
       const favItems = items.filter(item => favorites.has(item.id));
       let count = 0;
       for (const item of favItems) {
         try {
-          const downloadUrl = rawStoriesApiUrl(`/default/downloadimage?key=${encodeURIComponent(item.id)}&shareId=${shareId || ''}`);
-          const response = await fetch(downloadUrl);
-          if (response.ok) {
-            const blob = await response.blob();
-            const fileName = item.filename || item.id.split('/').pop() || `photo_${count + 1}.jpg`;
-            zip.file(fileName, blob);
-            count++;
+          // Step 1: get the presigned URL from the backend
+          const apiUrl = rawStoriesApiUrl(`/default/downloadimage?key=${encodeURIComponent(item.id)}&shareId=${shareId || ''}`);
+          const apiRes = await fetch(apiUrl);
+          if (!apiRes.ok) { console.error('downloadimage API error', item.id, apiRes.status); continue; }
+          const json = await apiRes.json();
+          const presignedUrl = json?.url;
+          if (!presignedUrl) { console.error('No presigned URL returned for', item.id); continue; }
+          // Step 2: fetch the actual image binary from the presigned URL
+          const imgRes = await fetch(presignedUrl);
+          if (!imgRes.ok) { console.error('Image fetch failed', presignedUrl, imgRes.status); continue; }
+          const blob = await imgRes.blob();
+          const fileName = item.filename || item.id.split('/').pop() || `photo_${count + 1}.jpg`;
+          zip.file(fileName, blob);
+          count++;
+          if (count % 5 === 0) {
+            notify(setNotifications, `Downloading... ${count}/${total}`, 'info');
           }
         } catch (err) {
           console.error('Error downloading item for zip:', item.id, err);
@@ -411,10 +421,11 @@ export default function SharedFolderView() {
       if (count === 0) {
         throw new Error('Could not fetch image data for zip archive');
       }
-      const zipBlob = await zip.generateAsync({ type: 'blob' });
+      notify(setNotifications, 'Creating ZIP file...', 'info');
+      const zipBlob = await zip.generateAsync({ type: 'blob', compression: 'STORE' });
       const zipName = `favorites_${folderPath ? folderPath.replace(/\//g, '_') : 'gallery'}.zip`;
       saveAs(zipBlob, zipName);
-      notify(setNotifications, `Successfully exported ${count} favorite photo(s)!`, 'success');
+      notify(setNotifications, `✅ Successfully exported ${count} favorite photo(s)!`, 'success');
     } catch (err: any) {
       console.error('Zip download error:', err);
       notify(setNotifications, `Zip export failed: ${err.message}`, 'error');
@@ -429,20 +440,30 @@ export default function SharedFolderView() {
       return;
     }
     setDownloadingZip(true);
-    notify(setNotifications, `Preparing ZIP archive of ${selected.size} selected photo(s)...`, 'info');
+    const total = selected.size;
+    notify(setNotifications, `Preparing ZIP archive of ${total} selected photo(s)...`, 'info');
     try {
       const zip = new JSZip();
       const selItems = items.filter(item => selected.has(item.id));
       let count = 0;
       for (const item of selItems) {
         try {
-          const downloadUrl = rawStoriesApiUrl(`/default/downloadimage?key=${encodeURIComponent(item.id)}&shareId=${shareId || ''}`);
-          const response = await fetch(downloadUrl);
-          if (response.ok) {
-            const blob = await response.blob();
-            const fileName = item.filename || item.id.split('/').pop() || `photo_${count + 1}.jpg`;
-            zip.file(fileName, blob);
-            count++;
+          // Step 1: get presigned URL from backend
+          const apiUrl = rawStoriesApiUrl(`/default/downloadimage?key=${encodeURIComponent(item.id)}&shareId=${shareId || ''}`);
+          const apiRes = await fetch(apiUrl);
+          if (!apiRes.ok) { console.error('downloadimage API error', item.id, apiRes.status); continue; }
+          const json = await apiRes.json();
+          const presignedUrl = json?.url;
+          if (!presignedUrl) { console.error('No presigned URL returned for', item.id); continue; }
+          // Step 2: fetch actual image binary from presigned URL
+          const imgRes = await fetch(presignedUrl);
+          if (!imgRes.ok) { console.error('Image fetch failed', presignedUrl, imgRes.status); continue; }
+          const blob = await imgRes.blob();
+          const fileName = item.filename || item.id.split('/').pop() || `photo_${count + 1}.jpg`;
+          zip.file(fileName, blob);
+          count++;
+          if (count % 5 === 0) {
+            notify(setNotifications, `Downloading... ${count}/${total}`, 'info');
           }
         } catch (err) {
           console.error('Error downloading item for zip:', item.id, err);
@@ -451,10 +472,11 @@ export default function SharedFolderView() {
       if (count === 0) {
         throw new Error('Could not fetch image data for zip archive');
       }
-      const zipBlob = await zip.generateAsync({ type: 'blob' });
+      notify(setNotifications, 'Creating ZIP file...', 'info');
+      const zipBlob = await zip.generateAsync({ type: 'blob', compression: 'STORE' });
       const zipName = `selected_photos_${folderPath ? folderPath.replace(/\//g, '_') : 'gallery'}.zip`;
       saveAs(zipBlob, zipName);
-      notify(setNotifications, `Successfully downloaded ${count} selected photo(s)!`, 'success');
+      notify(setNotifications, `✅ Successfully downloaded ${count} selected photo(s)!`, 'success');
     } catch (err: any) {
       console.error('Zip download error:', err);
       notify(setNotifications, `Zip download failed: ${err.message}`, 'error');
