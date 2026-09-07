@@ -317,7 +317,8 @@ export const requestHandler = async (req, res) => {
 
   if (!checkRateLimit(req, res)) return;
 
-  const url      = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
+  let rawUrl     = req.headers['x-forwarded-uri'] || req.url || '/';
+  const url      = new URL(rawUrl, `http://${req.headers.host || 'localhost'}`);
   let pathname   = url.pathname;
   if (req.query && Array.isArray(req.query.path)) {
     pathname = '/' + req.query.path.join('/');
