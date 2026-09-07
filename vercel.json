@@ -2,9 +2,9 @@
   "framework": "vite",
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
+  "installCommand": "npm install",
   "rewrites": [
     { "source": "/_/backend/(.*)", "destination": "/api/index" },
-    { "source": "/api/(.*)", "destination": "/api/index" },
     { "source": "/((?!assets/|favicon.ico|.*\\..*).*)", "destination": "/index.html" }
   ]
 }

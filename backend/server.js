@@ -4,13 +4,26 @@ import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import mongoose from 'mongoose';
+import {
+  S3Client, PutObjectCommand, DeleteObjectsCommand,
+  ListObjectsV2Command, CopyObjectCommand, HeadObjectCommand,
+  PutBucketCorsCommand, PutBucketLifecycleConfigurationCommand,
+} from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { GetObjectCommand } from '@aws-sdk/client-s3';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname  = path.dirname(__filename);
+// Resolve __dirname safely (works in both ESM and Vercel serverless)
+let __dirname = '/tmp';
+try {
+  const __filename = fileURLToPath(import.meta.url);
+  __dirname = path.dirname(__filename);
+} catch (e) { /* running in bundled/serverless context */ }
 
-// Load .env from backend directory and root directory to ensure all env vars are loaded regardless of process.cwd()
-dotenv.config({ path: path.resolve(__dirname, '.env') });
-dotenv.config({ path: path.resolve(__dirname, '../.env') });
+// Load .env for local development only (Vercel sets env vars via dashboard)
+try {
+  dotenv.config({ path: path.resolve(__dirname, '.env') });
+  dotenv.config({ path: path.resolve(__dirname, '../.env') });
+} catch (e) { /* no .env file in production, that's expected */ }
 
 // sharp is loaded lazily so a missing native binary never crashes the server
 let _sharp = null;
@@ -25,13 +38,6 @@ const getSharp = async () => {
     return null;
   }
 };
-import {
-  S3Client, PutObjectCommand, DeleteObjectsCommand,
-  ListObjectsV2Command, CopyObjectCommand, HeadObjectCommand,
-  PutBucketCorsCommand, PutBucketLifecycleConfigurationCommand,
-} from '@aws-sdk/client-s3';
-import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-import { GetObjectCommand } from '@aws-sdk/client-s3';
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 const PORT               = Number(process.env.PORT ?? 8787);
