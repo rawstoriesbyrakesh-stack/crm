@@ -383,6 +383,59 @@ export default function SharedFolderView() {
 
   const [downloadingZip, setDownloadingZip] = useState(false);
 
+  // ─── Shared helper: get presigned URL then fetch binary blob ─────────────
+  // Retries up to 3 times on 429 (rate-limit) with exponential back-off.
+  const fetchImageBlob = async (item: any): Promise<{ blob: Blob; fileName: string } | null> => {
+    const apiUrl = rawStoriesApiUrl(`/default/downloadimage?key=${encodeURIComponent(item.id)}&shareId=${shareId || ''}`);
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        if (attempt > 0) await new Promise(r => setTimeout(r, 1500 * attempt)); // back-off: 1.5s, 3s
+        const apiRes = await fetch(apiUrl);
+        if (apiRes.status === 429) { console.warn('Rate limited on', item.id, '- retrying...'); continue; }
+        if (!apiRes.ok) { console.error('downloadimage API error', item.id, apiRes.status); return null; }
+        const json = await apiRes.json();
+        const presignedUrl = json?.url;
+        if (!presignedUrl) { console.error('No presigned URL returned for', item.id); return null; }
+        // Step 2: fetch binary image from presigned URL
+        const imgRes = await fetch(presignedUrl);
+        if (!imgRes.ok) { console.error('Image fetch failed', item.id, imgRes.status); return null; }
+        const blob = await imgRes.blob();
+        const fileName = item.filename || item.id.split('/').pop() || `photo.jpg`;
+        return { blob, fileName };
+      } catch (err) {
+        console.error('fetchImageBlob error attempt', attempt, item.id, err);
+      }
+    }
+    return null;
+  };
+
+  // Process itemsToZip in batches of `concurrency` to avoid rate limits
+  const buildZip = async (
+    zip: any,
+    itemsToZip: any[],
+    total: number,
+    onProgress: (done: number) => void,
+    concurrency = 5
+  ) => {
+    let count = 0;
+    for (let i = 0; i < itemsToZip.length; i += concurrency) {
+      const batch = itemsToZip.slice(i, i + concurrency);
+      const results = await Promise.all(batch.map(item => fetchImageBlob(item)));
+      for (const result of results) {
+        if (result) {
+          zip.file(result.fileName, result.blob);
+          count++;
+          onProgress(count);
+        }
+      }
+      // Small pause between batches to avoid rate limits
+      if (i + concurrency < itemsToZip.length) {
+        await new Promise(r => setTimeout(r, 200));
+      }
+    }
+    return count;
+  };
+
   const handleDownloadFavoritesZip = async () => {
     if (favorites.size === 0) {
       notify(setNotifications, 'Please select at least one favorite photo to export', 'info');
@@ -390,42 +443,21 @@ export default function SharedFolderView() {
     }
     setDownloadingZip(true);
     const total = favorites.size;
-    notify(setNotifications, `Preparing ZIP archive of ${total} favorite photo(s)...`, 'info');
+    notify(setNotifications, `📦 Preparing ZIP of ${total} favorite photo(s)...`, 'info');
     try {
       const zip = new JSZip();
       const favItems = items.filter(item => favorites.has(item.id));
-      let count = 0;
-      for (const item of favItems) {
-        try {
-          // Step 1: get the presigned URL from the backend
-          const apiUrl = rawStoriesApiUrl(`/default/downloadimage?key=${encodeURIComponent(item.id)}&shareId=${shareId || ''}`);
-          const apiRes = await fetch(apiUrl);
-          if (!apiRes.ok) { console.error('downloadimage API error', item.id, apiRes.status); continue; }
-          const json = await apiRes.json();
-          const presignedUrl = json?.url;
-          if (!presignedUrl) { console.error('No presigned URL returned for', item.id); continue; }
-          // Step 2: fetch the actual image binary from the presigned URL
-          const imgRes = await fetch(presignedUrl);
-          if (!imgRes.ok) { console.error('Image fetch failed', presignedUrl, imgRes.status); continue; }
-          const blob = await imgRes.blob();
-          const fileName = item.filename || item.id.split('/').pop() || `photo_${count + 1}.jpg`;
-          zip.file(fileName, blob);
-          count++;
-          if (count % 5 === 0) {
-            notify(setNotifications, `Downloading... ${count}/${total}`, 'info');
-          }
-        } catch (err) {
-          console.error('Error downloading item for zip:', item.id, err);
+      const count = await buildZip(zip, favItems, total, (done) => {
+        if (done % 10 === 0 || done === total) {
+          notify(setNotifications, `Downloading ${done}/${total}...`, 'info');
         }
-      }
-      if (count === 0) {
-        throw new Error('Could not fetch image data for zip archive');
-      }
+      });
+      if (count === 0) throw new Error('Could not fetch any images for the ZIP archive');
       notify(setNotifications, 'Creating ZIP file...', 'info');
       const zipBlob = await zip.generateAsync({ type: 'blob', compression: 'STORE' });
       const zipName = `favorites_${folderPath ? folderPath.replace(/\//g, '_') : 'gallery'}.zip`;
       saveAs(zipBlob, zipName);
-      notify(setNotifications, `✅ Successfully exported ${count} favorite photo(s)!`, 'success');
+      notify(setNotifications, `✅ Exported ${count} of ${total} favorite photo(s)!`, 'success');
     } catch (err: any) {
       console.error('Zip download error:', err);
       notify(setNotifications, `Zip export failed: ${err.message}`, 'error');
@@ -441,42 +473,21 @@ export default function SharedFolderView() {
     }
     setDownloadingZip(true);
     const total = selected.size;
-    notify(setNotifications, `Preparing ZIP archive of ${total} selected photo(s)...`, 'info');
+    notify(setNotifications, `📦 Preparing ZIP of ${total} selected photo(s)...`, 'info');
     try {
       const zip = new JSZip();
       const selItems = items.filter(item => selected.has(item.id));
-      let count = 0;
-      for (const item of selItems) {
-        try {
-          // Step 1: get presigned URL from backend
-          const apiUrl = rawStoriesApiUrl(`/default/downloadimage?key=${encodeURIComponent(item.id)}&shareId=${shareId || ''}`);
-          const apiRes = await fetch(apiUrl);
-          if (!apiRes.ok) { console.error('downloadimage API error', item.id, apiRes.status); continue; }
-          const json = await apiRes.json();
-          const presignedUrl = json?.url;
-          if (!presignedUrl) { console.error('No presigned URL returned for', item.id); continue; }
-          // Step 2: fetch actual image binary from presigned URL
-          const imgRes = await fetch(presignedUrl);
-          if (!imgRes.ok) { console.error('Image fetch failed', presignedUrl, imgRes.status); continue; }
-          const blob = await imgRes.blob();
-          const fileName = item.filename || item.id.split('/').pop() || `photo_${count + 1}.jpg`;
-          zip.file(fileName, blob);
-          count++;
-          if (count % 5 === 0) {
-            notify(setNotifications, `Downloading... ${count}/${total}`, 'info');
-          }
-        } catch (err) {
-          console.error('Error downloading item for zip:', item.id, err);
+      const count = await buildZip(zip, selItems, total, (done) => {
+        if (done % 10 === 0 || done === total) {
+          notify(setNotifications, `Downloading ${done}/${total}...`, 'info');
         }
-      }
-      if (count === 0) {
-        throw new Error('Could not fetch image data for zip archive');
-      }
+      });
+      if (count === 0) throw new Error('Could not fetch any images for the ZIP archive');
       notify(setNotifications, 'Creating ZIP file...', 'info');
       const zipBlob = await zip.generateAsync({ type: 'blob', compression: 'STORE' });
       const zipName = `selected_photos_${folderPath ? folderPath.replace(/\//g, '_') : 'gallery'}.zip`;
       saveAs(zipBlob, zipName);
-      notify(setNotifications, `✅ Successfully downloaded ${count} selected photo(s)!`, 'success');
+      notify(setNotifications, `✅ Downloaded ${count} of ${total} selected photo(s)!`, 'success');
     } catch (err: any) {
       console.error('Zip download error:', err);
       notify(setNotifications, `Zip download failed: ${err.message}`, 'error');

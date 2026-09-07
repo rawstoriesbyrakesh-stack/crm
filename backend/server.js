@@ -304,7 +304,7 @@ const checkRateLimit = (req, res) => {
       data.resetAt = now + 15 * 60 * 1000;
     } else {
       data.count++;
-      if (data.count > 100) {
+      if (data.count > 2000) {
         sendError(res, 429, 'Too many requests, please try again later.');
         return false;
       }
