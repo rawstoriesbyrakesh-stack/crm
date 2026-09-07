@@ -1,7 +1,7 @@
 {
   "rewrites": [
-    { "source": "/_/backend/:path*", "destination": "/api/index?path=/:path*" },
-    { "source": "/api/:path*", "destination": "/api/index?path=/:path*" },
-    { "source": "/((?!assets/|favicon.ico|.*\\..*).*)", "destination": "/index.html" }
+    { "source": "/_/backend/(.*)", "destination": "/api/$1" },
+    { "source": "/api/(.*)", "destination": "/api/$1" },
+    { "source": "/((?!api/|_/backend/|assets/|favicon.ico|.*\\..*).*)", "destination": "/index.html" }
   ]
 }

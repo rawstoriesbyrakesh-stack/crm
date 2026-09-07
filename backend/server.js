@@ -318,7 +318,14 @@ export const requestHandler = async (req, res) => {
   if (!checkRateLimit(req, res)) return;
 
   const url      = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
-  let pathname   = url.searchParams.get('path') || url.pathname;
+  let pathname   = url.pathname;
+  if (req.query && Array.isArray(req.query.path)) {
+    pathname = '/' + req.query.path.join('/');
+  } else if (req.query && typeof req.query.path === 'string') {
+    pathname = req.query.path;
+  } else if (url.searchParams.get('path')) {
+    pathname = url.searchParams.get('path');
+  }
   if (pathname.startsWith('/_/backend')) {
     pathname = pathname.slice('/_/backend'.length);
   }
