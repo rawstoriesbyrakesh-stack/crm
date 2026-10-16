@@ -3630,8 +3630,8 @@ function Gallery() {
 
           {/* Share Modal */}
           {shareModal.isOpen && (
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-start justify-center py-8 z-50">
-              <div className="bg-white rounded-lg p-4 md:p-6 w-full max-w-md sm:max-w-lg md:max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-start justify-center py-8 z-50" onClick={() => { setShareModal({ isOpen: false, links: [], serverMessage: null }); setSharePin(''); }}>
+              <div className="bg-white rounded-lg p-4 md:p-6 w-full max-w-md sm:max-w-lg md:max-w-2xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-lg font-medium text-[#2D2D2D]">Share Media</h3>
                   <button
@@ -4425,8 +4425,8 @@ function Gallery() {
 
           {/* ── Share Modal ─────────────────────────────────────────── */}
           {shareModal.isOpen && (
-            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-start justify-center py-8 z-50 p-4">
-              <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-start justify-center py-8 z-50 p-4" onClick={() => { setShareModal({ isOpen: false, links: [], serverMessage: null }); setSharePin(''); }}>
+              <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
                 <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
                   <div className="flex items-center gap-2">
                     <Share2 className="h-5 w-5 text-[#00BCEB]" />
