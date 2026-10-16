@@ -100,6 +100,46 @@ const DEFAULT_TEMPLATES: Template[] = [
     paymentTerms: '50% Booking | 50% Shoot Completion',
   },
   {
+    id: 'template_halfsaree_combo',
+    title: 'Half Saree Wedding Combo Package',
+    eventType: 'Half Saree / Wedding',
+    priceEstimate: 30000,
+    items: [
+      // ── SANGEETH ──────────────────────────────────────────────────────────
+      { id: 's1', name: 'Sangeeth – Traditional Photos (5)', description: 'Professional traditional photography coverage for Sangeeth ceremony (5 edited photos)', price: 0 },
+      { id: 's2', name: 'Sangeeth – Traditional Video (5)', description: 'Traditional videography coverage for Sangeeth ceremony (5 videos)', price: 0 },
+      { id: 's3', name: 'Sangeeth – Candid Photos (8)', description: 'Candid photography coverage for Sangeeth ceremony (8 edited candid photos)', price: 0 },
+      { id: 's4', name: 'Sangeeth – Cinematic Video (8)', description: 'Cinematic highlight video for Sangeeth ceremony (8 videos)', price: 0 },
+      // ── MEHANDI ───────────────────────────────────────────────────────────
+      { id: 'm1', name: 'Mehandi – Traditional Photos (5)', description: 'Professional traditional photography coverage for Mehandi ceremony (5 edited photos)', price: 0 },
+      { id: 'm2', name: 'Mehandi – Traditional Video (5)', description: 'Traditional videography coverage for Mehandi ceremony (5 videos)', price: 0 },
+      { id: 'm3', name: 'Mehandi – Candid Photos (8)', description: 'Candid photography coverage for Mehandi ceremony (8 edited candid photos)', price: 0 },
+      { id: 'm4', name: 'Mehandi – Cinematic Video (8)', description: 'Cinematic highlight video for Mehandi ceremony (8 videos)', price: 0 },
+      // ── HALDHI ────────────────────────────────────────────────────────────
+      { id: 'h1', name: 'Haldhi – Traditional Photos (5)', description: 'Professional traditional photography coverage for Haldhi ceremony (5 edited photos)', price: 0 },
+      { id: 'h2', name: 'Haldhi – Traditional Video (5)', description: 'Traditional videography coverage for Haldhi ceremony (5 videos)', price: 0 },
+      { id: 'h3', name: 'Haldhi – Candid Photos (8)', description: 'Candid photography coverage for Haldhi ceremony (8 edited candid photos)', price: 0 },
+      { id: 'h4', name: 'Haldhi – Cinematic Video (8)', description: 'Cinematic highlight video for Haldhi ceremony (8 videos)', price: 0 },
+      // ── HALFSAREE ─────────────────────────────────────────────────────────
+      { id: 'hs1', name: 'Halfsaree – Traditional Photos (8)', description: 'Professional traditional photography for Halfsaree function (8 edited photos)', price: 0 },
+      { id: 'hs2', name: 'Halfsaree – Traditional Video (8)', description: 'Traditional videography for Halfsaree function (8 videos)', price: 0 },
+      { id: 'hs3', name: 'Halfsaree – Candid Photos – Direct Wedding (10)', description: 'Candid photography for Halfsaree including direct wedding coverage (10 edited candid photos)', price: 0 },
+      { id: 'hs4', name: 'Halfsaree – Cinematic Video – Direct Wedding (10)', description: 'Cinematic highlight video for Halfsaree including direct wedding (10 videos)', price: 0 },
+      { id: 'hs5', name: 'Halfsaree – Drone Coverage (8)', description: 'Aerial drone photography & video for Halfsaree function (8 drone shots)', price: 0 },
+      // ── OUTPUT / DELIVERABLES ──────────────────────────────────────────────
+      { id: 'out1', name: 'Premium Photo Album (50 Sheets)', description: 'Handcrafted flush-mount 50-sheet premium album with full-spread layout', price: 0 },
+      { id: 'out2', name: 'Traditional Full Event Video', description: 'Complete traditional full-length event video covering all ceremonies', price: 0 },
+      { id: 'out3', name: 'Cinematic Teaser', description: 'Short cinematic teaser reel capturing the best moments from the event', price: 0 },
+      // ── PRE-WEDDING SHOOT ─────────────────────────────────────────────────
+      { id: 'pw1', name: 'Pre-Wedding Shoot – Candid Photos', description: 'Outdoor candid pre-wedding photo session at selected location(s)', price: 0 },
+      { id: 'pw2', name: 'Pre-Wedding Shoot – One Song', description: 'One cinematic song / reel from the pre-wedding shoot', price: 0 },
+      // ── PACKAGE TOTAL ─────────────────────────────────────────────────────
+      { id: 'pkg', name: 'Package Total', description: 'All-inclusive Half Saree Wedding Combo – Package Rate', price: 30000 },
+    ],
+    terms: 'Package price: ₹30,000. Travelling, Food & Accommodation are NOT included in this package and will be charged extra as applicable. 50% advance required to confirm booking. Remaining 50% on or before event date.',
+    paymentTerms: '50% Booking Advance | 50% On Event Date',
+  },
+  {
     id: 'template_custom',
     title: 'Custom Event Photography & Videography',
     eventType: 'Custom',
