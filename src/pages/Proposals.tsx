@@ -100,10 +100,10 @@ const DEFAULT_TEMPLATES: Template[] = [
     paymentTerms: '50% Booking | 50% Shoot Completion',
   },
   {
-    id: 'template_halfsaree_combo',
-    title: 'Half Saree Wedding Combo Package',
-    eventType: 'Half Saree / Wedding',
-    priceEstimate: 30000,
+    id: 'Wedding',
+    title: 'Wedding',
+    eventType: 'Wedding',
+    priceEstimate: 180000,
     items: [
       // ── SANGEETH ──────────────────────────────────────────────────────────
       { id: 's1', name: 'Sangeeth – Traditional Photos (5)', description: 'Professional traditional photography coverage for Sangeeth ceremony (5 edited photos)', price: 0 },
@@ -134,7 +134,7 @@ const DEFAULT_TEMPLATES: Template[] = [
       { id: 'pw1', name: 'Pre-Wedding Shoot – Candid Photos', description: 'Outdoor candid pre-wedding photo session at selected location(s)', price: 0 },
       { id: 'pw2', name: 'Pre-Wedding Shoot – One Song', description: 'One cinematic song / reel from the pre-wedding shoot', price: 0 },
       // ── PACKAGE TOTAL ─────────────────────────────────────────────────────
-      { id: 'pkg', name: 'Package Total', description: 'All-inclusive Half Saree Wedding Combo – Package Rate', price: 30000 },
+      { id: 'pkg', name: 'Package Total', description: 'All-inclusive  Wedding Combo – Package Rate', price: 180000 },
     ],
     terms: 'Package price: ₹30,000. Travelling, Food & Accommodation are NOT included in this package and will be charged extra as applicable. 50% advance required to confirm booking. Remaining 50% on or before event date.',
     paymentTerms: '50% Booking Advance | 50% On Event Date',
