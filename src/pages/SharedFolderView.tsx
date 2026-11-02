@@ -10,6 +10,7 @@ import {
   Heart, MessageCircle, QrCode, Copy, CheckSquare, Square, CheckCircle2, FolderDown
 } from 'lucide-react';
 import { rawStoriesApiUrl, getThumbnailUrl } from '../api/rawStoriesBackend';
+import { toggleSetValue } from '../utils/featureUtils';
 
 // â”€â”€ Photography Splash Loader â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Camera aperture / shutter animation shown for ~2.2s on first load.
@@ -335,12 +336,7 @@ export default function SharedFolderView() {
   };
 
   const toggleFavorite = (id: string) => {
-    setFavorites(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
+    setFavorites(prev => toggleSetValue(prev, id));
   };
 
   const selectAll = () => {

@@ -4,6 +4,7 @@ import {
   Check, AlertCircle, ChevronLeft, ChevronRight, Share2, Sparkles
 } from 'lucide-react';
 import { rawStoriesApiUrl, getRawStoriesToken, getThumbnailUrl } from '../api/rawStoriesBackend';
+import { buildFavoriteGroups } from '../utils/featureUtils';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 
@@ -66,44 +67,11 @@ export default function Favorites() {
         throw new Error(imagesData?.message || 'Failed to load gallery items');
       }
 
-      const allFiles = imagesData.files || [];
-      const favItemsMap = new Map<string, FavItem>();
-
-      allFiles.forEach((file: any) => {
-        const key = file.key || '';
-        const isFav = file.isFavorite || shareFavKeys.has(key);
-        if (isFav) {
-          const parts = key.split('/');
-          const filename = parts.pop() || key;
-          const folderPath = parts.join('/') || 'root';
-          const folderName = parts.length > 0 ? parts[parts.length - 1] : 'Main Gallery';
-
-          favItemsMap.set(key, {
-            id: key,
-            key,
-            filename,
-            imageUrl: file.presigned_url || file.url || `${rawStoriesApiUrl('')}/uploads/${key}`,
-            folderPath,
-            folderName: folderName.replace(/_/g, ' ').replace(/-/g, ' '),
-            isVideo: /\.(mp4|mov|avi|mkv|webm)$/i.test(key),
-          });
-        }
-      });
-
-      // Group by folderPath
-      const groupsMap = new Map<string, FolderGroup>();
-      favItemsMap.forEach((item) => {
-        if (!groupsMap.has(item.folderPath)) {
-          groupsMap.set(item.folderPath, {
-            folderPath: item.folderPath,
-            folderName: item.folderName,
-            items: [],
-          });
-        }
-        groupsMap.get(item.folderPath)!.items.push(item);
-      });
-
-      const resultGroups = Array.from(groupsMap.values());
+      const resultGroups = buildFavoriteGroups(
+        imagesData.files || [],
+        shareFavKeys,
+        rawStoriesApiUrl(''),
+      );
       setFolderGroups(resultGroups);
     } catch (err: any) {
       setError(err.message || 'Failed to load favorite photos');

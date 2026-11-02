@@ -31,15 +31,9 @@ import {
   Clock,
 } from 'lucide-react';
 import { rawStoriesApiUrl, getRawStoriesToken } from '../api/rawStoriesBackend';
+import { getExpiryDaysLeft } from '../utils/featureUtils';
 
 // ── Expiry helpers ──────────────────────────────────────────────────────────
-function getExpiryDaysLeft(expiresAt: string): number | null {
-  if (!expiresAt) return null;
-  const diff = new Date(expiresAt).getTime() - Date.now();
-  if (diff <= 0) return 0;
-  return Math.ceil(diff / (1000 * 60 * 60 * 24));
-}
-
 function ExpiryBadge({ expiresAt }: { expiresAt: string }) {
   const days = getExpiryDaysLeft(expiresAt);
   if (days === null) return null;

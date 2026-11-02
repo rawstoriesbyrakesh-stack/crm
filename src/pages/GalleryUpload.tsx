@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import Sidebar from '../components/layout/Sidebar';
 import Header from '../components/layout/Header';
 import { rawStoriesApiUrl } from '../api/rawStoriesBackend';
+import { sanitizeFolderName } from '../utils/featureUtils';
 import { 
   ArrowLeft, 
   Upload, 
@@ -131,14 +132,6 @@ function GalleryUpload() {
   const isDev = process.env.NODE_ENV === 'development';
 
   // Sanitize folder name to remove special characters and ensure S3 compatibility
-  const sanitizeFolderName = (name: string) => {
-    return name
-      .replace(/[^a-zA-Z0-9-_]/g, '_') // Replace special characters with underscores
-      .replace(/_+/g, '_') // Replace multiple underscores with a single one
-      .toLowerCase()
-      .slice(0, 100); // Limit length to avoid S3 path issues
-  };
-
   // Function to process image (compress to WebP, optionally watermark, extract AI tags)
   const processImage = async (file: File, applyWatermark: boolean, preset?: any): Promise<{ file: File, tags: string[] }> => {
     return new Promise((resolve, reject) => {

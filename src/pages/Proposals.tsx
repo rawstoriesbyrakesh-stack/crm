@@ -6,6 +6,7 @@ import {
   Globe, Upload, X, Link, Code, Palette, FilePlus, ExternalLink, Image
 } from 'lucide-react';
 import { rawStoriesApiUrl } from '../api/rawStoriesBackend';
+import { calculateProposalTotals } from '../utils/featureUtils';
 
 interface ProposalItem {
   id: string;
@@ -609,16 +610,13 @@ export default function Proposals() {
   };
 
   // Calculations
-  const calculateSubtotal = (items: ProposalItem[]) => items.reduce((acc, item) => acc + (Number(item.price) || 0), 0);
-  const calculateDiscountAmount = (subtotal: number, discountPercent: number) => (subtotal * (discountPercent || 0)) / 100;
-  const calculateTaxAmount = (taxable: number, taxPercent: number) => (taxable * (taxPercent || 0)) / 100;
-  const calculateGrandTotal = (prop: Proposal) => {
-    const subtotal = calculateSubtotal(prop.items);
-    const discountAmt = calculateDiscountAmount(subtotal, prop.discount);
-    const taxable = subtotal - discountAmt;
-    const taxAmt = calculateTaxAmount(taxable, prop.tax);
-    return Math.round(taxable + taxAmt);
-  };
+  const calculateSubtotal = (items: ProposalItem[]) => calculateProposalTotals(items).subtotal;
+  const calculateDiscountAmount = (subtotal: number, discount: number) =>
+    calculateProposalTotals([{ price: subtotal }], discount).discountAmount;
+  const calculateTaxAmount = (taxable: number, tax: number) =>
+    calculateProposalTotals([{ price: taxable }], 0, tax).taxAmount;
+  const calculateGrandTotal = (prop: Proposal) =>
+    calculateProposalTotals(prop.items, prop.discount, prop.tax).grandTotal;
 
   const handleSaveProposal = async () => {
     if (!currentProposal) return;
