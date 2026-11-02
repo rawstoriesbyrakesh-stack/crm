@@ -1272,8 +1272,8 @@ export default function Proposals() {
               </div>
 
               <div className="flex flex-wrap items-center gap-2.5">
-                <button onClick={handleTriggerPrint} className="flex items-center gap-1.5 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-bold transition-all shadow-md">
-                  <Printer className="h-4 w-4" /> Print / PDF (A4)
+                <button onClick={handleTriggerPrint} className="flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-blue-500/20">
+                  <Download className="h-4 w-4" /> Download PDF / Print
                 </button>
                 <button onClick={handleCopyWhatsApp} className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-all shadow-md">
                   <Send className="h-4 w-4" /> Share WhatsApp

@@ -1,6 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { Droplet, Plus, Trash2, Image as ImageIcon, Check } from 'lucide-react';
+import { Droplet, Plus, Trash2, Image as ImageIcon, Check, Layers, Folder, Download, Loader2, X, AlertCircle, CheckCircle2 } from 'lucide-react';
+import JSZip from 'jszip';
+import { saveAs } from 'file-saver';
+import { rawStoriesApiUrl, getRawStoriesToken } from '../api/rawStoriesBackend';
 
 type WatermarkPosition = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right' | 'center' | 'top' | 'bottom' | 'left' | 'right' | 'none';
 
@@ -41,6 +44,181 @@ export default function Watermarks() {
   const [newImageName, setNewImageName] = useState('');
   const [newPosition, setNewPosition] = useState<WatermarkPosition>('bottom-right');
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Bulk Watermark State
+  const [bulkModalOpen, setBulkModalOpen] = useState(false);
+  const [bulkFolders, setBulkFolders] = useState<{ name: string; path: string }[]>([]);
+  const [selectedFolder, setSelectedFolder] = useState<string>('');
+  const [bulkPresetId, setBulkPresetId] = useState<string>('');
+  const [bulkLoading, setBulkLoading] = useState(false);
+  const [bulkProgress, setBulkProgress] = useState<{ current: number; total: number; status: string } | null>(null);
+  const [bulkSuccess, setBulkSuccess] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (bulkModalOpen) {
+      fetchAvailableFolders();
+      if (!bulkPresetId && presets.length > 0) {
+        setBulkPresetId(presets[0].id);
+      }
+    }
+  }, [bulkModalOpen]);
+
+  const fetchAvailableFolders = async () => {
+    try {
+      const res = await fetch(rawStoriesApiUrl('/default/getallimages'), {
+        headers: { Authorization: `Bearer ${getRawStoriesToken()}` },
+      });
+      const data = await res.json();
+      if (data.folders) {
+        setBulkFolders(data.folders);
+        if (data.folders.length > 0 && !selectedFolder) {
+          setSelectedFolder(data.folders[0].path);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to fetch folders for bulk watermark:', err);
+    }
+  };
+
+  const handleRunBulkWatermark = async () => {
+    const preset = presets.find(p => p.id === bulkPresetId) || presets[0];
+    if (!preset) {
+      alert('Please select a watermark preset first');
+      return;
+    }
+    if (!selectedFolder) {
+      alert('Please select a folder to watermark');
+      return;
+    }
+
+    setBulkLoading(true);
+    setBulkSuccess(null);
+    setBulkProgress({ current: 0, total: 0, status: 'Fetching images in folder...' });
+
+    try {
+      const folderPrefix = selectedFolder.replace(/^\//, '').replace(/\/?$/, '/');
+      const res = await fetch(rawStoriesApiUrl(`/default/getallimages?prefix=${encodeURIComponent(folderPrefix)}`), {
+        headers: { Authorization: `Bearer ${getRawStoriesToken()}` },
+      });
+      const data = await res.json();
+      const files = (data.files || []).filter((f: any) => {
+        const key = f.key || f.filename || '';
+        return /\.(jpe?g|png|webp)$/i.test(key);
+      });
+
+      if (files.length === 0) {
+        setBulkProgress(null);
+        setBulkLoading(false);
+        alert('No eligible images found in this folder.');
+        return;
+      }
+
+      setBulkProgress({ current: 0, total: files.length, status: `Starting bulk watermarking (${files.length} images)...` });
+
+      // Load watermark image
+      const wmImg = new Image();
+      wmImg.crossOrigin = 'anonymous';
+      await new Promise<void>((resolve, reject) => {
+        wmImg.onload = () => resolve();
+        wmImg.onerror = () => reject(new Error('Failed to load watermark image'));
+        wmImg.src = preset.imageUrl;
+      });
+
+      const zip = new JSZip();
+
+      for (let i = 0; i < files.length; i++) {
+        const fileItem = files[i];
+        const filename = fileItem.filename || fileItem.key.split('/').pop() || `image_${i+1}.jpg`;
+        const fileUrl = fileItem.presigned_url || `${rawStoriesApiUrl('')}/uploads/${fileItem.key}`;
+
+        setBulkProgress({
+          current: i + 1,
+          total: files.length,
+          status: `Processing ${filename} (${i + 1}/${files.length})...`,
+        });
+
+        try {
+          const img = new Image();
+          img.crossOrigin = 'anonymous';
+          await new Promise<void>((resolve, reject) => {
+            img.onload = () => resolve();
+            img.onerror = () => resolve(); // continue on single image error
+            img.src = fileUrl;
+          });
+
+          if (!img.width || !img.height) continue;
+
+          const canvas = document.createElement('canvas');
+          canvas.width = img.width;
+          canvas.height = img.height;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) continue;
+
+          // Draw base image
+          ctx.drawImage(img, 0, 0);
+
+          // Calculate watermark dimensions
+          const sizeRatio = preset.sizeRatio ?? 0.22;
+          const targetWmWidth = canvas.width * sizeRatio;
+          const wmAspect = (wmImg.height && wmImg.width) ? wmImg.height / wmImg.width : 1;
+          const targetWmHeight = targetWmWidth * wmAspect;
+
+          // Compute coordinates
+          let x = canvas.width - targetWmWidth - (canvas.width * 0.03);
+          let y = canvas.height - targetWmHeight - (canvas.height * 0.03);
+
+          if (preset.position === 'top-left') {
+            x = canvas.width * 0.03;
+            y = canvas.height * 0.03;
+          } else if (preset.position === 'top-right') {
+            x = canvas.width - targetWmWidth - (canvas.width * 0.03);
+            y = canvas.height * 0.03;
+          } else if (preset.position === 'bottom-left') {
+            x = canvas.width * 0.03;
+            y = canvas.height - targetWmHeight - (canvas.height * 0.03);
+          } else if (preset.position === 'center') {
+            x = (canvas.width - targetWmWidth) / 2;
+            y = (canvas.height - targetWmHeight) / 2;
+          }
+
+          // Apply opacity and rotation
+          ctx.save();
+          ctx.globalAlpha = preset.opacity ?? 0.75;
+
+          if (preset.rotation) {
+            const cx = x + targetWmWidth / 2;
+            const cy = y + targetWmHeight / 2;
+            ctx.translate(cx, cy);
+            ctx.rotate((preset.rotation * Math.PI) / 180);
+            ctx.drawImage(wmImg, -targetWmWidth / 2, -targetWmHeight / 2, targetWmWidth, targetWmHeight);
+          } else {
+            ctx.drawImage(wmImg, x, y, targetWmWidth, targetWmHeight);
+          }
+          ctx.restore();
+
+          // Get image blob
+          const blob = await new Promise<Blob | null>(res => canvas.toBlob(res, 'image/jpeg', 0.92));
+          if (blob) {
+            zip.file(filename, blob);
+          }
+        } catch (itemErr) {
+          console.warn(`Failed watermarking item ${filename}`, itemErr);
+        }
+      }
+
+      setBulkProgress({ current: files.length, total: files.length, status: 'Generating ZIP archive...' });
+      const zipBlob = await zip.generateAsync({ type: 'blob' });
+      const folderName = selectedFolder.replace(/[^a-zA-Z0-9]/g, '_') || 'folder';
+      saveAs(zipBlob, `watermarked_${folderName}_${Date.now()}.zip`);
+
+      setBulkSuccess(`Successfully watermarked ${files.length} images! Archive downloaded.`);
+    } catch (err: any) {
+      alert(`Bulk watermarking failed: ${err.message}`);
+    } finally {
+      setBulkLoading(false);
+      setBulkProgress(null);
+    }
+  };
 
   // Text watermark state
   const [wmType, setWmType] = useState<'image' | 'text'>('image');
@@ -312,7 +490,8 @@ export default function Watermarks() {
 
   return (
     <div className="p-6 md:p-10 max-w-7xl mx-auto w-full">
-      <div className="mb-10">
+      <div className="mb-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
         <motion.h1 
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -326,8 +505,18 @@ export default function Watermarks() {
           transition={{ delay: 0.1 }}
           className="text-slate-400 text-lg"
         >
-          Manage your watermark presets for easy application during uploads
+          Manage your watermark presets and batch watermark entire shoot folders
         </motion.p>
+        </div>
+        <div className="shrink-0">
+          <button
+            onClick={() => setBulkModalOpen(true)}
+            className="flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-blue-600 to-[#00BCEB] hover:from-blue-500 hover:to-[#00a3cc] text-white font-bold rounded-2xl shadow-lg shadow-blue-500/20 transition-all transform hover:-translate-y-0.5"
+          >
+            <Layers className="w-5 h-5" />
+            <span>Bulk Watermark Folder</span>
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -683,6 +872,139 @@ export default function Watermarks() {
           </div>
         </motion.div>
       </div>
+      {/* ══ Bulk Watermark Modal ══ */}
+      {bulkModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={() => !bulkLoading && setBulkModalOpen(false)}>
+          <div
+            className="bg-slate-900 border border-slate-700 rounded-3xl p-6 sm:p-8 w-full max-w-lg shadow-2xl relative"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center">
+                  <Layers className="w-5 h-5 text-[#00BCEB]" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-white">Bulk Watermark Folder</h3>
+                  <p className="text-xs text-slate-400">Batch apply logo or text to all photos in a folder</p>
+                </div>
+              </div>
+              {!bulkLoading && (
+                <button onClick={() => setBulkModalOpen(false)} className="p-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-white">
+                  <X className="w-5 h-5" />
+                </button>
+              )}
+            </div>
+
+            {bulkSuccess && (
+              <div className="mb-6 p-4 bg-emerald-500/15 border border-emerald-500/30 rounded-2xl flex items-center gap-3 text-emerald-300 text-sm">
+                <CheckCircle2 className="w-5 h-5 shrink-0" />
+                <span>{bulkSuccess}</span>
+              </div>
+            )}
+
+            <div className="space-y-5">
+              {/* Preset Selection */}
+              <div>
+                <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-2">1. Choose Watermark Preset</label>
+                {presets.length === 0 ? (
+                  <p className="text-xs text-amber-400">No presets saved. Please create a watermark preset first.</p>
+                ) : (
+                  <div className="grid grid-cols-2 gap-2 max-h-36 overflow-y-auto pr-1">
+                    {presets.map(p => (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => setBulkPresetId(p.id)}
+                        className={`flex items-center gap-2.5 p-2.5 rounded-xl border text-left transition-all ${
+                          bulkPresetId === p.id
+                            ? 'border-[#00BCEB] bg-[#00BCEB]/10 text-white shadow-[0_0_12px_rgba(0,188,235,0.3)]'
+                            : 'border-slate-700/60 bg-slate-800/40 text-slate-300 hover:bg-slate-800'
+                        }`}
+                      >
+                        <div className="w-8 h-8 rounded-lg bg-slate-900 border border-slate-700 flex items-center justify-center p-1 shrink-0">
+                          <img src={p.imageUrl} alt={p.imageName} className="max-w-full max-h-full object-contain" />
+                        </div>
+                        <span className="text-xs font-semibold truncate flex-1">{p.imageName}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Folder Selection */}
+              <div>
+                <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-2">2. Choose Target Folder</label>
+                {bulkFolders.length === 0 ? (
+                  <p className="text-xs text-slate-400">Loading folders or no folders created...</p>
+                ) : (
+                  <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+                    {bulkFolders.map(f => (
+                      <button
+                        key={f.path}
+                        type="button"
+                        onClick={() => setSelectedFolder(f.path)}
+                        className={`w-full flex items-center gap-2.5 p-2.5 rounded-xl border text-left transition-all ${
+                          selectedFolder === f.path
+                            ? 'border-blue-500 bg-blue-500/10 text-white'
+                            : 'border-slate-700/60 bg-slate-800/40 text-slate-300 hover:bg-slate-800'
+                        }`}
+                      >
+                        <Folder className="w-4 h-4 text-blue-400 shrink-0" />
+                        <span className="text-xs font-medium truncate flex-1">{f.name}</span>
+                        {selectedFolder === f.path && <Check className="w-4 h-4 text-blue-400 shrink-0" />}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Progress bar */}
+              {bulkProgress && (
+                <div className="space-y-2 p-4 bg-slate-800/80 rounded-2xl border border-slate-700">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-slate-300 font-medium">{bulkProgress.status}</span>
+                    {bulkProgress.total > 0 && (
+                      <span className="text-[#00BCEB] font-bold">
+                        {Math.round((bulkProgress.current / bulkProgress.total) * 100)}%
+                      </span>
+                    )}
+                  </div>
+                  <div className="w-full h-2 bg-slate-700 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-gradient-to-r from-blue-500 to-[#00BCEB] transition-all duration-200"
+                      style={{
+                        width: bulkProgress.total > 0 ? `${(bulkProgress.current / bulkProgress.total) * 100}%` : '30%',
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Actions */}
+              <div className="flex justify-end gap-3 pt-2 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setBulkModalOpen(false)}
+                  disabled={bulkLoading}
+                  className="px-5 py-2.5 text-xs text-slate-400 hover:text-white font-semibold rounded-xl"
+                >
+                  Close
+                </button>
+                <button
+                  type="button"
+                  onClick={handleRunBulkWatermark}
+                  disabled={bulkLoading || !selectedFolder || !bulkPresetId}
+                  className="flex items-center gap-2 px-6 py-2.5 bg-gradient-to-r from-blue-600 to-[#00BCEB] hover:from-blue-500 hover:to-[#00a3cc] text-white font-bold text-xs rounded-xl transition-all shadow-lg shadow-blue-500/20 disabled:opacity-50"
+                >
+                  {bulkLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                  <span>{bulkLoading ? 'Watermarking...' : 'Watermark & Download ZIP'}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

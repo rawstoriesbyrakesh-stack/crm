@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Trash2, RefreshCcw, AlertCircle, Loader2, Image, Folder } from 'lucide-react';
+import { Trash2, RefreshCcw, AlertCircle, Loader2, Image, Folder, Clock } from 'lucide-react';
 import { rawStoriesApiUrl, getRawStoriesToken } from '../api/rawStoriesBackend';
 
 interface TrashItem {
@@ -10,6 +9,29 @@ interface TrashItem {
   last_modified: string;
   presigned_url: string;
   isFolder: boolean;
+}
+
+const TRASH_DAYS = 30;
+
+function getDaysLeft(lastModified: string): number {
+  if (!lastModified) return TRASH_DAYS;
+  const deleted = new Date(lastModified).getTime();
+  const now = Date.now();
+  const daysGone = Math.floor((now - deleted) / (1000 * 60 * 60 * 24));
+  return Math.max(0, TRASH_DAYS - daysGone);
+}
+
+function DaysLeftBadge({ lastModified }: { lastModified: string }) {
+  const days = getDaysLeft(lastModified);
+  let bg = 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30';
+  if (days <= 3) bg = 'bg-red-500/20 text-red-400 border-red-500/40 animate-pulse';
+  else if (days <= 7) bg = 'bg-amber-500/15 text-amber-400 border-amber-500/30';
+  return (
+    <span className={`flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full border ${bg}`}>
+      <Clock className="w-2.5 h-2.5" />
+      {days}d left
+    </span>
+  );
 }
 
 export default function Trash() {
@@ -35,7 +57,7 @@ export default function Trash() {
       );
       if (!response.ok) throw new Error('Failed to fetch trash');
       const data = await response.json();
-      
+
       const files = (data.files || []).map((f: any) => ({
         key: f.key,
         filename: f.filename,
@@ -116,12 +138,22 @@ export default function Trash() {
     );
   }
 
+  const expiringCount = items.filter(i => !i.isFolder && getDaysLeft(i.last_modified) <= 7).length;
+
   return (
     <div className="flex flex-col h-full bg-slate-900 p-8">
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-2xl font-bold text-white mb-2">Trash</h1>
-          <p className="text-slate-400">Items here will be permanently deleted after 30 days.</p>
+          <p className="text-slate-400">
+            Items are permanently deleted after {TRASH_DAYS} days.{' '}
+            {expiringCount > 0 && (
+              <span className="text-amber-400 font-semibold inline-flex items-center gap-1">
+                <AlertCircle className="w-3.5 h-3.5" />
+                {expiringCount} item{expiringCount > 1 ? 's' : ''} expiring within 7 days
+              </span>
+            )}
+          </p>
         </div>
         <div className="flex gap-4">
           <button
@@ -170,6 +202,12 @@ export default function Trash() {
                   {item.filename}
                 </span>
               </div>
+              {/* Days-remaining countdown badge */}
+              {!item.isFolder && item.last_modified && (
+                <div className="absolute top-1.5 right-1.5 z-20">
+                  <DaysLeftBadge lastModified={item.last_modified} />
+                </div>
+              )}
             </div>
           ))}
         </div>

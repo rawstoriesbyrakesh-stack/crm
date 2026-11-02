@@ -28,8 +28,45 @@ import {
   Activity,
   ChevronDown,
   ChevronUp,
+  Clock,
 } from 'lucide-react';
 import { rawStoriesApiUrl, getRawStoriesToken } from '../api/rawStoriesBackend';
+
+// ── Expiry helpers ──────────────────────────────────────────────────────────
+function getExpiryDaysLeft(expiresAt: string): number | null {
+  if (!expiresAt) return null;
+  const diff = new Date(expiresAt).getTime() - Date.now();
+  if (diff <= 0) return 0;
+  return Math.ceil(diff / (1000 * 60 * 60 * 24));
+}
+
+function ExpiryBadge({ expiresAt }: { expiresAt: string }) {
+  const days = getExpiryDaysLeft(expiresAt);
+  if (days === null) return null;
+  if (days === 0) {
+    return (
+      <span className="flex items-center gap-1 text-[10px] font-bold px-2.5 py-1 rounded-full bg-red-500/20 text-red-400 border border-red-500/40 animate-pulse">
+        <Clock className="w-2.5 h-2.5" /> Expired
+      </span>
+    );
+  }
+  if (days <= 2) {
+    return (
+      <span className="flex items-center gap-1 text-[10px] font-bold px-2.5 py-1 rounded-full bg-red-500/20 text-red-400 border border-red-500/40 animate-pulse">
+        <Clock className="w-2.5 h-2.5" /> Expiring Soon!
+      </span>
+    );
+  }
+  if (days <= 7) {
+    return (
+      <span className="flex items-center gap-1 text-[10px] font-bold px-2.5 py-1 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/30">
+        <Clock className="w-2.5 h-2.5" /> {days}d left
+      </span>
+    );
+  }
+  return null;
+}
+
 
 interface ShareLink {
   _id: string;
@@ -58,7 +95,7 @@ export default function SharedLinks() {
   const [links, setLinks] = useState<ShareLink[]>([]);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'pin' | 'revoked'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'pin' | 'revoked' | 'expiring'>('all');
   const [isLoading, setIsLoading] = useState(true);
   const [selectedFavoritesLink, setSelectedFavoritesLink] = useState<ShareLink | null>(null);
   const [selectedQrLink, setSelectedQrLink] = useState<ShareLink | null>(null);
@@ -173,8 +210,17 @@ export default function SharedLinks() {
     if (statusFilter === 'active') return link.isActive;
     if (statusFilter === 'pin') return !!link.sharePin;
     if (statusFilter === 'revoked') return !link.isActive;
+    if (statusFilter === 'expiring') {
+      const d = getExpiryDaysLeft(link.expiresAt);
+      return link.isActive && d !== null && d <= 7;
+    }
     return true;
   });
+
+  const expiringCount = links.filter(l => {
+    const d = getExpiryDaysLeft(l.expiresAt);
+    return l.isActive && d !== null && d <= 7;
+  }).length;
 
   const activeLinks = links.filter(l => l.isActive).length;
   const protectedLinks = links.filter(l => Boolean(l.sharePin)).length;
@@ -186,6 +232,7 @@ export default function SharedLinks() {
     { id: 'active', label: 'Active', count: activeLinks, color: 'emerald' },
     { id: 'pin', label: 'PIN Protected', count: protectedLinks, color: 'amber' },
     { id: 'revoked', label: 'Revoked', count: links.length - activeLinks, color: 'red' },
+    { id: 'expiring', label: '⚠ Expiring', count: expiringCount, color: 'orange' },
   ] as const;
 
   return (
@@ -380,7 +427,7 @@ export default function SharedLinks() {
                       </div>
 
                       {/* Status Badges */}
-                      <div className="flex items-center gap-2 shrink-0">
+                      <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
                         <span className={`flex items-center gap-1 text-[10px] font-bold px-2.5 py-1 rounded-full border ${
                           link.isActive
                             ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
@@ -394,6 +441,7 @@ export default function SharedLinks() {
                             <Lock className="w-2.5 h-2.5" /> PIN
                           </span>
                         )}
+                        {link.isActive && <ExpiryBadge expiresAt={link.expiresAt} />}
                       </div>
                     </div>
 

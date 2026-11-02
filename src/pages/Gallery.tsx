@@ -32,6 +32,7 @@ import {
   Edit2,
   Lock,
   QrCode,
+  FolderInput,
 } from 'lucide-react';
 import { rawStoriesApiUrl, getRawStoriesToken } from '../api/rawStoriesBackend';
 
@@ -293,6 +294,8 @@ function Gallery() {
   const [shareLoading, setShareLoading] = useState(false); // New: Loader for share
   const [bulkDownloadLoading, setBulkDownloadLoading] = useState(false); // New: Loader for bulk download
   const [imageListLoading, setImageListLoading] = useState(false); // New: Loader for image list
+  const [bulkMoveModal, setBulkMoveModal] = useState(false); // Bulk move to folder
+  const [bulkMoveLoading, setBulkMoveLoading] = useState(false);
   const [dragActive, setDragActive] = useState(false); // For drag and drop
   const [loadedImages, setLoadedImages] = useState<Set<string>>(new Set()); // Track loaded images
   const [dragId, setDragId] = useState<string | null>(null); // For image reordering drag
@@ -1970,6 +1973,36 @@ function Gallery() {
     }
   };
 
+  // -------------------- Bulk Move --------------------
+  const handleBulkMove = async (targetFolderPath: string) => {
+    if (selectedItems.length === 0) return;
+    setBulkMoveLoading(true);
+    addNotification(`Moving ${selectedItems.length} item(s)...`, 'info');
+    try {
+      const selectedFiles = items.filter(it => selectedItems.includes(it.id));
+      await Promise.all(
+        selectedFiles.map(item => {
+          const filename = item.key.split('/').pop();
+          const newKey = `${targetFolderPath}${filename}`;
+          return fetch(rawStoriesApiUrl('/default/moveimage'), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getRawStoriesToken()}` },
+            body: JSON.stringify({ oldKey: item.key, newKey }),
+            mode: 'cors',
+          });
+        })
+      );
+      addNotification(`${selectedFiles.length} item(s) moved successfully`, 'success');
+      setSelectedItems([]);
+      setBulkMoveModal(false);
+      fetchGalleryItems();
+    } catch (err: any) {
+      addNotification(`Bulk move failed: ${err.message}`, 'error');
+    } finally {
+      setBulkMoveLoading(false);
+    }
+  };
+
   const handleDropOnFolder = (e: React.DragEvent, folderPath: string) => {
     e.preventDefault();
     e.stopPropagation();
@@ -3299,7 +3332,7 @@ function Gallery() {
                                   src={item.imageUrl}
                                   draggable={false}
                                   className={compactView && viewMode === 'grid' ? 'block w-full h-auto object-contain rounded-lg' : (viewMode === 'grid' ? 'w-full h-48 object-cover rounded-t-lg' : 'w-24 h-24 object-cover rounded-lg')}
-                                  preload="none"
+                                  preload="metadata"
                                   onError={handleImageError}
                                   muted
                                   poster={item.imageUrl + '#t=0.1'}
@@ -3478,6 +3511,14 @@ function Gallery() {
                       {bulkDownloadLoading && <Loader2 className="ml-2 w-4 h-4 animate-spin" />}
                     </button>
                     
+                    <button
+                      onClick={() => setBulkMoveModal(true)}
+                      className="flex items-center px-4 py-2 bg-violet-600 text-white rounded-lg hover:bg-violet-700 transition-colors duration-200 text-sm font-medium shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
+                    >
+                      <FolderInput className="w-4 h-4 mr-2" />
+                      Move
+                    </button>
+
                     <button
                       onClick={() => setShareModal({ isOpen: true, links: [], serverMessage: null })}
                       disabled={shareLoading}
@@ -4383,7 +4424,7 @@ function Gallery() {
                                     <video
                                       src={item.imageUrl}
                                       className="w-full h-32 object-cover"
-                                      preload="none"
+                                      preload="metadata"
                                       muted
                                       poster={item.imageUrl + '#t=0.1'}
                                     />
@@ -4599,6 +4640,64 @@ function Gallery() {
                       Create Folder
                     </button>
                   </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Bulk Move Modal */}
+          {bulkMoveModal && (
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50" onClick={() => setBulkMoveModal(false)}>
+              <div
+                className="bg-slate-900 border border-slate-700 rounded-2xl p-6 w-full max-w-md shadow-2xl relative"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <FolderInput className="w-5 h-5 text-violet-400" />
+                    <h3 className="text-lg font-bold text-white">Move {selectedItems.length} Item{selectedItems.length > 1 ? 's' : ''}</h3>
+                  </div>
+                  <button
+                    onClick={() => setBulkMoveModal(false)}
+                    className="p-1 rounded-lg bg-slate-800 text-slate-400 hover:text-white"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+                <p className="text-xs text-slate-400 mb-4">Select target destination folder for selected items:</p>
+                {folders.length === 0 ? (
+                  <div className="text-center py-6 text-slate-400 text-sm">
+                    No folders found. Create a destination folder first.
+                  </div>
+                ) : (
+                  <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                    {folders.map((folder) => (
+                      <button
+                        key={folder.path}
+                        onClick={() => handleBulkMove(folder.path.endsWith('/') ? folder.path : `${folder.path}/`)}
+                        disabled={bulkMoveLoading}
+                        className="w-full flex items-center justify-between p-3 rounded-xl bg-slate-800 hover:bg-violet-600/30 border border-slate-700/60 hover:border-violet-500/50 text-left transition-all group disabled:opacity-50"
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <Folder className="w-4 h-4 text-violet-400 shrink-0" />
+                          <span className="text-sm text-slate-200 group-hover:text-white truncate font-medium">{folder.name}</span>
+                        </div>
+                        {bulkMoveLoading ? (
+                          <Loader2 className="w-4 h-4 text-violet-400 animate-spin shrink-0" />
+                        ) : (
+                          <FolderInput className="w-4 h-4 text-slate-500 group-hover:text-violet-400 shrink-0" />
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <div className="flex justify-end mt-4">
+                  <button
+                    onClick={() => setBulkMoveModal(false)}
+                    className="px-4 py-2 text-sm text-slate-400 hover:text-white transition-colors"
+                  >
+                    Cancel
+                  </button>
                 </div>
               </div>
             </div>
