@@ -623,7 +623,7 @@ export default function SharedLinks() {
                 <p className="text-xs text-slate-400 mb-5">Point camera to open shared gallery link</p>
 
                 <div id="admin-qr-canvas-box" className="bg-white p-4 rounded-2xl inline-block mb-4 shadow-xl">
-                  <QRCodeCanvas value={getShareUrl(selectedQrLink)} size={200} includeMargin bg="#ffffff" fg="#090d16" />
+                  <QRCodeCanvas value={getShareUrl(selectedQrLink)} size={200} includeMargin bgColor="#ffffff" fgColor="#090d16" />
                 </div>
                 <p className="text-[11px] text-slate-500 font-mono break-all px-2 mb-6">{getShareUrl(selectedQrLink)}</p>
 

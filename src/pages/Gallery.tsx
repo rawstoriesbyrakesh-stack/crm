@@ -4549,7 +4549,7 @@ function Gallery() {
                               <QrCode className="h-4 w-4 text-[#00BCEB]" /> Gallery QR Scan Code
                             </p>
                             <div id={`created-qr-${i}`} className="bg-white p-3 rounded-xl inline-block shadow-md border border-slate-100">
-                              <QRCodeCanvas value={link} size={150} includeMargin bg="#ffffff" fg="#0f172a" />
+                              <QRCodeCanvas value={link} size={150} includeMargin bgColor="#ffffff" fgColor="#0f172a" />
                             </div>
                             <button onClick={() => {
                               const canvas = document.querySelector(`#created-qr-${i} canvas`) as HTMLCanvasElement;

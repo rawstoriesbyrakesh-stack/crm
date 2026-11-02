@@ -334,6 +334,15 @@ export default function SharedFolderView() {
     });
   };
 
+  const toggleFavorite = (id: string) => {
+    setFavorites(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
   const selectAll = () => {
     const allIds = filteredItems.map(item => item.id);
     setSelected(new Set(allIds));
@@ -1648,7 +1657,7 @@ export default function SharedFolderView() {
             <p className="text-xs text-slate-400 mb-5">Scan to instantly view this photo gallery on your phone</p>
 
             <div id="gallery-qr-canvas-container" className="bg-white p-4 rounded-2xl inline-block shadow-2xl mb-5">
-              <QRCodeCanvas value={window.location.href} size={200} includeMargin bg="#ffffff" fg="#090d16" />
+              <QRCodeCanvas value={window.location.href} size={200} includeMargin bgColor="#ffffff" fgColor="#090d16" />
             </div>
 
             <div className="space-y-2.5">

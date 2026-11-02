@@ -3,7 +3,7 @@ import {
   Heart, Folder, Download, Eye, Grid3X3, List, RefreshCw, X,
   Check, AlertCircle, ChevronLeft, ChevronRight, Share2, Sparkles
 } from 'lucide-react';
-import { rawStoriesApiUrl, getThumbnailUrl } from '../api/rawStoriesBackend';
+import { rawStoriesApiUrl, getRawStoriesToken, getThumbnailUrl } from '../api/rawStoriesBackend';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 
@@ -44,7 +44,9 @@ export default function Favorites() {
     setError('');
     try {
       // 1. Fetch shares to collect share favorites
-      const sharesRes = await fetch(rawStoriesApiUrl('/default/listshares')).catch(() => null);
+      const sharesRes = await fetch(rawStoriesApiUrl('/default/listshares'), {
+        headers: { Authorization: `Bearer ${getRawStoriesToken()}` },
+      }).catch(() => null);
       const sharesData = sharesRes ? await sharesRes.json().catch(() => null) : null;
 
       const shareFavKeys = new Set<string>();
