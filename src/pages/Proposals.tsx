@@ -58,7 +58,7 @@ const DEFAULT_TEMPLATES: Template[] = [
       { id: '3', name: 'Cinematic 4K Video & Drone Highlights', description: '3-minute teaser + 30-minute cinematic feature film with 4K drone', price: 55000 },
       { id: '4', name: 'Premium Photo Albums', description: '2 Handcrafted luxury flush-mount albums (300 pages total)', price: 20000 },
     ],
-    terms: '50% advance to confirm booking. 40% on event date. 10% upon final delivery. Raw files provided on client drive.',
+    terms: '30% advance to confirm booking. 50% on the event date. 20% upon album delivery. Raw files provided on the client drive.',
     paymentTerms: '30% Booking Deposit | 50% Event Day | 20% Album Delivery',
   },
   {
@@ -135,8 +135,8 @@ const DEFAULT_TEMPLATES: Template[] = [
       { id: 'pw1', name: 'Pre-Wedding Shoot – Candid Photos', description: 'Outdoor candid pre-wedding photo session at selected location(s)', price: 0 },
       { id: 'pw2', name: 'Pre-Wedding Shoot – One Song', description: 'One cinematic song / reel from the pre-wedding shoot', price: 0 },
     ],
-    terms: 'Travelling, Food & Accommodation are NOT included in this package and will be charged extra as applicable. 50% advance required to confirm booking. Remaining 50% on or before event date.',
-    paymentTerms: '50% Booking Advance | 50% On Event Date',
+    terms: 'Travelling, Food & Accommodation are NOT included in this package and will be charged extra as applicable. 30% advance required to confirm booking. 50% on the event date. Remaining 20% upon album delivery.',
+    paymentTerms: '30% Booking Deposit | 50% Event Day | 20% Album Delivery',
   },
   {
     id: 'Wedding',
@@ -252,13 +252,25 @@ export default function Proposals() {
   useEffect(() => {
     try {
       localStorage.setItem(LOCAL_PROPOSALS_KEY, JSON.stringify(proposals));
-    } catch {}
+    } catch (error) {
+      console.error('Failed to save proposals to localStorage:', error);
+      // Check if it's a quota exceeded error
+      if (error instanceof Error && error.name === 'QuotaExceededError') {
+        console.warn('localStorage quota exceeded, proposals will not persist');
+      }
+    }
   }, [proposals]);
 
   useEffect(() => {
     try {
       localStorage.setItem(LOCAL_CUSTOM_TEMPLATES_KEY, JSON.stringify(customTemplates));
-    } catch {}
+    } catch (error) {
+      console.error('Failed to save custom templates to localStorage:', error);
+      // Check if it's a quota exceeded error
+      if (error instanceof Error && error.name === 'QuotaExceededError') {
+        console.warn('localStorage quota exceeded, custom templates will not persist');
+      }
+    }
   }, [customTemplates]);
 
   const allTemplates = [...DEFAULT_TEMPLATES, ...customTemplates];
@@ -717,8 +729,9 @@ export default function Proposals() {
           html: emailHtml,
         }),
       });
+      const result = await res.json().catch(() => null);
 
-      if (res.ok) {
+      if (res.ok && result?.success === true) {
         const updatedProp: Proposal = { ...currentProposal, status: 'Sent' };
         setCurrentProposal(updatedProp);
         setProposals((prev) => prev.map((p) => (p.id === updatedProp.id ? updatedProp : p)));
@@ -733,7 +746,7 @@ export default function Proposals() {
           notify('Quotation sent, but its status could not sync to the database.', 'info');
         }
       } else {
-        notify('Failed to send email. Please try again.', 'error');
+        notify(result?.message || 'Failed to send email. Please try again.', 'error');
       }
     } catch (err: any) {
       notify(`Email dispatch failed: ${err.message}`, 'error');

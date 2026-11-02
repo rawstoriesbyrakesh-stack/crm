@@ -448,7 +448,7 @@ function SharedImages() {
         return;
       }
       try {
-        const folderName = 'client%20selection';
+        const folderName = 'client selection';
         const sourceFolder = decodedFolderPath.replace(/^\/+/, '').replace(/\/+$/, '');
         const result = await createFavoritesFolderAPI({
           folderName,
@@ -485,7 +485,7 @@ function SharedImages() {
         return;
       }
       try {
-        const folderName = 'client%20selection';
+        const folderName = 'client selection';
         const sourceFolder = decodedFolderPath.replace(/^\/+/, '').replace(/\/+$/, '');
         const result = await createFavoritesFolderAPI({
           folderName,

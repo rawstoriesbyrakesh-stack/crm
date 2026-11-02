@@ -1441,11 +1441,65 @@ export const requestHandler = async (req, res) => {
         allowDownload: share.allowDownload, folderPrefix: share.folderPrefix, items: resolvedItems, branding, favorites: share.favorites || [] });
     }
 
-    // ── Mail stub ──────────────────────────────────────────────────────────
+    // ── Mail sending with nodemailer ───────────────────────────────────────────
     if (pathname === '/default/mailsend' && req.method === 'POST') {
-      const body = await readBody(req);
-      console.log('📧 Email stub →', body?.to, '|', body?.subject);
-      return sendJson(res, 200, { success: true, message: 'Email sent (stub)' });
+      try {
+        const body = await readBody(req);
+        const { to, subject, html, text } = body || {};
+
+        if (!to || !subject) {
+          return sendError(res, 400, 'Missing required fields: to, subject');
+        }
+
+        // Check if email service is configured
+        const SMTP_HOST = process.env.SMTP_HOST;
+        const SMTP_PORT = process.env.SMTP_PORT || 587;
+        const SMTP_USER = process.env.SMTP_USER;
+        const SMTP_PASS = process.env.SMTP_PASS;
+        const SMTP_FROM = process.env.SMTP_FROM || process.env.SMTP_USER;
+
+        if (!SMTP_HOST || !SMTP_USER || !SMTP_PASS) {
+          console.warn('Email service not configured. Set SMTP_HOST, SMTP_USER, SMTP_PASS environment variables.');
+          return sendError(res, 503, 'Email service is not configured. The quotation was not sent.');
+        }
+
+        // Import nodemailer dynamically
+        let nodemailer;
+        try {
+          nodemailer = (await import('nodemailer')).default;
+        } catch (importError) {
+          console.error('Failed to import nodemailer:', importError);
+          return sendError(res, 500, 'Email service not available');
+        }
+
+        // Create transporter
+        const transporter = nodemailer.createTransport({
+          host: SMTP_HOST,
+          port: parseInt(SMTP_PORT),
+          secure: parseInt(SMTP_PORT) === 465,
+          auth: {
+            user: SMTP_USER,
+            pass: SMTP_PASS,
+          },
+        });
+
+        // Send email
+        const mailOptions = {
+          from: SMTP_FROM,
+          to: Array.isArray(to) ? to.join(', ') : to,
+          subject,
+          html: html || text,
+          text: text || html?.replace(/<[^>]*>/g, ''),
+        };
+
+        const info = await transporter.sendMail(mailOptions);
+        console.log('📧 Email sent:', info.messageId);
+
+        return sendJson(res, 200, { success: true, message: 'Email sent successfully', messageId: info.messageId });
+      } catch (error) {
+        console.error('Email send error:', error);
+        return sendError(res, 500, `Failed to send email: ${error.message}`);
+      }
     }
 
     // ── Proposals: save / update proposal in MongoDB ────────────────────────

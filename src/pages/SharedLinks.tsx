@@ -10,7 +10,6 @@ import {
   Search,
   Lock,
   AlertCircle,
-  BarChart2,
   DownloadCloud,
   Code,
   Heart,
@@ -21,7 +20,6 @@ import {
   Users,
   Calendar,
   RefreshCw,
-  Filter,
   TrendingUp,
   Globe,
   Shield,
@@ -121,35 +119,69 @@ export default function SharedLinks() {
       await navigator.clipboard.writeText(text);
       setCopiedId(`${id}-${type}`);
       setTimeout(() => setCopiedId(null), 2000);
-    } catch {}
+      } catch {
+        console.error('Failed to copy to clipboard');
+      // Fallback: try using textarea method
+      try {
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.select();
+        const copied = document.execCommand('copy');
+        document.body.removeChild(textarea);
+        if (!copied) throw new Error('Clipboard copy was rejected');
+        setCopiedId(`${id}-${type}`);
+        setTimeout(() => setCopiedId(null), 2000);
+      } catch {
+        console.error('Fallback copy also failed');
+      }
+    }
   };
 
   const revokeLink = async (shareId: string) => {
     if (!window.confirm('Revoke this link? Clients will lose access immediately.')) return;
     try {
-      await fetch(rawStoriesApiUrl('/default/revokeshare'), {
+      const response = await fetch(rawStoriesApiUrl('/default/revokeshare'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getRawStoriesToken()}` },
         mode: 'cors',
         body: JSON.stringify({ shareId }),
       });
+      if (!response.ok) {
+        throw new Error(`Failed to revoke link: ${response.status}`);
+      }
       loadLinks();
-      try { window.dispatchEvent(new Event('rawstories_shares_changed')); } catch {}
-    } catch { alert('Failed to revoke link. Please try again.'); }
+      try { window.dispatchEvent(new Event('rawstories_shares_changed')); } catch (error) {
+        console.error('Failed to dispatch shares_changed event:', error);
+      }
+    } catch (error) {
+      console.error('Failed to revoke link:', error);
+      alert('Failed to revoke link. Please try again.');
+    }
   };
 
   const deleteLink = async (shareId: string) => {
     if (!window.confirm('Permanently delete this share record?')) return;
     try {
-      await fetch(rawStoriesApiUrl('/default/deleteshare'), {
+      const response = await fetch(rawStoriesApiUrl('/default/deleteshare'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getRawStoriesToken()}` },
         mode: 'cors',
         body: JSON.stringify({ shareId }),
       });
+      if (!response.ok) {
+        throw new Error(`Failed to delete link: ${response.status}`);
+      }
       loadLinks();
-      try { window.dispatchEvent(new Event('rawstories_shares_changed')); } catch {}
-    } catch { alert('Failed to delete link. Please try again.'); }
+      try { window.dispatchEvent(new Event('rawstories_shares_changed')); } catch (error) {
+        console.error('Failed to dispatch shares_changed event:', error);
+      }
+    } catch (error) {
+      console.error('Failed to delete link:', error);
+      alert('Failed to delete link. Please try again.');
+    }
   };
 
   const getShareUrl = (link: ShareLink) => {
@@ -190,7 +222,8 @@ export default function SharedLinks() {
   const toggleExpand = (id: string) => {
     setExpandedCards(prev => {
       const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       return next;
     });
   };
@@ -221,13 +254,13 @@ export default function SharedLinks() {
   const totalViews = links.reduce((s, l) => s + (l.viewCount || 0), 0);
   const totalDownloads = links.reduce((s, l) => s + (l.downloadCount || 0), 0);
 
-  const TABS = [
+  const TABS: { id: 'all' | 'active' | 'pin' | 'revoked' | 'expiring'; label: string; count: number; color: string }[] = [
     { id: 'all', label: 'All', count: links.length, color: 'cyan' },
     { id: 'active', label: 'Active', count: activeLinks, color: 'emerald' },
     { id: 'pin', label: 'PIN Protected', count: protectedLinks, color: 'amber' },
     { id: 'revoked', label: 'Revoked', count: links.length - activeLinks, color: 'red' },
     { id: 'expiring', label: '⚠ Expiring', count: expiringCount, color: 'orange' },
-  ] as const;
+  ];
 
   return (
     <div className="min-h-screen text-white relative">
@@ -341,7 +374,7 @@ export default function SharedLinks() {
               return (
                 <button
                   key={tab.id}
-                  onClick={() => setStatusFilter(tab.id as any)}
+                  onClick={() => setStatusFilter(tab.id)}
                   className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${
                     isActive
                       ? 'bg-[#00BCEB] text-slate-950 shadow-[0_0_12px_rgba(0,188,235,0.4)]'

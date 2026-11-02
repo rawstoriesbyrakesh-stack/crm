@@ -117,7 +117,9 @@ function GalleryUpload() {
     try {
       const saved = localStorage.getItem('watermarkPresets');
       if (saved) setWatermarkPresets(JSON.parse(saved));
-    } catch (e) {}
+    } catch (error) {
+      console.error('Failed to load watermark presets from localStorage:', error);
+    }
   }, []);
 
   const [showPin, setShowPin] = useState(false);
