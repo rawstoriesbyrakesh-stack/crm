@@ -86,3 +86,25 @@ export function buildFavoriteGroups(files, shareFavoriteKeys, apiBaseUrl = '') {
   }
   return Array.from(groups.values());
 }
+
+export async function saveProposalRecord(proposal, request, endpoint) {
+  const response = await request(endpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ proposalId: proposal.id, ...proposal }),
+  });
+  const result = await response.json().catch(() => null);
+  if (!response.ok || !result?.success) {
+    throw new Error(result?.message || `Proposal save failed (${response.status})`);
+  }
+  return { persisted: result.persisted !== false, result };
+}
+
+export function mergeProposalRecords(localProposals, remoteProposals) {
+  const merged = new Map();
+  for (const proposal of remoteProposals || []) merged.set(proposal.id, proposal);
+  for (const proposal of localProposals || []) {
+    if (!merged.has(proposal.id)) merged.set(proposal.id, proposal);
+  }
+  return Array.from(merged.values());
+}

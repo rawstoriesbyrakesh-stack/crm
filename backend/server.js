@@ -1456,14 +1456,20 @@ export const requestHandler = async (req, res) => {
       if (!targetId) return sendError(res, 400, 'Missing proposalId');
 
       if (mongoose.connection.readyState === 1) {
-        const saved = await Proposal.findOneAndUpdate(
-          { proposalId: targetId },
-          { proposalId: targetId, ...proposalData },
-          { upsert: true, new: true }
-        ).catch(e => console.error('Proposal save error:', e));
-        return sendJson(res, 200, { success: true, proposal: saved });
+        try {
+          const saved = await Proposal.findOneAndUpdate(
+            { proposalId: targetId },
+            { proposalId: targetId, ...proposalData },
+            { upsert: true, new: true, runValidators: true }
+          );
+          if (!saved) return sendError(res, 500, 'Proposal could not be saved');
+          return sendJson(res, 200, { success: true, persisted: true, proposal: saved });
+        } catch (error) {
+          console.error('Proposal save error:', error);
+          return sendError(res, 500, 'Proposal could not be saved to the database');
+        }
       }
-      return sendJson(res, 200, { success: true, message: 'Saved (local fallback)' });
+      return sendJson(res, 200, { success: true, persisted: false, message: 'Database unavailable; saved locally by the client' });
     }
 
     // ── Proposals: list proposals from MongoDB ─────────────────────────────

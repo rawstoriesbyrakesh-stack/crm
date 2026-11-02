@@ -6,7 +6,9 @@ import {
   buildFavoriteGroups,
   getExpiryDaysLeft,
   getTrashDaysLeft,
+  mergeProposalRecords,
   sanitizeFolderName,
+  saveProposalRecord,
   toggleSetValue,
 } from '../../src/utils/featureUtils.js';
 
@@ -103,4 +105,50 @@ test('favorite toggling returns a new set and does not mutate the old set', () =
   const removed = toggleSetValue(added, 'a');
   assert.deepEqual([...removed], ['b']);
   assert.deepEqual([...added], ['a', 'b']);
+});
+
+test('proposal saves send the proposal id and distinguish database from local fallback', async () => {
+  const draft = { id: 'draft-1', title: 'Wedding', status: 'Draft' };
+  let requestOptions;
+  const saved = await saveProposalRecord(draft, async (url, options) => {
+    assert.equal(url, '/default/saveproposal');
+    requestOptions = options;
+    return new Response(JSON.stringify({ success: true, persisted: true }), { status: 200 });
+  }, '/default/saveproposal');
+
+  assert.equal(saved.persisted, true);
+  assert.equal(requestOptions.method, 'POST');
+  assert.deepEqual(JSON.parse(requestOptions.body), { proposalId: 'draft-1', ...draft });
+
+  const localOnly = await saveProposalRecord(draft, async () =>
+    new Response(JSON.stringify({ success: true, persisted: false }), { status: 200 }),
+  '/default/saveproposal');
+  assert.equal(localOnly.persisted, false);
+});
+
+test('proposal saves reject unsuccessful HTTP or API responses', async () => {
+  await assert.rejects(
+    saveProposalRecord({ id: 'draft-2' }, async () =>
+      new Response(JSON.stringify({ success: false, message: 'DB write failed' }), { status: 500 }),
+    '/save'),
+    /DB write failed/,
+  );
+  await assert.rejects(
+    saveProposalRecord({ id: 'draft-3' }, async () =>
+      new Response('invalid response', { status: 200 }),
+    '/save'),
+    /Proposal save failed \(200\)/,
+  );
+});
+
+test('proposal loading merges remote records with local-only drafts and favors remote versions', () => {
+  const merged = mergeProposalRecords(
+    [{ id: 'local-only', title: 'Local Draft' }, { id: 'same', title: 'Old Local' }],
+    [{ id: 'same', title: 'Saved Remotely' }, { id: 'remote-only', title: 'Remote' }],
+  );
+  assert.deepEqual(merged, [
+    { id: 'same', title: 'Saved Remotely' },
+    { id: 'remote-only', title: 'Remote' },
+    { id: 'local-only', title: 'Local Draft' },
+  ]);
 });

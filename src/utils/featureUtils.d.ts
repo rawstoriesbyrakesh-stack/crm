@@ -55,3 +55,18 @@ export function buildFavoriteGroups(
   shareFavoriteKeys: Set<string> | string[],
   apiBaseUrl?: string,
 ): FavoriteGroup[];
+
+export interface ProposalRecord {
+  id: string;
+}
+
+export function saveProposalRecord<T extends ProposalRecord>(
+  proposal: T,
+  request: typeof fetch,
+  endpoint: string,
+): Promise<{ persisted: boolean; result: { success: true; persisted?: boolean } }>;
+
+export function mergeProposalRecords<T extends ProposalRecord>(
+  localProposals: T[],
+  remoteProposals: T[],
+): T[];

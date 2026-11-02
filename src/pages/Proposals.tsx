@@ -6,7 +6,7 @@ import {
   Globe, Upload, X, Link, Code, Palette, FilePlus, ExternalLink, Image
 } from 'lucide-react';
 import { rawStoriesApiUrl } from '../api/rawStoriesBackend';
-import { calculateProposalTotals } from '../utils/featureUtils';
+import { calculateProposalTotals, mergeProposalRecords, saveProposalRecord } from '../utils/featureUtils';
 
 interface ProposalItem {
   id: string;
@@ -204,7 +204,7 @@ export default function Proposals() {
       try {
         const res = await fetch(rawStoriesApiUrl('/default/listproposals'));
         const data = await res.json().catch(() => null);
-        if (data?.success && Array.isArray(data.proposals) && data.proposals.length > 0) {
+        if (data?.success && Array.isArray(data.proposals)) {
           const mapped: Proposal[] = data.proposals.map((p: any) => ({
             id: p.proposalId || p.id || `prop_${Date.now()}`,
             title: p.title || 'Untitled Proposal',
@@ -224,7 +224,7 @@ export default function Proposals() {
             customPdfUrl: p.customPdfUrl,
             customPdfName: p.customPdfName,
           }));
-          setProposals(mapped);
+          setProposals((localProposals) => mergeProposalRecords(localProposals, mapped));
         }
       } catch (err) {
         console.warn('Could not fetch proposals from DB, using local storage:', err);
@@ -620,33 +620,30 @@ export default function Proposals() {
 
   const handleSaveProposal = async () => {
     if (!currentProposal) return;
-    if (!currentProposal.clientName.trim()) {
-      notify('Please enter a Client Name before saving', 'error');
-      return;
-    }
+    const draft: Proposal = { ...currentProposal, status: 'Draft' };
+    setCurrentProposal(draft);
 
     setProposals((prev) => {
-      const idx = prev.findIndex((p) => p.id === currentProposal.id);
-      if (idx !== -1) {
-        const copy = [...prev];
-        copy[idx] = currentProposal;
-        return copy;
-      }
-      return [currentProposal, ...prev];
+      const exists = prev.some((proposal) => proposal.id === draft.id);
+      return exists
+        ? prev.map((proposal) => proposal.id === draft.id ? draft : proposal)
+        : [draft, ...prev];
     });
 
     try {
-      await fetch(rawStoriesApiUrl('/default/saveproposal'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          proposalId: currentProposal.id,
-          ...currentProposal,
-        }),
-      });
-      notify('Proposal saved to database successfully!', 'success');
-    } catch (err) {
-      notify('Proposal saved locally!', 'success');
+      const saveResult = await saveProposalRecord(
+        draft,
+        fetch,
+        rawStoriesApiUrl('/default/saveproposal'),
+      );
+      notify(
+        saveResult.persisted
+          ? 'Draft saved to the database.'
+          : 'Draft saved on this device. Database is currently unavailable.',
+        saveResult.persisted ? 'success' : 'info',
+      );
+    } catch {
+      notify('Draft saved on this device. Database sync failed.', 'info');
     }
   };
 
@@ -725,7 +722,16 @@ export default function Proposals() {
         const updatedProp: Proposal = { ...currentProposal, status: 'Sent' };
         setCurrentProposal(updatedProp);
         setProposals((prev) => prev.map((p) => (p.id === updatedProp.id ? updatedProp : p)));
-        notify(`Quotation successfully sent to ${currentProposal.clientEmail}!`, 'success');
+        try {
+          await saveProposalRecord(
+            updatedProp,
+            fetch,
+            rawStoriesApiUrl('/default/saveproposal'),
+          );
+          notify(`Quotation sent and proposal status saved.`, 'success');
+        } catch {
+          notify('Quotation sent, but its status could not sync to the database.', 'info');
+        }
       } else {
         notify('Failed to send email. Please try again.', 'error');
       }
@@ -792,8 +798,8 @@ export default function Proposals() {
             background: #ffffff !important;
             color: #0f172a !important;
             font-size: 11pt !important;
-            -webkit-print-color-adjust: exact !important;
-            print-color-adjust: exact !important;
+            -webkit-print-color-adjust: economy !important;
+            print-color-adjust: economy !important;
           }
           
           /* Hide sidebar, navigation, headers, buttons, devtools, toast messages */
@@ -818,13 +824,13 @@ export default function Proposals() {
             border: none !important;
             background: #ffffff !important;
             color: #0f172a !important;
-            -webkit-print-color-adjust: exact !important;
-            print-color-adjust: exact !important;
+            -webkit-print-color-adjust: economy !important;
+            print-color-adjust: economy !important;
           }
 
           #quotation-print-area * {
-            -webkit-print-color-adjust: exact !important;
-            print-color-adjust: exact !important;
+            -webkit-print-color-adjust: economy !important;
+            print-color-adjust: economy !important;
           }
 
           /* Force clean light backgrounds and high-contrast dark text on white paper */
@@ -867,7 +873,7 @@ export default function Proposals() {
           #quotation-print-area table {
             border: 1px solid #94a3b8 !important;
           }
-          #quotation-print-area thead {
+          #quotation-print-area thead:not(.no-print) {
             background-color: #e2e8f0 !important;
           }
           #quotation-print-area thead th {
@@ -882,6 +888,23 @@ export default function Proposals() {
           /* Logo filter reset for white paper */
           #quotation-print-area img {
             filter: none !important;
+          }
+
+          #quotation-print-area *:not(img) {
+            color: #1f2937 !important;
+            background-color: transparent !important;
+            background-image: none !important;
+            border-color: #d1d5db !important;
+            box-shadow: none !important;
+            text-shadow: none !important;
+          }
+
+          #quotation-print-area thead {
+            background-color: #f1f5f9 !important;
+          }
+
+          #quotation-print-area .proposal-print-background {
+            display: none !important;
           }
         }
       `}</style>
@@ -1298,7 +1321,7 @@ export default function Proposals() {
             >
               {/* ─── Custom Background Design Image ─── */}
               {activeTheme === 'custom' && hasCustomDesign && (
-                <div className="absolute inset-0 z-0 pointer-events-none">
+                <div className="proposal-print-background absolute inset-0 z-0 pointer-events-none">
                   <img
                     src={currentProposal.customPdfUrl}
                     alt="Background design"
